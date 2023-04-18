@@ -1,0 +1,28 @@
+#!/bin/bash
+###############################################################################
+#
+# Build a Docker container to run the test suite for the Harmony Browse Image
+# Generator (HyBIG).
+#
+# To build the sds/harmony-browse-image-generator-test image, the
+# sds/harmony-browse-image-generator image must also be present locally, as it
+# is used as the base image in `docker/tests.Dockerfile`.
+#
+# 2020-05-07: Adapted from SwotRepr.
+# 2022-01-03: Updated Dockerfile path.
+# 2023-04-04: Updated for the Harmony Browse Image Generator (HyBIG).
+#
+###############################################################################
+
+image="sds/harmony-browse-image-generator-test"
+tag=${1:-latest}
+
+
+# Look for old version of image and remove
+old=$(docker images | grep "$image" | grep "$tag" | awk '{print $3}')
+if [ ! -z "$old" ] && [ "$2" != "--no-delete" ]; then
+    docker rmi "$old"
+fi
+
+# Build the image
+docker build -t ${image}:${tag} -f docker/tests.Dockerfile .

@@ -1,0 +1,29 @@
+#!/bin/bash
+###############################################################################
+#
+# Execute the sds/harmony-browse-image-generator-test Docker image as a
+# container, within Bamboo.
+#
+# 2020-05-07: Adapted from SwotRepr.
+# 2021-01-05: Updated for JUnit output.
+# 2023-04-04: Updated for the Harmony Browse Image Generator (HyBIG).
+#
+###############################################################################
+
+set -ex
+
+# Remove cached bytecode Python files, to ensure latest code is used
+find . | grep -E "(__pycache__|\.pyc|\.pyo$)" | xargs rm -rf
+
+# Make the directory into which XML format test reports will be saved
+mkdir -p test-reports
+
+# Make the directory into which coverage reports will be saved
+mkdir -p coverage
+
+# Run the tests in a Docker container with mounted volumes for XML report
+# output and test coverage reporting
+docker run --rm \
+	-v $(pwd)/test-reports:/home/tests/reports \
+	-v $(pwd)/coverage:/home/tests/coverage \
+	sds/harmony-browse-image-generator-test "$@"

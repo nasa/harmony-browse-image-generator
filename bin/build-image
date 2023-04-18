@@ -1,0 +1,31 @@
+#!/bin/bash
+###############################################################################
+#
+# Build a Docker image of the HyBIG service.
+#
+# 2020-05-07: Adapted from SwotRepr.
+# 2022-01-03: Updated Dockerfile path and added comments for tags.
+# 2023-04-04: Updated for the Harmony Browse Image Generator (HyBIG).
+#
+###############################################################################
+
+image="sds/harmony-browse-image-generator"
+
+# Retrieve the tag from the script arguments, or default to "latest". Bamboo
+# will pass the contents of `docker/service_version.txt` as this argument,
+# which contains a semantic version number.
+#
+tag=${1:-latest}
+
+
+# Remove old versions of: sds/harmony-browse-image-generator and
+# sds/harmony-browse-image-generator-test
+./bin/clean-images
+
+# Build the image
+# This command tags the image with two tags:
+# - The one supplied as a script argument. Bamboo will provide the semantic
+#   version number from `docker/service_version.txt`.
+# - "latest", so the test Dockerfile can use the service image as a base image.
+#
+docker build -t ${image}:${tag} -t ${image}:latest -f docker/service.Dockerfile .

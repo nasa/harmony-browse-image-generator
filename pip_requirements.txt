@@ -1,0 +1,2 @@
+harmony-service-lib~=1.0.22
+pystac~=0.5.6
