@@ -1,4 +1,4 @@
-""" Utilities used to extend unittest capabilities. """
+"""Utilities used to extend unittest capabilities."""
 from collections import namedtuple
 from datetime import datetime
 
