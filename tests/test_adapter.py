@@ -1,6 +1,6 @@
 """ End-to-end tests of the Harmony Browse Image Generator (HyBIG). """
-from os.path import exists, join as path_join
-from shutil import rmtree
+from pathlib import Path
+from shutil import rmtree, copy
 from tempfile import mkdtemp
 from unittest import TestCase
 from unittest.mock import call, patch
@@ -25,15 +25,17 @@ class TestAdapter(TestCase):
                                              'image/tiff',
                                              ['data']))
         cls.staging_location = 's3://example-bucket'
+        cls.fixtures = Path(__file__).resolve().parent / 'fixtures'
+        cls.red_tif_fixture = cls.fixtures / 'red.tif'
         cls.user = 'blightyear'
 
     def setUp(self):
         """ Define test fixtures that are not shared between tests. """
-        self.temp_dir = mkdtemp()
+        self.temp_dir = Path(mkdtemp())
         self.config = config(validate=False)
 
     def tearDown(self):
-        if exists(self.temp_dir):
+        if self.temp_dir.exists():
             rmtree(self.temp_dir)
 
     def assert_expected_output_catalog(self, catalog: Catalog,
@@ -42,7 +44,11 @@ class TestAdapter(TestCase):
                                        expected_browse_media_type: str,
                                        expected_world_href: str,
                                        expected_world_title: str,
-                                       expected_world_media_type: str):
+                                       expected_world_media_type: str,
+                                       expected_aux_href: str,
+                                       expected_aux_title: str,
+                                       expected_aux_media_type: str,
+                                       ):
         """ Check the contents of the Harmony output STAC. It should have a
             single data item. The URL, title and media type for this asset will
             be compared to supplied values.
@@ -50,7 +56,8 @@ class TestAdapter(TestCase):
         """
         items = list(catalog.get_items())
         self.assertEqual(len(items), 1)
-        self.assertListEqual(list(items[0].assets.keys()), ['data', 'metadata'])
+        self.assertListEqual(list(items[0].assets.keys()),
+                             ['data', 'metadata', 'auxiliary'])
         self.assertDictEqual(
             items[0].assets['data'].to_dict(),
             {'href': expected_browse_href,
@@ -67,6 +74,15 @@ class TestAdapter(TestCase):
              'roles': ['metadata']}
         )
 
+        self.assertDictEqual(
+            items[0].assets['auxiliary'].to_dict(), {
+                'href': expected_aux_href,
+                'title': expected_aux_title,
+                'type': expected_aux_media_type,
+                'roles': ['metadata']
+            })
+
+
     @patch('harmony_browse_image_generator.adapter.rmtree')
     @patch('harmony_browse_image_generator.adapter.mkdtemp')
     @patch('harmony_browse_image_generator.adapter.download')
@@ -79,25 +95,35 @@ class TestAdapter(TestCase):
             This test will need updating when the service functions fully.
 
         """
-        expected_downloaded_file = f'{self.temp_dir}/input.tiff'
+        expected_downloaded_file = self.temp_dir / 'input.tiff'
 
-        # TODO: These 4 lines will change when service is in operation:
         expected_browse_basename = 'input.png'
-        expected_browse_full_path = f'{self.temp_dir}/input.png'
-        expected_world_basename = 'input.wld'
-        expected_world_full_path = f'{self.temp_dir}/input.wld'
+        expected_browse_full_path = self.temp_dir / 'input.png'
 
-        expected_browse_url = path_join(self.staging_location,
-                                        expected_browse_basename)
-        expected_world_url = path_join(self.staging_location,
-                                       expected_world_basename)
+        expected_aux_basename = 'input.png.aux.xml'
+        expected_aux_full_path = self.temp_dir / 'input.png.aux.xml'
+
+        expected_world_basename = 'input.pgw'
+        expected_world_full_path = self.temp_dir / 'input.pgw'
+
+        expected_browse_url = f'{self.staging_location}/{expected_browse_basename}'
+        expected_world_url = f'{self.staging_location}/{expected_world_basename}'
+        expected_aux_url = f'{self.staging_location}/{expected_aux_basename}'
 
         expected_browse_mime = 'image/png'
         expected_world_mime = 'text/plain'
+        expected_aux_mime = 'application/xml'
 
         mock_mkdtemp.return_value = self.temp_dir
-        mock_download.return_value = expected_downloaded_file
-        mock_stage.side_effect = [expected_browse_url, expected_world_url]
+
+        def move_tif(*args, **kwargs):
+            """copy fixture tiff to download location. """
+            copy(self.red_tif_fixture, expected_downloaded_file)
+            return expected_downloaded_file
+        mock_download.side_effect = move_tif
+        mock_stage.side_effect = [
+            expected_browse_url, expected_aux_url, expected_world_url
+        ]
 
         message = Message({
             'accessToken': self.access_token,
@@ -105,6 +131,7 @@ class TestAdapter(TestCase):
             'sources': [{'collection': 'C1234-EEDTEST', 'shortName': 'test'}],
             'stagingLocation': self.staging_location,
             'user': self.user,
+            'format': {'mime': 'image/png'},
         })
 
         hybig = BrowseImageGeneratorAdapter(message, config=self.config,
@@ -119,7 +146,11 @@ class TestAdapter(TestCase):
                                             expected_browse_mime,
                                             expected_world_url,
                                             expected_world_basename,
-                                            expected_world_mime)
+                                            expected_world_mime,
+                                            expected_aux_url,
+                                            expected_aux_basename,
+                                            expected_aux_mime,
+                                            )
 
         # Ensure a download was requested via harmony-service-lib:
         mock_download.assert_called_once_with(self.granule_url, self.temp_dir,
@@ -134,6 +165,12 @@ class TestAdapter(TestCase):
             call(expected_browse_full_path,
                  expected_browse_basename,
                  expected_browse_mime,
+                 logger=hybig.logger,
+                 location=self.staging_location,
+                 cfg=self.config),
+            call(expected_aux_full_path,
+                 expected_aux_basename,
+                 expected_aux_mime,
                  logger=hybig.logger,
                  location=self.staging_location,
                  cfg=self.config),

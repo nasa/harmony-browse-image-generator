@@ -1,15 +1,18 @@
 """ Module containing utility functionality. """
 from mimetypes import guess_type as guess_mime_type
 from os.path import splitext
-from typing import Optional
+from pathlib import Path
+
+KNOWN_MIME_TYPES = {
+    '.nc4': 'application/x-netcdf4',
+    '.h5': 'application/x-hdf5',
+    '.wld': 'text/plain',
+    '.jgw': 'text/plain',
+    '.pgw': 'text/plain'
+}
 
 
-KNOWN_MIME_TYPES = {'.nc4': 'application/x-netcdf4',
-                    '.h5': 'application/x-hdf5',
-                    '.wld': 'text/plain'}
-
-
-def get_file_mime_type(file_name: str) -> Optional[str]:
+def get_file_mime_type(file_name: Path | str) -> str | None:
     """ This function tries to infer the MIME type of a file string. If the
         `mimetypes.guess_type` function cannot guess the MIME type of the
         granule, a dictionary of known file types is checked using the file

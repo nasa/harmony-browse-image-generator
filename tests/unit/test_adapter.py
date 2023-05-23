@@ -25,7 +25,7 @@ class TestAdapter(TestCase):
     def test_validate_message(self):
         """ Ensure only messages with expected content will be processed. """
 
-    def test_create_output_stac_item(self):
+    def test_create_output_stac_items(self):
         """ Ensure a STAC item is created with Assets for both the browse image
             and ESRI world file.
 
@@ -42,21 +42,22 @@ class TestAdapter(TestCase):
                                               catalog=self.input_stac)
 
         browse_image_url = f'{self.staging_location}/browse.png'
-        esri_url = f'{self.staging_location}/browse.wld'
+        esri_url = f'{self.staging_location}/browse.pgw'
+        aux_url = f'{self.staging_location}/browse.png.aux.xml'
         output_stac_item = adapter.create_output_stac_item(
-            input_stac_item, browse_image_url, 'image/tiff', esri_url,
-            'text/plain'
-        )
+            input_stac_item, [('data', browse_image_url, 'data'),
+                              ('metadata', esri_url, 'metadata'),
+                              ('auxiliary', aux_url, 'metadata')])
 
         # Check item has expected assets:
         self.assertListEqual(list(output_stac_item.assets.keys()),
-                             ['data', 'metadata'])
+                             ['data', 'metadata', 'auxiliary'])
 
         # Check the browse image asset
         self.assertEqual(output_stac_item.assets['data'].href,
                          browse_image_url)
         self.assertEqual(output_stac_item.assets['data'].media_type,
-                         'image/tiff')
+                         'image/png')
         self.assertEqual(output_stac_item.assets['data'].title,
                          'browse.png')
 
@@ -66,4 +67,12 @@ class TestAdapter(TestCase):
         self.assertEqual(output_stac_item.assets['metadata'].media_type,
                          'text/plain')
         self.assertEqual(output_stac_item.assets['metadata'].title,
-                         'browse.wld')
+                         'browse.pgw')
+
+        # Check the Aux file asset
+        self.assertEqual(output_stac_item.assets['auxiliary'].href,
+                         aux_url)
+        self.assertEqual(output_stac_item.assets['auxiliary'].media_type,
+                         'application/xml')
+        self.assertEqual(output_stac_item.assets['auxiliary'].title,
+                         'browse.png.aux.xml')

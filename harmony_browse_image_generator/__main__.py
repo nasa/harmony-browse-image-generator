@@ -1,14 +1,13 @@
 """ Run the Harmony Browse Image Generator Adapter via the Harmony CLI. """
 from argparse import ArgumentParser
 from sys import argv
-from typing import List
 
 from harmony import is_harmony_cli, run_cli, setup_cli
 
 from harmony_browse_image_generator.adapter import BrowseImageGeneratorAdapter
 
 
-def main(arguments: List[str]):
+def main(arguments: list[str]):
     """ Parse command line arguments and invoke the appropriate method to
         respond to them
 
