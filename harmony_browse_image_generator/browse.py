@@ -1,4 +1,4 @@
-""" Module containing core functionality for browse image generation. """
+"""Module containing core functionality for browse image generation."""
 import re
 from pathlib import Path
 
@@ -15,12 +15,15 @@ from rasterio.io import DatasetReader
 from rasterio.plot import reshape_as_raster
 
 from harmony_browse_image_generator.exceptions import HyBIGException
+from harmony_browse_image_generator.crs import choose_target_crs
 
 
 def create_browse_imagery(message: HarmonyMessage,
                           input_file_path: str) -> tuple[Path, Path]:
-    """Take input browse image and return a 2-element tuple for the file paths
-    of the output browse image and its associated ESRI world file
+    """Create browse image from input geotiff.
+
+    Take input browse image and return a 2-element tuple for the file paths
+    of the output browse image and its associated ESRI world file.
 
     """
     output_driver = image_driver(message.format.mime)
@@ -32,6 +35,7 @@ def create_browse_imagery(message: HarmonyMessage,
     try:
         with rasterio.open(input_file_path, mode='r') as in_dataset:
             validate_file_type(in_dataset)
+            _ = choose_target_crs(message.format.srs, in_dataset)
 
             if in_dataset.count == 1:
                 raster = convert_singleband_to_raster(in_dataset)
@@ -85,7 +89,7 @@ def convert_mulitband_to_raster(dataset: DatasetReader) -> ndarray:
 
 
 def convert_singleband_to_raster(dataset: DatasetReader) -> ndarray:
-    """convert input dataset to a 4 band raster image.
+    """Convert input dataset to a 4 band raster image.
 
     If the image is paletted, read the palette and use that for the image
     otherwise, use a default grayscale colormap for the image.
@@ -99,7 +103,7 @@ def convert_singleband_to_raster(dataset: DatasetReader) -> ndarray:
 
 
 def convert_colormaped_1band_to_raster(dataset):
-    """Converts a 1-band raster without a color association."""
+    """Convert a 1-band raster without a color association."""
     band = dataset.read(1)
     cmap = matplotlib.colormaps['Greys_r']
     norm = Normalize()
@@ -111,7 +115,7 @@ def convert_colormaped_1band_to_raster(dataset):
 
 def convert_paletted_1band_to_raster(dataset: DatasetReader,
                                      palette: ColorPalette) -> ndarray:
-    """Converts a 1 band image with palette into a rgba raster image."""
+    """Convert a 1 band image with palette into a rgba raster image."""
     band = dataset.read(1)
     levels = list(palette.pal.keys())
     colors = [
@@ -141,7 +145,7 @@ def get_color_palette(dataset) -> ColorPalette | None:
 
 
 def convert_colormap_to_palette(colormap: dict) -> ColorPalette:
-    """Converts a GeoTIFF palette to GDAL ColorPalette.
+    """Convert a GeoTIFF palette to GDAL ColorPalette.
 
     Reformats a palette as dictionary and loads it into a ColorPalette.
 
@@ -162,16 +166,14 @@ def convert_colormap_to_palette(colormap: dict) -> ColorPalette:
 
 
 def image_driver(mime: str) -> str:
-    """Return requested rasterio driver for output image.
-
-    """
+    """Return requested rasterio driver for output image."""
     if re.search('jpeg', mime, re.I):
         return 'JPEG'
     return 'PNG'
 
 
 def palette_from_remote_colortable(url: str) -> ColorPalette:
-    """Returns a gdal ColorPalette from a remote colortable."""
+    """Return a gdal ColorPalette from a remote colortable."""
     response = requests.get(url, timeout=10)
     if not response.ok:
         raise HyBIGException(f'Could not read remote colortable at {url}')
@@ -182,7 +184,7 @@ def palette_from_remote_colortable(url: str) -> ColorPalette:
 
 
 def prepare_raster_for_writing(raster: ndarray, driver: str) -> ndarray:
-    """remove alpha layer if writing a jpeg."""
+    """Remove alpha layer if writing a jpeg."""
     if driver == 'JPEG' and raster.shape[0] == 4:
         raster = raster[0:3, :, :]
     return raster
