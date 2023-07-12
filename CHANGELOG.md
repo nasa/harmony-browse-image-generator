@@ -1,3 +1,13 @@
+## v0.0.1
+
+### 2023-07-12
+
+- **DAS-1816**
+
+    - Adds functionality to determine GIBS compatible output parameters, while
+      allowing a user to override any parameters in the harmony message.
+
+
 ## v0.0.0
 
 ### 2023-05-18

@@ -15,3 +15,9 @@ class HyBIGInvalidMessage(HarmonyException):
     """Input Harmony Message could not be used as presented."""
     def __init__(self, message=None):
         super().__init__(message, 'sds/harmony-browse-image-generator')
+
+
+class HyBIGValueError(HarmonyException):
+    """Input was incorrect for the routine."""
+    def __init__(self, message=None):
+        super().__init__(message, 'sds/harmony-browse-image-generator')

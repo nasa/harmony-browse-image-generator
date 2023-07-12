@@ -1,9 +1,9 @@
 """Tests exercising the crs module"""
 
-from contextlib import contextmanager
+
 from pathlib import Path
 from shutil import rmtree
-from tempfile import NamedTemporaryFile, TemporaryDirectory
+from tempfile import TemporaryDirectory
 from textwrap import dedent
 from unittest import TestCase
 from unittest.mock import patch
@@ -19,6 +19,7 @@ from harmony_browse_image_generator.crs import (
     choose_target_crs,
 )
 from harmony_browse_image_generator.exceptions import HyBIGInvalidMessage
+from tests.unit.utility import test_rasterio_file
 
 ## Test constants
 WKT_EPSG_3031 = (
@@ -80,7 +81,6 @@ WKT_EPSG_6050 = dedent(
     '''
 )
 
-
 class TestCrs(TestCase):
     """A class that tests the crs module."""
 
@@ -92,33 +92,6 @@ class TestCrs(TestCase):
     def tearDown(self):
         if self.temp_dir.exists():
             rmtree(self.temp_dir)
-
-    @classmethod
-    @contextmanager
-    def test_rastero_file(self, **options):
-        """Helper function to create a test geotiff file.
-
-        rasterio.DatasetReader is best instantiated by opening an existing file.  This
-        function creates a fake temporary file with default and optional
-        metadata, and then it yields the name of the file to the caller.
-
-        This file can be opened and examined and when the context exits it
-        cleans itself up.
-
-        """
-        default_options = {
-            'count': 3,
-            'height': 1000,
-            'width': 2000,
-            'crs': CRS.from_string('EPSG:4326'),
-            'transform': Affine.scale(100, 200),
-            'dtype': 'uint8',
-        }
-
-        with NamedTemporaryFile(suffix='.tif') as tmp_file:
-            with rasterio.open(tmp_file.name, 'w', **default_options | options):
-                pass
-            yield tmp_file.name
 
     def test_choose_target_crs_with_epsg_from_harmony_message(self):
         """Test SRS has an epsg code."""
@@ -171,7 +144,7 @@ class TestCrs(TestCase):
     def test_choose_target_crs_with_preferred_metadata_north(self):
         """Check that preferred metadata for northern projection is found."""
         expected_CRS = PREFERRED_CRS['north']
-        with self.test_rastero_file(
+        with test_rasterio_file(
             height=448,
             width=304,
             crs=CRS.from_epsg(3413),
@@ -187,7 +160,7 @@ class TestCrs(TestCase):
         """Check that preferred metadata for southern projection is found."""
         expected_CRS = PREFERRED_CRS['south']
 
-        with self.test_rastero_file(
+        with test_rasterio_file(
             crs=WKT_EPSG_3031,
             transform=Affine.scale(500, 300),
             dtype='uint16',
@@ -200,7 +173,7 @@ class TestCrs(TestCase):
     def test_choose_target_crs_with_preferred_metadata_global(self):
         """Check that preferred metadata for global projection is found."""
         expected_CRS = PREFERRED_CRS['global']
-        with self.test_rastero_file(
+        with test_rasterio_file(
             count=3,
             crs=CRS.from_proj4('+proj=longlat +datum=WGS84 +no_defs +type=crs'),
         ) as tmp_file:
@@ -215,29 +188,29 @@ class TestCrs(TestCase):
 
         input_CRS = CRS.from_wkt(WKT_EPSG_3411)
 
-        with self.test_rastero_file(crs=input_CRS) as tmp_file:
+        with test_rasterio_file(crs=input_CRS) as tmp_file:
             with rasterio.open(tmp_file) as in_dataset:
                 actual_CRS = choose_target_crs(None, in_dataset)
                 self.assertEqual(expected_CRS, actual_CRS)
 
     def test_choose_target_crs_from_metadata_south(self):
         """Test EASE-2 South is correctly transformed to epsg:3031."""
-        expected_CRS = PREFERRED_CRS['south']
+        expected_CRS = CRS.from_string(PREFERRED_CRS['south'])
         ease_grid_2_south = 'EPSG:6932'
         input_CRS = CRS.from_string(ease_grid_2_south)
 
-        with self.test_rastero_file(crs=input_CRS) as tmp_file:
+        with test_rasterio_file(crs=input_CRS) as tmp_file:
             with rasterio.open(tmp_file) as in_dataset:
                 actual_CRS = choose_best_crs_from_metadata(in_dataset.crs)
                 self.assertEqual(expected_CRS, actual_CRS)
 
     def test_choose_target_crs_from_metadata_global(self):
         """Check EASE-2 Global is correctly transformed to epsg:4326."""
-        expected_CRS = PREFERRED_CRS['global']
+        expected_CRS = CRS.from_string(PREFERRED_CRS['global'])
         ease_grid_2_global = 'EPSG:6933'
         input_CRS = CRS.from_string(ease_grid_2_global)
 
-        with self.test_rastero_file(crs=input_CRS) as tmp_file:
+        with test_rasterio_file(crs=input_CRS) as tmp_file:
             with rasterio.open(tmp_file) as in_dataset:
                 actual_CRS = choose_best_crs_from_metadata(in_dataset.crs)
                 self.assertEqual(expected_CRS, actual_CRS)
@@ -295,4 +268,4 @@ class TestCrs(TestCase):
         for epsg_code, expected, name in epsg_test_codes:
             with self.subTest(f'{epsg_code}: {name}'):
                 actual_CRS = choose_best_crs_from_metadata(epsg_code)
-                self.assertEqual(actual_CRS, PREFERRED_CRS[expected])
+                self.assertEqual(actual_CRS, CRS.from_string( PREFERRED_CRS[expected]))

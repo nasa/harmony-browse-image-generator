@@ -19,6 +19,9 @@ from rasterio.io import DatasetReader
 
 from harmony_browse_image_generator.exceptions import HyBIGInvalidMessage
 
+# These are the CRSs that GIBS will accept as input. When the user hasn't
+# directly specified an output CRS, the code will attempt to choose the best
+# one of these.
 PREFERRED_CRS = {
     'north': 'EPSG:3413',  # WGS 84 / NSIDC Sea Ice Polar Stereographic North
     'south': 'EPSG:3031',  # WGS 84 / Antarctic Polar Stereographic
@@ -60,9 +63,16 @@ def choose_crs_from_srs(srs: SRS):
         raise HyBIGInvalidMessage(f'Bad input SRS: {str(exception)}') from exception
 
 
+def is_preferred_crs(crs: CRS) -> bool:
+    """Returns true if the input CRS is preferred by GIBS."""
+    if crs.to_string() in PREFERRED_CRS.values():
+        return True
+    return False
+
+
 def choose_crs_from_metadata(dataset: DatasetReader) -> CRS | None:
     """Determine the best CRS based on input metadata."""
-    if dataset.crs.to_string() in PREFERRED_CRS.values():
+    if is_preferred_crs(dataset.crs):
         return dataset.crs
     return choose_best_crs_from_metadata(dataset.crs)
 
@@ -93,12 +103,12 @@ def choose_best_crs_from_metadata(crs: CRS) -> CRS:
     projection_params = pyCRS(crs).to_dict()
 
     if projection_params.get('proj', None) == 'longlat':
-        return PREFERRED_CRS['global']
+        return CRS.from_string(PREFERRED_CRS['global'])
 
     if projection_params.get('lat_0', 0.) >= 80:
-        return PREFERRED_CRS['north']
+        return CRS.from_string(PREFERRED_CRS['north'])
 
     if projection_params.get('lat_0', 0.) <= -80:
-        return PREFERRED_CRS['south']
+        return CRS.from_string(PREFERRED_CRS['south'])
 
-    return PREFERRED_CRS['global']
+    return CRS.from_string(PREFERRED_CRS['global'])

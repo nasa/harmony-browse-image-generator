@@ -15,7 +15,6 @@ from rasterio.io import DatasetReader
 from rasterio.plot import reshape_as_raster
 
 from harmony_browse_image_generator.exceptions import HyBIGException
-from harmony_browse_image_generator.crs import choose_target_crs
 
 
 def create_browse_imagery(message: HarmonyMessage,
@@ -35,7 +34,6 @@ def create_browse_imagery(message: HarmonyMessage,
     try:
         with rasterio.open(input_file_path, mode='r') as in_dataset:
             validate_file_type(in_dataset)
-            _ = choose_target_crs(message.format.srs, in_dataset)
 
             if in_dataset.count == 1:
                 raster = convert_singleband_to_raster(in_dataset)
