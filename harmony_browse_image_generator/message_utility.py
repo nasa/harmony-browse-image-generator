@@ -1,7 +1,7 @@
 """Utilities for acting on Harmony Messages.
 
 
- Copied directly from harmony-regridding-service's utility.py
+ Copied directly from harmony-regridding-service's utilities.py
 
 """
 from typing import Any

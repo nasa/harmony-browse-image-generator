@@ -8,6 +8,7 @@ There's a number of "rules" from the GIBS ICD that are codified in this module.
 
 """
 from collections import namedtuple
+from typing import TypedDict
 
 import numpy as np
 from affine import Affine
@@ -19,7 +20,6 @@ from pyproj.crs import CRS as pyCRS
 from rasterio.crs import CRS
 from rasterio.io import DatasetReader
 from rasterio.transform import from_bounds
-from typing_extensions import TypedDict
 
 from harmony_browse_image_generator.crs import (
     PREFERRED_CRS,
@@ -34,15 +34,32 @@ from harmony_browse_image_generator.message_utility import (
     has_scale_sizes,
 )
 
-GridParams = TypedDict('GridParams', {'height': int, 'width': int, 'affine': Affine})
 
-ScaleExtent = TypedDict(
-    'ScaleExtent', {'xmin': float, 'ymin': float, 'xmax': float, 'ymax': float}
-)
+class GridParams(TypedDict):
+    """Convenience to describe a grid parameters dictionary."""
+    height: int
+    width: int
+    affine: Affine
 
-ScaleSize = TypedDict('ScaleSize', {'x': float, 'y': float})
 
-Dimensions = TypedDict('Dimensions', {'width': int, 'height': int})
+class ScaleExtent(TypedDict):
+    """Convenience to describe a scale extent dictionary."""
+    xmin: float
+    ymin: float
+    xmax: float
+    ymax: float
+
+
+class ScaleSize(TypedDict):
+    """Convenience to describe a scale size dictionary."""
+    x: float
+    y: float
+
+
+class Dimensions(TypedDict):
+    """Convenience to describe a scale a dimension dictionary."""
+    width: int
+    height: int
 
 
 ResolutionInfo = namedtuple(

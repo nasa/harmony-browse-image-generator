@@ -1,17 +1,21 @@
 """ End-to-end tests of the Harmony Browse Image Generator (HyBIG). """
 from pathlib import Path
-from shutil import rmtree, copy
+from shutil import copy, rmtree
 from tempfile import mkdtemp
 from unittest import TestCase
 from unittest.mock import call, patch
 
+import numpy as np
 from harmony.message import Message
 from harmony.util import config
 from pystac import Catalog
+from rasterio import open as rasterio_open
+from rasterio.transform import from_bounds
+from rasterio.warp import Resampling
 
 from harmony_browse_image_generator.adapter import BrowseImageGeneratorAdapter
-
-from tests.utilities import create_stac, Granule
+from harmony_browse_image_generator.browse import convert_mulitband_to_raster
+from tests.utilities import Granule, create_stac
 
 
 class TestAdapter(TestCase):
@@ -82,13 +86,13 @@ class TestAdapter(TestCase):
                 'roles': ['metadata']
             })
 
-
+    @patch('harmony_browse_image_generator.browse.reproject')
     @patch('harmony_browse_image_generator.adapter.rmtree')
     @patch('harmony_browse_image_generator.adapter.mkdtemp')
     @patch('harmony_browse_image_generator.adapter.download')
     @patch('harmony_browse_image_generator.adapter.stage')
     def test_valid_request(self, mock_stage, mock_download, mock_mkdtemp,
-                           mock_rmtree):
+                           mock_rmtree, mock_reproject):
         """ Ensure a request with a correctly formatted message is fully
             processed.
 
@@ -157,6 +161,77 @@ class TestAdapter(TestCase):
                                               logger=hybig.logger,
                                               cfg=hybig.config,
                                               access_token=self.access_token)
+
+        # Set up for testing reprojection validation calls.
+        # All defaults will be computed
+        # input CRS is preferred 4326,
+        # Scale Extent from icd
+        # dimensions from input data
+        in_dataset = rasterio_open(self.red_tif_fixture)
+        icd_scale_extent = {'xmin': -180.0, 'ymin': -90.0, 'xmax': 180.0, 'ymax': 90.0}
+        expected_transform = from_bounds(
+            icd_scale_extent['xmin'],
+            icd_scale_extent['ymin'],
+            icd_scale_extent['xmax'],
+            icd_scale_extent['ymax'],
+            in_dataset.width,
+            in_dataset.height,
+        )
+
+        expected_params = {'width': in_dataset.width,
+                           'height': in_dataset.height,
+                           'crs': in_dataset.crs,
+                           'transform': expected_transform,
+                           'driver': 'PNG',
+                           'dtype': 'uint8',
+                           'count': 3}
+        raster = convert_mulitband_to_raster(in_dataset)
+
+        dest = np.full((expected_params['height'], expected_params['width']),
+                       dtype='uint8', fill_value=0)
+
+        expected_reproject_calls = [
+            call(source=raster[0, :, :],
+                 destination=dest,
+                 src_transform=in_dataset.transform,
+                 src_crs=in_dataset.crs,
+                 dst_transform=expected_params['transform'],
+                 dst_crs=expected_params['crs'],
+                 resampling=Resampling.nearest),
+            call(source=raster[1, :, :],
+                 destination=dest,
+                 src_transform=in_dataset.transform,
+                 src_crs=in_dataset.crs,
+                 dst_transform=expected_params['transform'],
+                 dst_crs=expected_params['crs'],
+                 resampling=Resampling.nearest),
+            call(source=raster[2, :, :],
+                 destination=dest,
+                 src_transform=in_dataset.transform,
+                 src_crs=in_dataset.crs,
+                 dst_transform=expected_params['transform'],
+                 dst_crs=expected_params['crs'],
+                 resampling=Resampling.nearest)
+        ]
+
+
+        self.assertEqual(mock_reproject.call_count, 3)
+        for actual_call, expected_call in zip(mock_reproject.call_args_list,
+                                              expected_reproject_calls):
+            np.testing.assert_array_equal(actual_call.kwargs['source'],
+                                          expected_call.kwargs['source'])
+            np.testing.assert_array_equal(actual_call.kwargs['destination'],
+                                          expected_call.kwargs['destination'])
+            self.assertEqual(actual_call.kwargs['src_transform'],
+                             expected_call.kwargs['src_transform'])
+            self.assertEqual(actual_call.kwargs['src_crs'],
+                             expected_call.kwargs['src_crs'])
+            self.assertEqual(actual_call.kwargs['dst_transform'],
+                             expected_call.kwargs['dst_transform'])
+            self.assertEqual(actual_call.kwargs['dst_crs'],
+                             expected_call.kwargs['dst_crs'])
+            self.assertEqual(actual_call.kwargs['resampling'],
+                             expected_call.kwargs['resampling'])
 
         # Ensure the browse image and ESRI world file were staged as expected:
         # TODO: "expected_downloaded_files" arguments will need updating when

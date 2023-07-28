@@ -1,21 +1,34 @@
 """ Unit tests for browse module. """
 
+from logging import getLogger
 from pathlib import Path
 from shutil import rmtree
 from tempfile import mkdtemp
 from unittest import TestCase
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock, call, patch
 
 import numpy as np
+from harmony.message import Message as HarmonyMessage
 from numpy.testing import assert_array_equal
 from osgeo_utils.auxiliary.color_palette import ColorPalette
-from rasterio.io import DatasetReader
+from rasterio import Affine
+from rasterio.crs import CRS
+from rasterio.io import DatasetReader, DatasetWriter
+from rasterio.warp import Resampling
 
 from harmony_browse_image_generator.browse import (
-    convert_colormap_to_palette, convert_mulitband_to_raster,
-    convert_singleband_to_raster, get_color_palette, output_image_file,
-    output_world_file, palette_from_remote_colortable)
+    convert_colormap_to_palette,
+    convert_mulitband_to_raster,
+    convert_singleband_to_raster,
+    create_browse_imagery,
+    get_color_palette,
+    output_image_file,
+    output_world_file,
+    palette_from_remote_colortable,
+    validate_file_type,
+)
 from harmony_browse_image_generator.exceptions import HyBIGException
+from tests.unit.utility import rasterio_test_file
 
 
 class TestBrowse(TestCase):
@@ -23,7 +36,7 @@ class TestBrowse(TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.fixtures = mkdtemp()
+        cls.logger = getLogger()
 
         cls.data = np.array(
             [
@@ -45,9 +58,194 @@ class TestBrowse(TestCase):
         cls.colors = [red, yellow, green, blue]
         cls.colormap = {100: red, 200: yellow, 300: green, 400: blue}
 
-    @classmethod
-    def tearDownClass(cls):
-        rmtree(cls.fixtures, ignore_errors=True)
+    def test_create_browse_imagery_with_bad_raster(self):
+        """Check that preferred metadata for global projection is found."""
+        two_dimensional_raster = np.array(
+            [
+                [
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                ],
+                [
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                ],
+            ],
+            dtype='uint8',
+        )
+        message = HarmonyMessage({'format': {'mime': 'JPEG'}})
+
+        with rasterio_test_file(
+            raster_data=two_dimensional_raster,
+            height=two_dimensional_raster.shape[1],
+            width=two_dimensional_raster.shape[2],
+            count=2,
+        ) as test_tif_filename:
+            with self.assertRaisesRegex(
+                HyBIGException, 'incorrect number of bands for image: 2'
+            ):
+                create_browse_imagery(message, test_tif_filename, self.logger)
+
+    def test_create_browse_imagery_with_single_band_raster(self):
+        """Check that preferred metadata for global projection is found."""
+        two_dimensional_raster = np.array(
+            [
+                [
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                ],
+                [
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                ],
+            ],
+            dtype='uint8',
+        )
+        message = HarmonyMessage({'format': {'mime': 'JPEG'}})
+
+        with rasterio_test_file(
+            raster_data=two_dimensional_raster,
+            height=two_dimensional_raster.shape[1],
+            width=two_dimensional_raster.shape[2],
+            count=2,
+        ) as test_tif_filename:
+            with self.assertRaisesRegex(
+                HyBIGException, 'incorrect number of bands for image: 2'
+            ):
+                create_browse_imagery(message, test_tif_filename, None)
+
+    @patch('harmony_browse_image_generator.browse.reproject')
+    @patch('rasterio.open')
+    def test_create_browse_imagery_with_mocks(self, rasterio_open_mock, reproject_mock):
+        ds_mock = Mock(DatasetReader)
+        dest_write_mock = Mock(DatasetWriter)
+        ds_mock.read.return_value = self.data
+        ds_mock.driver = 'GTiff'
+        ds_mock.height = 4
+        ds_mock.width = 4
+        ds_mock.transform = Affine.identity()
+        ds_mock.crs = CRS.from_string('EPSG:4326')
+        ds_mock.count = 1
+        ds_mock.colormap = MagicMock(side_effect=ValueError)
+
+        expected_raster = np.array(
+            [
+                [
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                ],
+                [
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                ],
+                [
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                ],
+                [
+                    [255, 255, 255, 255],
+                    [255, 255, 255, 255],
+                    [255, 255, 255, 255],
+                    [255, 255, 255, 255],
+                ],
+            ],
+            dtype='uint8',
+        )
+
+        rasterio_open_mock.return_value.__enter__.side_effect = [
+            ds_mock,
+            dest_write_mock,
+        ]
+
+        message = HarmonyMessage({'format': {'mime': 'JPEG'}})
+
+        # Act to run the test
+        actual_image, actual_world = create_browse_imagery(
+            message, './input_file_path', self.logger
+        )
+
+        target_transform = Affine(90.0, 0.0, -180.0, 0.0, -45.0, 90.0)
+        dest = np.zeros((ds_mock.height, ds_mock.width), dtype='uint8')
+
+        self.assertEqual(reproject_mock.call_count, 3)
+
+        expected_calls = [
+            call(
+                source=expected_raster[0, :, :],
+                destination=dest,
+                src_transform=Affine.identity(),
+                src_crs=ds_mock.crs,
+                dst_transform=target_transform,
+                dst_crs=CRS.from_string('EPSG:4326'),
+                resampling=Resampling.nearest,
+            ),
+            call(
+                source=expected_raster[1, :, :],
+                destination=dest,
+                src_transform=Affine.identity(),
+                src_crs=ds_mock.crs,
+                dst_transform=target_transform,
+                dst_crs=CRS.from_string('EPSG:4326'),
+                resampling=Resampling.nearest,
+            ),
+            call(
+                source=expected_raster[2, :, :],
+                destination=dest,
+                src_transform=Affine.identity(),
+                src_crs=ds_mock.crs,
+                dst_transform=target_transform,
+                dst_crs=CRS.from_string('EPSG:4326'),
+                resampling=Resampling.nearest,
+            ),
+        ]
+
+        for actual_call, expected_call in zip(
+            reproject_mock.call_args_list, expected_calls
+        ):
+            np.testing.assert_array_equal(
+                actual_call.kwargs['source'], expected_call.kwargs['source']
+            )
+            np.testing.assert_array_equal(
+                actual_call.kwargs['destination'], expected_call.kwargs['destination']
+            )
+            self.assertEqual(
+                actual_call.kwargs['src_transform'],
+                expected_call.kwargs['src_transform'],
+            )
+            self.assertEqual(
+                actual_call.kwargs['src_crs'], expected_call.kwargs['src_crs']
+            )
+            self.assertEqual(
+                actual_call.kwargs['dst_transform'],
+                expected_call.kwargs['dst_transform'],
+            )
+            self.assertEqual(
+                actual_call.kwargs['dst_crs'], expected_call.kwargs['dst_crs']
+            )
+            self.assertEqual(
+                actual_call.kwargs['resampling'], expected_call.kwargs['resampling']
+            )
+
+        self.assertEqual(
+            Path('./input_file_path.jpg').resolve(), actual_image.resolve()
+        )
+        self.assertEqual(
+            Path('./input_file_path.jgw').resolve(), actual_world.resolve()
+        )
 
     def test_convert_singleband_to_raster(self):
         with self.subTest('Test single band raster without colortable'):
@@ -269,6 +467,24 @@ class TestBrowse(TestCase):
             expected_world_file = Path('/path/to/some.jgw')
             actual_world_file = output_world_file(input_filename, driver='JPEG')
             self.assertEqual(expected_world_file, actual_world_file)
+
+    def test_validate_file_type_valid(self):
+        """validation should not raise exception."""
+        ds = Mock(DatasetReader)
+        ds.driver = 'GTiff'
+        try:
+            validate_file_type(ds)
+        except Exception:
+            self.fail('Valid file type threw unexpected exception.')
+
+    def test_validate_file_type_invalid(self):
+        """Only GTiff drivers work."""
+        ds = Mock(DatasetReader)
+        ds.driver = 'NetCDF4'
+        with self.assertRaisesRegex(
+            HyBIGException, 'Input file type not supported: NetCDF4'
+        ):
+            validate_file_type(ds)
 
     def test_convert_colormap_to_palette(self):
         """A paletted geotiff has a colormap like a dictionary."""

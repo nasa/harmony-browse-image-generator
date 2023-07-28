@@ -19,7 +19,7 @@ from harmony_browse_image_generator.crs import (
     choose_target_crs,
 )
 from harmony_browse_image_generator.exceptions import HyBIGInvalidMessage
-from tests.unit.utility import test_rasterio_file
+from tests.unit.utility import rasterio_test_file
 
 ## Test constants
 WKT_EPSG_3031 = (
@@ -107,7 +107,7 @@ class TestCrs(TestCase):
         actual_CRS = choose_target_crs(test_srs, None)
         self.assertEqual(expected_CRS, actual_CRS)
 
-    def test_choose_target_crs_with_proj4_from_harmony_message(self):
+    def test_choose_target_crs_with_proj4_from_harmony_message_and_empty_epsg(self):
         """Test SRS has proj4 string."""
         expected_CRS = CRS.from_epsg(5938)
         test_srs = SRS(
@@ -115,7 +115,8 @@ class TestCrs(TestCase):
                 'proj4': (
                     '+proj=stere +lat_0=90 +lon_0=-33 +k=0.994'
                     ' +x_0=2000000 +y_0=2000000 +datum=WGS84 +units=m +no_defs +type=crs'
-                )
+                ),
+                'epsg': ''
             }
         )
         actual_CRS = choose_target_crs(test_srs, None)
@@ -144,7 +145,7 @@ class TestCrs(TestCase):
     def test_choose_target_crs_with_preferred_metadata_north(self):
         """Check that preferred metadata for northern projection is found."""
         expected_CRS = PREFERRED_CRS['north']
-        with test_rasterio_file(
+        with rasterio_test_file(
             height=448,
             width=304,
             crs=CRS.from_epsg(3413),
@@ -160,7 +161,7 @@ class TestCrs(TestCase):
         """Check that preferred metadata for southern projection is found."""
         expected_CRS = PREFERRED_CRS['south']
 
-        with test_rasterio_file(
+        with rasterio_test_file(
             crs=WKT_EPSG_3031,
             transform=Affine.scale(500, 300),
             dtype='uint16',
@@ -173,7 +174,7 @@ class TestCrs(TestCase):
     def test_choose_target_crs_with_preferred_metadata_global(self):
         """Check that preferred metadata for global projection is found."""
         expected_CRS = PREFERRED_CRS['global']
-        with test_rasterio_file(
+        with rasterio_test_file(
             count=3,
             crs=CRS.from_proj4('+proj=longlat +datum=WGS84 +no_defs +type=crs'),
         ) as tmp_file:
@@ -188,7 +189,7 @@ class TestCrs(TestCase):
 
         input_CRS = CRS.from_wkt(WKT_EPSG_3411)
 
-        with test_rasterio_file(crs=input_CRS) as tmp_file:
+        with rasterio_test_file(crs=input_CRS) as tmp_file:
             with rasterio.open(tmp_file) as in_dataset:
                 actual_CRS = choose_target_crs(None, in_dataset)
                 self.assertEqual(expected_CRS, actual_CRS)
@@ -199,7 +200,7 @@ class TestCrs(TestCase):
         ease_grid_2_south = 'EPSG:6932'
         input_CRS = CRS.from_string(ease_grid_2_south)
 
-        with test_rasterio_file(crs=input_CRS) as tmp_file:
+        with rasterio_test_file(crs=input_CRS) as tmp_file:
             with rasterio.open(tmp_file) as in_dataset:
                 actual_CRS = choose_best_crs_from_metadata(in_dataset.crs)
                 self.assertEqual(expected_CRS, actual_CRS)
@@ -210,7 +211,7 @@ class TestCrs(TestCase):
         ease_grid_2_global = 'EPSG:6933'
         input_CRS = CRS.from_string(ease_grid_2_global)
 
-        with test_rasterio_file(crs=input_CRS) as tmp_file:
+        with rasterio_test_file(crs=input_CRS) as tmp_file:
             with rasterio.open(tmp_file) as in_dataset:
                 actual_CRS = choose_best_crs_from_metadata(in_dataset.crs)
                 self.assertEqual(expected_CRS, actual_CRS)

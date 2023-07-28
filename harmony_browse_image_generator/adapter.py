@@ -64,7 +64,8 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
             # entirely spurious)
             browse_image_name, world_file_name = create_browse_imagery(
                 self.message,
-                input_data_filename
+                input_data_filename,
+                logger=self.logger
             )
 
             # Stage the browse image:

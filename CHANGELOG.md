@@ -1,3 +1,13 @@
+## v0.0.2
+
+### 2023-07-25
+
+- **DAS-1835**
+
+    - Uses Harmony Message's parameters, or computes defaults when generating
+      and output browse image. When no parameters are passed with the Message,
+      the code will resize and reproject to try to make GIBS compatible images.
+
 ## v0.0.1
 
 ### 2023-07-12

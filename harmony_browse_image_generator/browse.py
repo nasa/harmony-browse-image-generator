@@ -1,8 +1,10 @@
 """Module containing core functionality for browse image generation."""
 import re
 from pathlib import Path
+from logging import Logger
 
 import matplotlib
+import numpy as np
 import rasterio
 import requests
 from affine import dumpsw
@@ -13,12 +15,14 @@ from numpy import around, concatenate, ndarray
 from osgeo_utils.auxiliary.color_palette import ColorPalette
 from rasterio.io import DatasetReader
 from rasterio.plot import reshape_as_raster
+from rasterio.warp import reproject, Resampling
 
 from harmony_browse_image_generator.exceptions import HyBIGException
+from harmony_browse_image_generator.sizes import get_target_grid_parameters
 
 
-def create_browse_imagery(message: HarmonyMessage,
-                          input_file_path: str) -> tuple[Path, Path]:
+def create_browse_imagery(message: HarmonyMessage, input_file_path: str,
+                          logger: Logger) -> tuple[Path, Path]:
     """Create browse image from input geotiff.
 
     Take input browse image and return a 2-element tuple for the file paths
@@ -43,11 +47,15 @@ def create_browse_imagery(message: HarmonyMessage,
                 raise HyBIGException(
                     f'incorrect number of bands for image: {in_dataset.count}')
 
+            grid_parameters = get_target_grid_parameters(message, in_dataset)
+
             raster = prepare_raster_for_writing(raster, output_driver)
 
             write_georaster_as_browse(
                 in_dataset,
                 raster,
+                grid_parameters,
+                logger=logger,
                 driver=output_driver,
                 out_file_name=out_image_file,
                 out_world_name=out_world_file,
@@ -216,30 +224,50 @@ def validate_file_type(dsr: DatasetReader) -> None:
         raise HyBIGException(f'Input file type not supported: {dsr.driver}')
 
 
+def get_destination(grid_parameters: dict, n_bands: int) -> ndarray:
+    """Initialize an array for writing an output raster."""
+    return np.zeros(
+        (n_bands, grid_parameters['height'], grid_parameters['width']),
+        dtype='uint8')
+
+
 def write_georaster_as_browse(dataset: DatasetReader,
                               raster: ndarray,
+                              grid_parameters: dict,
                               driver='PNG',
                               out_file_name='outfile.png',
-                              out_world_name='outfile.pgw') -> None:
+                              out_world_name='outfile.pgw',
+                              logger=Logger) -> None:
     """Write raster data to output file.
 
     Writes the raster to an output file using metadata from the original
-    source, but over-riding some important values. The input meta contains
-    information about the source's width, height, crs and affine transformation
-    that are all used in the output png.
+    source, and over-riding some values based on the input message and derived
+    grid_parameters, doing a nearest neighbor resampling to the target grid.
 
     """
-    options = {
-        **dataset.meta,
+    n_bands = raster.shape[0]
+    creation_options = {
+        **grid_parameters,
         'driver': driver,
         'dtype': 'uint8',
-        'photometric': 'RGB',
-        'count': raster.shape[0],
-        'compress': 'lzw',
+        'count': n_bands,
     }
 
-    with rasterio.open(out_file_name, 'w', **options) as dest_raster:
-        dest_raster.write(raster)
+    dest_array = get_destination(grid_parameters, n_bands)
+
+    logger.info(f'Create output image with options: {creation_options}')
+
+    with rasterio.open(out_file_name, 'w', **creation_options) as dst_raster:
+        for dim in range(0, n_bands):
+            reproject(source=raster[dim, :, :],
+                      destination=dest_array[dim, :, :],
+                      src_transform=dataset.transform,
+                      src_crs=dataset.crs,
+                      dst_transform=grid_parameters['transform'],
+                      dst_crs=grid_parameters['crs'],
+                      resampling=Resampling.nearest)
+
+        dst_raster.write(dest_array)
 
     with open(out_world_name, 'w', encoding='UTF-8') as out_wd:
-        out_wd.write(dumpsw(dataset.meta['transform']))
+        out_wd.write(dumpsw(creation_options['transform']))

@@ -54,9 +54,9 @@ def choose_crs_from_srs(srs: SRS):
 
     """
     try:
-        if srs.epsg is not None:
+        if srs.epsg is not None and srs.epsg != "":
             return CRS.from_string(srs.epsg)
-        if srs.wkt is not None:
+        if srs.wkt is not None and srs.wkt != "":
             return CRS.from_string(srs.wkt)
         return CRS.from_string(srs.proj4)
     except Exception as exception:

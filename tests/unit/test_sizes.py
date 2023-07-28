@@ -23,7 +23,7 @@ from harmony_browse_image_generator.sizes import (
     icd_defined_extent_from_crs,
     get_rasterio_parameters,
 )
-from tests.unit.utility import test_rasterio_file
+from tests.unit.utility import rasterio_test_file
 
 nsidc_np_seaice_grid = {
     'epsg': 3413,
@@ -131,7 +131,7 @@ class TestGetTargetGridParameters(TestCase):
             'crs': crs,
             'transform': transform,
         }
-        with test_rasterio_file(
+        with rasterio_test_file(
             height=height,
             width=width,
             crs=crs,
@@ -368,7 +368,7 @@ class TestBestGuessTargetDimensions(TestCase):
 
         """
         # EASE-2 25km North
-        with test_rasterio_file(
+        with rasterio_test_file(
             height=720,
             width=720,
             crs=CRS.from_epsg(6931),
@@ -402,7 +402,7 @@ class TestBestGuessTargetDimensions(TestCase):
         700.01m = (9000000.0 - -9000000.0) / 25714
 
         """
-        with test_rasterio_file(
+        with rasterio_test_file(
             height=25714,
             width=25714,
             crs=CRS.from_epsg(6931),
@@ -454,7 +454,7 @@ class TestBestGuessTargetDimensions(TestCase):
         700.04 m = (4194304.0 - -4194304.0) / 11983
 
         """
-        with test_rasterio_file(
+        with rasterio_test_file(
             height=11983,
             width=11983,
             crs=CRS.from_epsg(6931),
@@ -504,7 +504,7 @@ class TestBestGuessTargetDimensions(TestCase):
 
     def test_longlat_crs(self):
         # 36km Mid-Latitude EASE Grid 2
-        with test_rasterio_file(
+        with rasterio_test_file(
             height=406,
             width=964,
             crs=CRS.from_epsg(6933),
@@ -531,7 +531,7 @@ class TestBestGuessTargetDimensions(TestCase):
 
     def test_longlat_crs_with_high_resolution(self):
         # .36km Mid-Latitude EASE Grid 2
-        with test_rasterio_file(
+        with rasterio_test_file(
             height=40600,
             width=96400,
             crs=CRS.from_epsg(6933),

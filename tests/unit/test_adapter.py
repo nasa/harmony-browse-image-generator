@@ -9,6 +9,7 @@ from tests.utilities import create_stac, Granule
 
 class TestAdapter(TestCase):
     """ A class testing the harmony_browse_image_generator.adapter module. """
+
     @classmethod
     def setUpClass(cls):
         """ Define test fixtures that can be shared between tests. """
@@ -44,6 +45,7 @@ class TestAdapter(TestCase):
         browse_image_url = f'{self.staging_location}/browse.png'
         esri_url = f'{self.staging_location}/browse.pgw'
         aux_url = f'{self.staging_location}/browse.png.aux.xml'
+
         output_stac_item = adapter.create_output_stac_item(
             input_stac_item, [('data', browse_image_url, 'data'),
                               ('metadata', esri_url, 'metadata'),

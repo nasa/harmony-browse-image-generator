@@ -8,7 +8,7 @@ from rasterio.crs import CRS
 
 
 @contextmanager
-def test_rasterio_file(**options):
+def rasterio_test_file(raster_data=None, **options):
     """Helper function to create a test geotiff file.
 
     rasterio.DatasetReader is best instantiated by opening an existing file.  This
@@ -28,8 +28,11 @@ def test_rasterio_file(**options):
         'dtype': 'uint8',
     }
 
+
     with NamedTemporaryFile(suffix='.tif') as tmp_file:
         with rasterio.Env(CHECK_DISK_FREE_SPACE="NO"):
-            with rasterio.open(tmp_file.name, 'w', **default_options | options):
-                pass
+            with rasterio.open(tmp_file.name, 'w', **default_options | options) as tmp_rasterio_file:
+                if raster_data is not None:
+                    tmp_rasterio_file.write(raster_data)
+
             yield tmp_file.name
