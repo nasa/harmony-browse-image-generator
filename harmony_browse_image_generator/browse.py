@@ -13,8 +13,10 @@ from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 from numpy import around, concatenate, ndarray
 from osgeo_utils.auxiliary.color_palette import ColorPalette
+from PIL import Image
+from imagequant import quantize_pil_image
 from rasterio.io import DatasetReader
-from rasterio.plot import reshape_as_raster
+from rasterio.plot import reshape_as_raster, reshape_as_image
 from rasterio.warp import reproject, Resampling
 
 from harmony_browse_image_generator.exceptions import HyBIGException
@@ -49,11 +51,12 @@ def create_browse_imagery(message: HarmonyMessage, input_file_path: str,
 
             grid_parameters = get_target_grid_parameters(message, in_dataset)
 
-            raster = prepare_raster_for_writing(raster, output_driver)
+            raster, color_map = prepare_raster_for_writing(raster, output_driver)
 
             write_georaster_as_browse(
                 in_dataset,
                 raster,
+                color_map,
                 grid_parameters,
                 logger=logger,
                 driver=output_driver,
@@ -105,10 +108,10 @@ def convert_singleband_to_raster(dataset: DatasetReader) -> ndarray:
     # Can add Message and visicurl to above later
     if color_palette:
         return convert_paletted_1band_to_raster(dataset, color_palette)
-    return convert_colormaped_1band_to_raster(dataset)
+    return convert_colormapped_1band_to_raster(dataset)
 
 
-def convert_colormaped_1band_to_raster(dataset):
+def convert_colormapped_1band_to_raster(dataset):
     """Convert a 1-band raster without a color association."""
     band = dataset.read(1)
     cmap = matplotlib.colormaps['Greys_r']
@@ -189,11 +192,50 @@ def palette_from_remote_colortable(url: str) -> ColorPalette:
     return palette
 
 
-def prepare_raster_for_writing(raster: ndarray, driver: str) -> ndarray:
+def prepare_raster_for_writing(raster: ndarray, driver: str) -> (ndarray, dict | None):
     """Remove alpha layer if writing a jpeg."""
-    if driver == 'JPEG' and raster.shape[0] == 4:
-        raster = raster[0:3, :, :]
-    return raster
+    if driver == 'JPEG':
+        if raster.shape[0] == 4:
+            raster = raster[0:3, :, :]
+        return raster, None
+
+    return palettize_raster(raster)
+
+
+def palettize_raster(raster: ndarray) -> (ndarray, dict):
+    """convert an RGB or RGBA image into a 1band image and palette.
+
+    Converts a 3 or 4 band np raster into a PIL image.
+    Quantizes the image into a 2d raster and palette
+    Converts raster into 1 band raster.
+    """
+    # 0 to 254; reserve 255 for off grid fill values
+    max_colors = 255
+
+    multiband_image = Image.fromarray(reshape_as_image(raster))
+    quantized_image = quantize_pil_image(
+        multiband_image,
+        max_colors=max_colors,
+    )
+
+    one_band_raster = np.expand_dims(np.array(quantized_image), 0)
+    color_map = get_color_map_from_image(quantized_image)
+
+    return one_band_raster, color_map
+
+
+def get_color_map_from_image(image: Image) -> dict:
+    """Get a writable color map
+
+    Read the RGBA palette from a PIL Image and covert into a dictionary
+    that can be written by rasterio.
+
+    """
+    color_tuples = np.array(image.getpalette(rawmode='RGBA')).reshape(-1, 4)
+    color_map = {}
+    for idx in range(0, color_tuples.shape[0]):
+        color_map[idx] = tuple(color_tuples[idx])
+    return color_map
 
 
 def output_image_file(input_file_path: Path, driver: str = 'PNG'):
@@ -233,6 +275,7 @@ def get_destination(grid_parameters: dict, n_bands: int) -> ndarray:
 
 def write_georaster_as_browse(dataset: DatasetReader,
                               raster: ndarray,
+                              color_map: ndarray | None,
                               grid_parameters: dict,
                               driver='PNG',
                               out_file_name='outfile.png',
@@ -246,6 +289,10 @@ def write_georaster_as_browse(dataset: DatasetReader,
 
     """
     n_bands = raster.shape[0]
+    dst_nodata = 255
+    if color_map is not None:
+        color_map[dst_nodata] = (0, 0, 0, 0)
+
     creation_options = {
         **grid_parameters,
         'driver': driver,
@@ -265,9 +312,12 @@ def write_georaster_as_browse(dataset: DatasetReader,
                       src_crs=dataset.crs,
                       dst_transform=grid_parameters['transform'],
                       dst_crs=grid_parameters['crs'],
+                      dst_nodata=dst_nodata,
                       resampling=Resampling.nearest)
 
         dst_raster.write(dest_array)
+        if color_map is not None:
+            dst_raster.write_colormap(1, color_map)
 
     with open(out_world_name, 'w', encoding='UTF-8') as out_wd:
         out_wd.write(dumpsw(creation_options['transform']))

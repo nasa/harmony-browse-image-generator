@@ -11,24 +11,34 @@ import numpy as np
 from harmony.message import Message as HarmonyMessage
 from numpy.testing import assert_array_equal
 from osgeo_utils.auxiliary.color_palette import ColorPalette
+from PIL import Image
 from rasterio import Affine
 from rasterio.crs import CRS
 from rasterio.io import DatasetReader, DatasetWriter
 from rasterio.warp import Resampling
+from rasterio.plot import reshape_as_image
 
 from harmony_browse_image_generator.browse import (
     convert_colormap_to_palette,
     convert_mulitband_to_raster,
     convert_singleband_to_raster,
     create_browse_imagery,
+    get_color_map_from_image,
     get_color_palette,
     output_image_file,
     output_world_file,
     palette_from_remote_colortable,
+    palettize_raster,
+    prepare_raster_for_writing,
     validate_file_type,
 )
 from harmony_browse_image_generator.exceptions import HyBIGException
 from tests.unit.utility import rasterio_test_file
+
+
+def encode_color(r, g, b, a=255):
+    """How an rgb[a] triplet is coded for a palette."""
+    return (((((int(a) << 8) + int(r)) << 8) + int(g)) << 8) + int(b)
 
 
 class TestBrowse(TestCase):
@@ -57,6 +67,7 @@ class TestBrowse(TestCase):
 
         cls.colors = [red, yellow, green, blue]
         cls.colormap = {100: red, 200: yellow, 300: green, 400: blue}
+        cls.random = np.random.default_rng()
 
     def test_create_browse_imagery_with_bad_raster(self):
         """Check that preferred metadata for global projection is found."""
@@ -191,6 +202,7 @@ class TestBrowse(TestCase):
                 src_crs=ds_mock.crs,
                 dst_transform=target_transform,
                 dst_crs=CRS.from_string('EPSG:4326'),
+                dst_nodata=255,
                 resampling=Resampling.nearest,
             ),
             call(
@@ -200,6 +212,7 @@ class TestBrowse(TestCase):
                 src_crs=ds_mock.crs,
                 dst_transform=target_transform,
                 dst_crs=CRS.from_string('EPSG:4326'),
+                dst_nodata=255,
                 resampling=Resampling.nearest,
             ),
             call(
@@ -209,6 +222,7 @@ class TestBrowse(TestCase):
                 src_crs=ds_mock.crs,
                 dst_transform=target_transform,
                 dst_crs=CRS.from_string('EPSG:4326'),
+                dst_nodata=255,
                 resampling=Resampling.nearest,
             ),
         ]
@@ -237,6 +251,9 @@ class TestBrowse(TestCase):
                 actual_call.kwargs['dst_crs'], expected_call.kwargs['dst_crs']
             )
             self.assertEqual(
+                actual_call.kwargs['dst_nodata'], expected_call.kwargs['dst_nodata']
+            )
+            self.assertEqual(
                 actual_call.kwargs['resampling'], expected_call.kwargs['resampling']
             )
 
@@ -247,198 +264,273 @@ class TestBrowse(TestCase):
             Path('./input_file_path.jgw').resolve(), actual_world.resolve()
         )
 
-    def test_convert_singleband_to_raster(self):
-        with self.subTest('Test single band raster without colortable'):
-            ds = Mock(DatasetReader)
-            ds.read.return_value = self.data
-            ds.colormap = MagicMock(side_effect=ValueError)
+    def test_convert_singleband_to_raster_without_colortable(self):
+        ds = Mock(DatasetReader)
+        ds.read.return_value = self.data
+        ds.colormap = MagicMock(side_effect=ValueError)
 
-            expected_raster = np.array(
+        expected_raster = np.array(
+            [
                 [
-                    [
-                        [0, 104, 198, 255],
-                        [0, 104, 198, 255],
-                        [0, 104, 198, 255],
-                        [0, 104, 198, 255],
-                    ],
-                    [
-                        [0, 104, 198, 255],
-                        [0, 104, 198, 255],
-                        [0, 104, 198, 255],
-                        [0, 104, 198, 255],
-                    ],
-                    [
-                        [0, 104, 198, 255],
-                        [0, 104, 198, 255],
-                        [0, 104, 198, 255],
-                        [0, 104, 198, 255],
-                    ],
-                    [
-                        [255, 255, 255, 255],
-                        [255, 255, 255, 255],
-                        [255, 255, 255, 255],
-                        [255, 255, 255, 255],
-                    ],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
                 ],
-                dtype='uint8',
-            )
-
-            actual_raster = convert_singleband_to_raster(ds)
-            assert_array_equal(expected_raster, actual_raster)
-
-        with self.subTest('Test 1band image with associated colormap.'):
-            ds = Mock(DatasetReader)
-            ds.read.return_value = self.data
-            ds.colormap.return_value = self.colormap
-
-            expected_raster = np.array(
                 [
-                    [  # red
-                        [255, 255, 0, 0],
-                        [255, 255, 0, 0],
-                        [255, 255, 0, 0],
-                        [255, 255, 0, 0],
-                    ],
-                    [  # green
-                        [0, 255, 255, 0],
-                        [0, 255, 255, 0],
-                        [0, 255, 255, 0],
-                        [0, 255, 255, 0],
-                    ],
-                    [  # blue
-                        [0, 0, 0, 255],
-                        [0, 0, 0, 255],
-                        [0, 0, 0, 255],
-                        [0, 0, 0, 255],
-                    ],
-                    [  # alpha
-                        [255, 255, 255, 255],
-                        [255, 255, 255, 255],
-                        [255, 255, 255, 255],
-                        [255, 255, 255, 255],
-                    ],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
                 ],
-                dtype='uint8',
-            )
-            # Read down: red, yellow, green, blue
-
-            actual_raster = convert_singleband_to_raster(ds)
-            assert_array_equal(expected_raster, actual_raster)
-
-    def test_convert_multiband_to_raster(self):
-        with self.subTest('Convert a 3 band image to raster.'):
-            ds = Mock(DatasetReader)
-            ds.count = 3
-            ds.read.return_value = np.stack([self.data, self.data, self.data])
-            ds.colormap.side_effect = ValueError
-
-            expected_raster = np.array(
                 [
-                    [
-                        [0, 85, 170, 255],
-                        [0, 85, 170, 255],
-                        [0, 85, 170, 255],
-                        [0, 85, 170, 255],
-                    ],
-                    [
-                        [0, 85, 170, 255],
-                        [0, 85, 170, 255],
-                        [0, 85, 170, 255],
-                        [0, 85, 170, 255],
-                    ],
-                    [
-                        [0, 85, 170, 255],
-                        [0, 85, 170, 255],
-                        [0, 85, 170, 255],
-                        [0, 85, 170, 255],
-                    ],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
                 ],
-                dtype='uint8',
-            )
-
-            actual_raster = convert_mulitband_to_raster(ds)
-            assert_array_equal(expected_raster, actual_raster.data)
-
-        with self.subTest('Convert a 4 band image to raster'):
-            ds = Mock(DatasetReader)
-            alpha = np.ones_like(self.data) * 255
-            alpha[0, 0] = 1
-            ds.count = 4
-            ds.read.return_value = np.stack([self.data, self.data, self.data, alpha])
-            expected_raster = np.array(
                 [
-                    [
-                        [0, 85, 170, 255],
-                        [0, 85, 170, 255],
-                        [0, 85, 170, 255],
-                        [0, 85, 170, 255],
-                    ],
-                    [
-                        [0, 85, 170, 255],
-                        [0, 85, 170, 255],
-                        [0, 85, 170, 255],
-                        [0, 85, 170, 255],
-                    ],
-                    [
-                        [0, 85, 170, 255],
-                        [0, 85, 170, 255],
-                        [0, 85, 170, 255],
-                        [0, 85, 170, 255],
-                    ],
-                    [
-                        [1, 255, 255, 255],
-                        [255, 255, 255, 255],
-                        [255, 255, 255, 255],
-                        [255, 255, 255, 255],
-                    ],
+                    [255, 255, 255, 255],
+                    [255, 255, 255, 255],
+                    [255, 255, 255, 255],
+                    [255, 255, 255, 255],
                 ],
-                dtype='uint8',
-            )
+            ],
+            dtype='uint8',
+        )
 
-            actual_raster = convert_mulitband_to_raster(ds)
-            assert_array_equal(expected_raster, actual_raster.data)
+        actual_raster = convert_singleband_to_raster(ds)
+        assert_array_equal(expected_raster, actual_raster)
 
-        with self.subTest('fails on too many bands'):
-            ds = Mock(DatasetReader)
-            ds.count = 5
-            ds.read.return_value = np.stack(
-                [self.data, self.data, self.data, self.data, self.data]
-            )
+    def test_convert_singleband_to_raster_with_colormap(self):
+        ds = Mock(DatasetReader)
+        ds.read.return_value = self.data
+        ds.colormap.return_value = self.colormap
 
-            with self.assertRaises(HyBIGException) as excepted:
-                convert_mulitband_to_raster(ds)
+        expected_raster = np.array(
+            [
+                [  # red
+                    [255, 255, 0, 0],
+                    [255, 255, 0, 0],
+                    [255, 255, 0, 0],
+                    [255, 255, 0, 0],
+                ],
+                [  # green
+                    [0, 255, 255, 0],
+                    [0, 255, 255, 0],
+                    [0, 255, 255, 0],
+                    [0, 255, 255, 0],
+                ],
+                [  # blue
+                    [0, 0, 0, 255],
+                    [0, 0, 0, 255],
+                    [0, 0, 0, 255],
+                    [0, 0, 0, 255],
+                ],
+                [  # alpha
+                    [255, 255, 255, 255],
+                    [255, 255, 255, 255],
+                    [255, 255, 255, 255],
+                    [255, 255, 255, 255],
+                ],
+            ],
+            dtype='uint8',
+        )
+        # Read down: red, yellow, green, blue
 
-            self.assertEqual(
-                excepted.exception.message, 'Cannot create image from 5 band image'
-            )
+        actual_raster = convert_singleband_to_raster(ds)
+        assert_array_equal(expected_raster, actual_raster)
 
-    def test_get_color_palette(self):
-        with self.subTest('colormap exists on geotiff'):
-            ds = Mock(DatasetReader)
-            ds.colormap.return_value = self.colormap
+    def test_convert_3_multiband_to_raster(self):
+        ds = Mock(DatasetReader)
+        ds.count = 3
+        ds.read.return_value = np.stack([self.data, self.data, self.data])
+        ds.colormap.side_effect = ValueError
 
-            lines = [
-                "100 255 0 0 255",
-                "200 255 255 0 255",
-                "300 0 255 0 255",
-                "400 0 0 255 255",
-            ]
+        expected_raster = np.array(
+            [
+                [
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                ],
+                [
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                ],
+                [
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                ],
+            ],
+            dtype='uint8',
+        )
 
-            expected_palette = ColorPalette()
-            expected_palette.read_file_txt(lines=lines)
+        actual_raster = convert_mulitband_to_raster(ds)
+        assert_array_equal(expected_raster, actual_raster.data)
 
-            actual_palette = get_color_palette(ds)
+    def test_convert_4_multiband_to_raster(self):
+        ds = Mock(DatasetReader)
+        alpha = np.ones_like(self.data) * 255
+        alpha[0, 0] = 1
+        ds.count = 4
+        ds.read.return_value = np.stack([self.data, self.data, self.data, alpha])
+        expected_raster = np.array(
+            [
+                [
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                ],
+                [
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                ],
+                [
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                ],
+                [
+                    [1, 255, 255, 255],
+                    [255, 255, 255, 255],
+                    [255, 255, 255, 255],
+                    [255, 255, 255, 255],
+                ],
+            ],
+            dtype='uint8',
+        )
 
-            self.assertEqual(expected_palette, actual_palette)
+        actual_raster = convert_mulitband_to_raster(ds)
+        assert_array_equal(expected_raster, actual_raster.data)
 
-        with self.subTest('A dataset without a colormap returns None'):
-            ds = Mock(DatasetReader)
-            ds.colormap.side_effect = ValueError
-            expected_palette = None
+    def test_convert_5_multiband_to_raster(self):
+        ds = Mock(DatasetReader)
+        ds.count = 5
+        ds.read.return_value = np.stack(
+            [self.data, self.data, self.data, self.data, self.data]
+        )
 
-            actual_palette = get_color_palette(ds)
+        with self.assertRaises(HyBIGException) as excepted:
+            convert_mulitband_to_raster(ds)
 
-            self.assertEqual(expected_palette, actual_palette)
+        self.assertEqual(
+            excepted.exception.message, 'Cannot create image from 5 band image'
+        )
+
+    def test_prepare_raster_for_writing_jpeg_3band(self):
+        raster = self.random.integers(255, size=(3, 5, 6))
+        driver = 'JPEG'
+        expected_raster = np.copy(raster)
+        expected_color_map = None
+
+        actual_raster, actual_color_map = prepare_raster_for_writing(raster, driver)
+        self.assertEqual(expected_color_map, actual_color_map)
+        np.testing.assert_array_equal(expected_raster, actual_raster)
+
+    def test_prepare_raster_for_writing_jpeg_4band(self):
+        raster = self.random.integers(255, size=(4, 7, 8))
+        driver = 'JPEG'
+        expected_raster = np.copy(raster[0:3, :, :])
+        expected_color_map = None
+        actual_raster, actual_color_map = prepare_raster_for_writing(raster, driver)
+        self.assertEqual(expected_color_map, actual_color_map)
+        np.testing.assert_array_equal(expected_raster, actual_raster)
+
+    @patch('harmony_browse_image_generator.browse.palettize_raster')
+    def test_prepare_raster_for_writing_png_4band(self, palettize_mock):
+        raster = self.random.integers(255, size=(4, 7, 8))
+        driver = 'PNG'
+
+        prepare_raster_for_writing(raster, driver)
+
+        palettize_mock.assert_called_once_with(raster)
+
+    @patch('harmony_browse_image_generator.browse.quantize_pil_image')
+    @patch('harmony_browse_image_generator.browse.get_color_map_from_image')
+    def test_palettize_raster(self, get_color_map_mock, quantize_mock):
+        """Test that the quantize function is called with a correct image."""
+        raster = self.random.integers(255, dtype='uint8', size=(4, 10, 11))
+        multiband_image = Image.fromarray(reshape_as_image(raster))
+        quantized_output = Image.fromarray(
+            self.random.integers(254, size=(10, 11), dtype='uint8')
+        )
+        quantize_mock.return_value = quantized_output
+
+        expected_out_raster = np.array(quantized_output.getdata()).reshape(1, 10, 11)
+        print(expected_out_raster.shape)
+
+        out_raster, out_map = palettize_raster(raster)
+
+        quantize_mock.assert_called_once_with(multiband_image, max_colors=255)
+        get_color_map_mock.assert_called_once_with(quantized_output)
+        np.testing.assert_array_equal(expected_out_raster, out_raster)
+
+    def test_get_color_map_from_image(self):
+        """PIL Image yields a color_map
+
+        A palette from an PIL Image is correctly turned into a colormap
+        writable by rasterio.
+
+        """
+        # random image with values of 0 to 4.
+        image_data = self.random.integers(5, size=(5, 6), dtype='uint8')
+        palette_sequence = [
+            255, 0, 0, 255,
+            0, 255, 0, 255,
+            0, 0, 255, 255,
+            225, 100, 25, 25,
+            0, 0, 0, 0
+        ]
+        test_image = Image.fromarray(image_data)
+        test_image.putpalette(palette_sequence, rawmode='RGBA')
+
+        expected_color_map = {
+            0: (255, 0, 0, 255),
+            1: (0, 255, 0, 255),
+            2: (0, 0, 255, 255),
+            3: (225, 100, 25, 25),
+            4: (0, 0, 0, 0)
+        }
+
+        actual_color_map = get_color_map_from_image(test_image)
+        self.assertDictEqual(expected_color_map, actual_color_map)
+
+    def test_get_color_palette_map_exists(self):
+        ds = Mock(DatasetReader)
+        ds.colormap.return_value = self.colormap
+
+        lines = [
+            "100 255 0 0 255",
+            "200 255 255 0 255",
+            "300 0 255 0 255",
+            "400 0 0 255 255",
+        ]
+
+        expected_palette = ColorPalette()
+        expected_palette.read_file_txt(lines=lines)
+
+        actual_palette = get_color_palette(ds)
+
+        self.assertEqual(expected_palette, actual_palette)
+
+    def test_get_color_palette_map_does_not_exist(self):
+        ds = Mock(DatasetReader)
+        ds.colormap.side_effect = ValueError
+        expected_palette = None
+
+        actual_palette = get_color_palette(ds)
+
+        self.assertEqual(expected_palette, actual_palette)
 
     def test_output_image_file(self):
         input_filename = Path('/path/to/some.tiff')
@@ -486,20 +578,13 @@ class TestBrowse(TestCase):
         ):
             validate_file_type(ds)
 
-    def test_convert_colormap_to_palette(self):
-        """A paletted geotiff has a colormap like a dictionary."""
-
-        def encode_color(r, g, b, a=255):
-            """How an rgb[a] triplet is coded for a palette."""
-            return (((((int(a) << 8) + int(r)) << 8) + int(g)) << 8) + int(b)
-
-        with self.subTest('Test and demonstrate 3 band'):
-            input_colormap = {
-                5: (255, 0, 0),  # red
-                100: (0, 255, 0),  # blue
-                30: (0, 0, 255),  # green
-                50: (10, 100, 201),
-            }
+    def test_convert_colormap_to_palette_3bands(self):
+        input_colormap = {
+            5: (255, 0, 0),  # red
+            100: (0, 255, 0),  # blue
+            30: (0, 0, 255),  # green
+            50: (10, 100, 201),
+        }
 
         # 3 color palettes are stores as coded 4-bypte int values
         # Alpha/Red/Green/Blue
@@ -519,20 +604,20 @@ class TestBrowse(TestCase):
         self.assertEqual(actual_palette.get_color(30), blue)
         self.assertEqual(actual_palette.get_color(50), last)
 
-        with self.subTest('Test and demonstrate 4 band'):
-            input_colormap = {
-                5: (255, 0, 0, 100),  # red
-                100: (0, 255, 0, 200),  # blue
-                30: (0, 0, 255, 255),  # green
-                50: (10, 100, 201, 255),  # other
-            }
+    def test_convert_colormap_to_palette_4bands(self):
+        input_colormap = {
+            5: (255, 0, 0, 100),  # red
+            100: (0, 255, 0, 200),  # blue
+            30: (0, 0, 255, 255),  # green
+            50: (10, 100, 201, 255),  # other
+        }
 
-            actual_palette = convert_colormap_to_palette(input_colormap)
+        actual_palette = convert_colormap_to_palette(input_colormap)
 
-            for color_level, rgba_tuple in input_colormap.items():
-                self.assertEqual(
-                    actual_palette.get_color(color_level), encode_color(*rgba_tuple)
-                )
+        for color_level, rgba_tuple in input_colormap.items():
+            self.assertEqual(
+                actual_palette.get_color(color_level), encode_color(*rgba_tuple)
+            )
 
     @patch('harmony_browse_image_generator.browse.requests.get')
     def test_palette_from_remote_colortable(self, mock_get):
