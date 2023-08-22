@@ -185,9 +185,14 @@ class TestBrowse(TestCase):
         message = HarmonyMessage({'format': {'mime': 'JPEG'}})
 
         # Act to run the test
-        actual_image, actual_world = create_browse_imagery(
+        out_file_list = create_browse_imagery(
             message, './input_file_path', self.logger
         )
+
+        # Ensure tiling logic was not called:
+        self.assertEqual(len(out_file_list), 1)
+
+        actual_image, actual_world, actual_aux = out_file_list[0]
 
         target_transform = Affine(90.0, 0.0, -180.0, 0.0, -45.0, 90.0)
         dest = np.zeros((ds_mock.height, ds_mock.width), dtype='uint8')
@@ -262,6 +267,9 @@ class TestBrowse(TestCase):
         )
         self.assertEqual(
             Path('./input_file_path.jgw').resolve(), actual_world.resolve()
+        )
+        self.assertEqual(
+            Path('./input_file_path.jpg.aux.xml').resolve(), actual_aux.resolve()
         )
 
     def test_convert_singleband_to_raster_without_colortable(self):

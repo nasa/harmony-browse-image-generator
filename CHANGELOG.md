@@ -1,3 +1,12 @@
+## v0.0.4
+
+### 2023-08-11
+
+- **DAS-1833**
+  - Browse images are tiled according to the GIBS ICD document.  That means
+    full Earth images that are ~1km in resolution are cut into 10x10degree
+    images and returned tiled.
+
 ## v0.0.3
 
 ### 2023-08-03

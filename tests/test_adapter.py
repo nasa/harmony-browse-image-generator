@@ -108,13 +108,19 @@ class TestAdapter(TestCase):
         expected_world_basename = 'input.jgw'
         expected_world_full_path = self.temp_dir / 'input.jgw'
 
+        expected_manifest_basename = 'input.txt'
+        expected_manifest_full_path = self.temp_dir / 'manifest.txt'
+
         expected_browse_url = f'{self.staging_location}/{expected_browse_basename}'
         expected_world_url = f'{self.staging_location}/{expected_world_basename}'
         expected_aux_url = f'{self.staging_location}/{expected_aux_basename}'
+        expected_manifest_url = f'{self.staging_location}/{expected_manifest_basename}'
+
 
         expected_browse_mime = 'image/jpeg'
         expected_world_mime = 'text/plain'
         expected_aux_mime = 'application/xml'
+        expected_manifest_mime = 'text/plain'
 
         mock_mkdtemp.return_value = self.temp_dir
 
@@ -124,7 +130,8 @@ class TestAdapter(TestCase):
             return expected_downloaded_file
         mock_download.side_effect = move_tif
         mock_stage.side_effect = [
-            expected_browse_url, expected_aux_url, expected_world_url
+            expected_browse_url, expected_aux_url, expected_world_url,
+            expected_manifest_url
         ]
 
         message = Message({
@@ -256,6 +263,12 @@ class TestAdapter(TestCase):
                  expected_world_mime,
                  logger=hybig.logger,
                  location=self.staging_location,
+                 cfg=self.config),
+            call(expected_manifest_full_path,
+                 expected_manifest_basename,
+                 expected_manifest_mime,
+                 logger=hybig.logger,
+                 location=self.staging_location,
                  cfg=self.config)
         ])
 
@@ -284,13 +297,19 @@ class TestAdapter(TestCase):
         expected_world_basename = 'input.pgw'
         expected_world_full_path = self.temp_dir / 'input.pgw'
 
+        expected_manifest_basename = 'input.txt'
+        expected_manifest_full_path = self.temp_dir / 'manifest.txt'
+
+
         expected_browse_url = f'{self.staging_location}/{expected_browse_basename}'
         expected_world_url = f'{self.staging_location}/{expected_world_basename}'
         expected_aux_url = f'{self.staging_location}/{expected_aux_basename}'
+        expected_manifest_url = f'{self.staging_location}/{expected_manifest_basename}'
 
         expected_browse_mime = 'image/png'
         expected_world_mime = 'text/plain'
         expected_aux_mime = 'application/xml'
+        expected_manifest_mime = 'text/plain'
 
         mock_mkdtemp.return_value = self.temp_dir
 
@@ -300,7 +319,8 @@ class TestAdapter(TestCase):
             return expected_downloaded_file
         mock_download.side_effect = move_tif
         mock_stage.side_effect = [
-            expected_browse_url, expected_aux_url, expected_world_url
+            expected_browse_url, expected_aux_url, expected_world_url,
+            expected_manifest_url
         ]
 
         message = Message({
@@ -420,7 +440,13 @@ class TestAdapter(TestCase):
                  expected_world_mime,
                  logger=hybig.logger,
                  location=self.staging_location,
-                 cfg=self.config)
+                 cfg=self.config),
+            call(expected_manifest_full_path,
+                 expected_manifest_basename,
+                 expected_manifest_mime,
+                 logger=hybig.logger,
+                 location=self.staging_location,
+                 cfg=self.config),
         ])
 
         # Ensure container clean-up was requested:

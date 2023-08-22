@@ -1,10 +1,10 @@
 """Tests covering the size module."""
 
-from unittest import TestCase
+from unittest import TestCase, skip
 from unittest.mock import MagicMock, patch
 
 import rasterio
-from affine import Affine
+from rasterio import Affine
 from harmony.message import Message
 from rasterio.crs import CRS
 
@@ -15,13 +15,18 @@ from harmony_browse_image_generator.sizes import (
     best_guess_target_dimensions,
     choose_scale_extent,
     choose_target_dimensions,
+    compute_cells_per_tile,
+    compute_tile_boundaries,
+    compute_tile_dimensions,
+    create_tiled_output_parameters,
     epsg_3031_resolutions,
     epsg_3413_resolutions,
     epsg_4326_resolutions,
     find_closest_resolution,
+    get_rasterio_parameters,
     get_target_grid_parameters,
     icd_defined_extent_from_crs,
-    get_rasterio_parameters,
+    needs_tiling,
 )
 from tests.unit.utility import rasterio_test_file
 
@@ -170,6 +175,208 @@ class TestRasterioParameters(TestCase):
 
         actual_parameters = get_rasterio_parameters(crs, scale_extent, dimensions)
         self.assertDictEqual(expected_parameters, actual_parameters)
+
+
+class TestTiling(TestCase):
+    """Tests for Tiling images."""
+
+
+    def test_needs_tiling(self):
+        """ Does the grid need to be tiled. The grid parameters checked in each
+            test only the x resolution from the Affine matrix and whether the
+            CRS is projected or geographic.
+
+        """
+        with self.subTest('Projected, needs tiling'):
+            grid_parameters = {
+                'height': 400,
+                'width': 400,
+                'crs': CRS.from_epsg(nsidc_np_seaice_grid['epsg']),
+                'transform': Affine(400, 0.0, -3850000.0, 0.0, 400, 5850000.0)
+            }
+            self.assertTrue(needs_tiling(grid_parameters))
+
+        with self.subTest('Projected, does not need tiling'):
+            grid_parameters = {
+                'height': 400,
+                'width': 400,
+                'crs': CRS.from_epsg(nsidc_np_seaice_grid['epsg']),
+                'transform': Affine(600, 0.0, -3850000.0, 0.0, 600, 5850000.0)
+            }
+            self.assertFalse(needs_tiling(grid_parameters))
+
+        with self.subTest('Geographic, needs tiling'):
+            grid_parameters = {
+                'height': 180000,
+                'width': 360000,
+                'crs': CRS.from_epsg(4326),
+                'transform': Affine(0.001, 0.0, -180, 0.0, -0.001, 180)
+            }
+            self.assertTrue(needs_tiling(grid_parameters))
+
+        with self.subTest('Geographic, does not need tiling'):
+            grid_parameters = {
+                'height': 1800,
+                'width': 3600,
+                'crs': CRS.from_epsg(4326),
+                'transform': Affine(0.1, 0.0, -180, 0.0, -0.1, 180)
+            }
+            self.assertFalse(needs_tiling(grid_parameters))
+
+    def test_compute_cells_per_tile(self):
+        """test how tiles sizes are generated."""
+        projected_crs = CRS.from_string(PREFERRED_CRS['north'])
+        unprojected_crs = CRS.from_string(PREFERRED_CRS['global'])
+
+        with self.subTest('projected CRS - meters'):
+            resolution = 500.0
+            expected_cells_per_tile = 2000
+            actual_cells_per_tile = compute_cells_per_tile(resolution, projected_crs)
+            self.assertEqual(expected_cells_per_tile, actual_cells_per_tile)
+            self.assertIsInstance(actual_cells_per_tile, int)
+
+
+        with self.subTest('unprojected CRS - degrees'):
+            resolution = 0.009
+            expected_cells_per_tile = 1111
+            actual_cells_per_tile = compute_cells_per_tile(resolution, unprojected_crs)
+            self.assertEqual(expected_cells_per_tile, actual_cells_per_tile)
+            self.assertIsInstance(actual_cells_per_tile, int)
+
+
+    def test_compute_tile_boundaries_exact(self):
+        """tests subdivision of output image."""
+        cells_per_tile = 10
+        full_width = 10 * 4
+        expected_origins = [0.0, 10.0, 20.0, 30.0, 40.0]
+
+        actual_origins = compute_tile_boundaries(cells_per_tile, full_width)
+
+        self.assertEqual(expected_origins, actual_origins)
+
+    def test_compute_tile_boundaries_with_leftovers(self):
+        """tests subdivision of output image."""
+        cells_per_tile = 10
+        full_width = 10 * 4 + 3
+        expected_origins = [0.0, 10.0, 20.0, 30.0, 40.0, 43.0]
+
+        actual_origins = compute_tile_boundaries(cells_per_tile, full_width)
+
+        self.assertEqual(expected_origins, actual_origins)
+
+    def test_compute_tile_dimensions_uniform(self):
+        """test tile dimensions."""
+        tile_origins = [0.0, 10.0, 20.0, 30.0, 40.0, 43.0]
+        expected_dimensions = [10.0, 10.0, 10.0, 10.0, 3.0, 0.0]
+
+        actual_dimensions = compute_tile_dimensions(tile_origins)
+
+        self.assertEqual(expected_dimensions, actual_dimensions)
+
+    def test_compute_tile_dimensions_nonuniform(self):
+        """test tile dimensions."""
+        tile_origins = [0.0, 20.0, 35.0, 40.0, 43.0]
+        expected_dimensions = [20.0, 15.0, 5.0, 3.0, 0.0]
+
+        actual_dimensions = compute_tile_dimensions(tile_origins)
+
+        self.assertEqual(expected_dimensions, actual_dimensions)
+
+    @patch('harmony_browse_image_generator.sizes.compute_cells_per_tile')
+    @patch('harmony_browse_image_generator.sizes.needs_tiling')
+    def test_create_tile_output_parameters(
+        self, needs_tiling_mock, cells_per_tile_mock
+    ):
+        """Test splitting of gridParams into sub-tiles.
+
+        Use a standard .05 degree unprojected grid 7200x3600
+
+        For expectation convenience, override the cells_per_tile.  by using
+        2800 cells per tile, we will generate a 3x2 output grid
+        The Affine definition:
+                Affine(xres, 0.0, <Long>, 0.0, -yres, <Latitude>),
+
+        width:
+        -180                   -40                        100                 180
+        +-----------------------+--------------------------+-------------------+
+        0                       2800                     5600                7200
+
+        height:
+        90                             -50               -90
+        +------------------------------+-------------------+
+        0                             2800               3600
+
+
+        Check the locations. Each cell is .05deg
+        2800 cells * .05 deg = 140.deg
+        -180.0 + 140 = -40
+        -40 + 140 = 100
+        etc.
+
+        """
+        needs_tiling_mock.return_value = True
+        cells_per_tile_mock.return_value = 2800
+
+        grid_parameters = {
+            'width': 7200,
+            'height': 3600,
+            'crs': CRS.from_string(PREFERRED_CRS['global']),
+            'transform': Affine(0.05, 0.0, -180.0, 0.0, -0.05, 90.0),
+        }
+
+        expected_grid_list = [
+            {
+                'width': 2800,
+                'height': 2800,
+                'crs': CRS.from_epsg(4326),
+                'transform': Affine(0.05, 0.0, -180.0, 0.0, -0.05, 90.0),
+            },
+            {
+                'width': 2800,
+                'height': 2800,
+                'crs': CRS.from_epsg(4326),
+                'transform': Affine(0.05, 0.0, -40.0, 0.0, -0.05, 90.0),
+            },
+            {
+                'width': 1600,
+                'height': 2800,
+                'crs': CRS.from_epsg(4326),
+                'transform': Affine(0.05, 0.0, 100.0, 0.0, -0.05, 90.0),
+            },
+            {
+                'width': 2800,
+                'height': 800,
+                'crs': CRS.from_epsg(4326),
+                'transform': Affine(0.05, 0.0, -180.0, 0.0, -0.05, -50.0),
+            },
+            {
+                'width': 2800,
+                'height': 800,
+                'crs': CRS.from_epsg(4326),
+                'transform': Affine(0.05, 0.0, -40.0, 0.0, -0.05, -50.0),
+            },
+            {
+                'width': 1600,
+                'height': 800,
+                'crs': CRS.from_epsg(4326),
+                'transform': Affine(0.05, 0.0, 100.0, 0.0, -0.05, -50.0),
+            },
+        ]
+        expected_tile_locator = [
+            {'col': 0, 'row': 0},
+            {'col': 1, 'row': 0},
+            {'col': 2, 'row': 0},
+            {'col': 0, 'row': 1},
+            {'col': 1, 'row': 1},
+            {'col': 2, 'row': 1},
+        ]
+
+        actual_grid_list, actual_tile_locator = create_tiled_output_parameters(
+            grid_parameters
+        )
+
+        self.assertListEqual(expected_grid_list, actual_grid_list)
+        self.assertListEqual(expected_tile_locator, actual_tile_locator)
 
 
 class TestChooseScaleExtent(TestCase):
@@ -422,7 +629,7 @@ class TestBestGuessTargetDimensions(TestCase):
                 # expected resolution is "500m" and the pixel_size is 512m
                 # (9000000 - -9000000 ) / 512 = 35156
                 expected_target_dimensions = {'height': 35156, 'width': 35156}
-                crs = MagicMock(is_projected = True)
+                crs = MagicMock(is_projected=True)
                 expected_x_resolution = 512
                 expected_y_resolution = 512
 
@@ -436,12 +643,12 @@ class TestBestGuessTargetDimensions(TestCase):
                 self.assertEqual(
                     expected_x_resolution,
                     epsg_3413_resolutions[2].pixel_size,
-                    msg='Expected Resolution is incorrect'
+                    msg='Expected Resolution is incorrect',
                 )
                 self.assertEqual(
                     expected_y_resolution,
                     epsg_3413_resolutions[2].pixel_size,
-                    msg='Expected Resolution is incorrect'
+                    msg='Expected Resolution is incorrect',
                 )
 
     def test_projected_crs_with_high_resolution_to_preferred_area(self):
@@ -473,7 +680,7 @@ class TestBestGuessTargetDimensions(TestCase):
                     'height': epsg_3413_resolutions[2].width,
                     'width': epsg_3413_resolutions[2].width,
                 }
-                crs = MagicMock(is_projected = True)
+                crs = MagicMock(is_projected=True)
 
                 expected_x_resolution = (
                     scale_extent['xmax'] - scale_extent['xmin']
@@ -549,12 +756,14 @@ class TestBestGuessTargetDimensions(TestCase):
                 expected_target_dimensions = {'height': 39140, 'width': 81920}
                 crs = MagicMock()
                 crs.is_projected = False
-                expected_x_resolution = round(
-                    scale_extent['xmax'] - scale_extent['xmin']
-                ) / expected_target_dimensions['width']
-                expected_y_resolution = round(
-                    scale_extent['ymax'] - scale_extent['ymin']
-                ) / expected_target_dimensions['height']
+                expected_x_resolution = (
+                    round(scale_extent['xmax'] - scale_extent['xmin'])
+                    / expected_target_dimensions['width']
+                )
+                expected_y_resolution = (
+                    round(scale_extent['ymax'] - scale_extent['ymin'])
+                    / expected_target_dimensions['height']
+                )
 
                 actual_dimensions = best_guess_target_dimensions(
                     in_dataset, scale_extent, crs

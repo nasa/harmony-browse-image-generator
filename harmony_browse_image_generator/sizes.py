@@ -11,6 +11,7 @@ from collections import namedtuple
 from typing import TypedDict
 
 import numpy as np
+from numpy import ndarray
 from affine import Affine
 from harmony.message import Message
 from pyproj import Transformer
@@ -19,7 +20,11 @@ from pyproj.crs import CRS as pyCRS
 # pylint: disable-next=no-name-in-module
 from rasterio.crs import CRS
 from rasterio.io import DatasetReader
-from rasterio.transform import from_bounds
+from rasterio.transform import (
+    AffineTransformer,
+    from_bounds,
+    from_origin,
+)
 
 from harmony_browse_image_generator.crs import (
     PREFERRED_CRS,
@@ -39,7 +44,8 @@ class GridParams(TypedDict):
     """Convenience to describe a grid parameters dictionary."""
     height: int
     width: int
-    affine: Affine
+    crs: CRS
+    transform: Affine
 
 
 class ScaleExtent(TypedDict):
@@ -211,6 +217,123 @@ def get_rasterio_parameters(crs: CRS, scale_extent: ScaleExtent,
     }
 
 
+def create_tiled_output_parameters(
+        grid_parameters: GridParams
+) -> (list[GridParams], list[dict] | None):
+    """Split the output grid if necessary.
+
+    When the grid resolution is less than 1km (.0087890625 degrees)
+    (and the scale extents are full width.? TODO [MHS, 08/08/2023] )
+
+    returns a list of GridParams object that completely cover the input scale
+    extent.
+
+    """
+    if not needs_tiling(grid_parameters):
+        return [grid_parameters], [None]
+
+    crs = grid_parameters['crs']
+    full_width = grid_parameters['width']
+    full_height = grid_parameters['height']
+    transform = grid_parameters['transform']
+    resolution_x = transform.a
+    resolution_y = np.abs(transform.e)
+
+    cells_per_tile_width = compute_cells_per_tile(resolution_x, crs)
+    cells_per_tile_height = compute_cells_per_tile(resolution_y, crs)
+
+    width_origins = compute_tile_boundaries(cells_per_tile_width, full_width)
+    height_origins = compute_tile_boundaries(cells_per_tile_height, full_height)
+    width_dimensions = compute_tile_dimensions(width_origins)
+    height_dimensions = compute_tile_dimensions(height_origins)
+
+    transformer = AffineTransformer(transform)
+
+    grid_parameter_list = []
+    tile_locator = []
+    for h_idx, row in enumerate(height_origins):
+        for w_idx, col in enumerate(width_origins):
+            height = height_dimensions[h_idx]
+            width = width_dimensions[w_idx]
+            x_loc, y_loc = transformer.xy(row, col, offset='ul')
+            tile_grid_transform = from_origin(x_loc, y_loc, resolution_x, resolution_y)
+            if height > 0 and width > 0:
+                grid_parameter_list.append({
+                    'width': width,
+                    'height': height,
+                    'crs': crs,
+                    'transform': tile_grid_transform,
+                })
+                tile_locator.append({'row': h_idx, 'col': w_idx})
+
+    return grid_parameter_list, tile_locator
+
+
+def compute_tile_dimensions(origins: ndarray) -> ndarray:
+    """return a list of tile dimensions.
+
+    From a list of origin locations, return the dimension for each tile.
+
+    """
+    return list(np.diff(origins, append=origins[-1]).astype('int16'))
+
+
+def compute_tile_boundaries(target_size: int, full_size: int) -> list[float]:
+    """returns a list of boundary cells.
+
+    The returned boundary cells are the column [or row] values for each of the
+    output tiles. They should always start at 0, and end at the full_size
+    input, stepping by target size until the last step, which can be any size
+    including 0.
+
+    """
+    n_boundaries = int(full_size // target_size) + 1
+    boundaries = [target_size * index for index in range(n_boundaries)]
+
+    if boundaries[-1] != full_size:
+        boundaries.append(full_size)
+
+    return boundaries
+
+
+def compute_cells_per_tile(resolution: float, crs: CRS) -> int:
+    """optimum cells per tile."""
+
+    # constants determined with GIBS.
+    degrees_per_tile = 10.
+    meters_per_tile = 1000000.
+
+    if crs.is_projected:
+        cells_per_tile = int(np.round(meters_per_tile / resolution))
+    else:
+        cells_per_tile = int(np.round(degrees_per_tile / resolution))
+
+    return cells_per_tile
+
+
+def needs_tiling(grid_parameters: GridParams) -> bool:
+    """Returns true if the grid is too large for GIBS.
+
+    For a lat/lon unprojected grid, this means resolution of 1km or ~.01
+    degrees/grid cell
+
+    For a projected grid, I think 1km at full resoution is too coarse to chop
+    and we should choose 250m or 500m as the default TODO [MHS, 08/09/2023]
+
+    """
+    if (
+        grid_parameters['crs'].is_projected
+        and grid_parameters['transform'].a <= 500.
+    ):
+        should_tile = True
+    elif grid_parameters['transform'].a <= .01:
+        should_tile = True
+    else:
+        should_tile = False
+
+    return should_tile
+
+
 def icd_defined_extent_from_crs(crs: CRS) -> ScaleExtent:
     """return the predefined scaleExtent for a GIBS image.
 
@@ -276,6 +399,8 @@ def best_guess_target_dimensions(dataset: DatasetReader,
 
     Using the information from the scaleExtent and the input dataset metadata,
     compute the height and width appropriate for the output image.
+
+    North and South have matching resolutions so we just use the 3413 resolutions.
 
     """
     resolution_list = None

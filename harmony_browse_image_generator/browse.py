@@ -1,5 +1,6 @@
 """Module containing core functionality for browse image generation."""
 import re
+from itertools import zip_longest
 from pathlib import Path
 from logging import Logger
 
@@ -20,11 +21,14 @@ from rasterio.plot import reshape_as_raster, reshape_as_image
 from rasterio.warp import reproject, Resampling
 
 from harmony_browse_image_generator.exceptions import HyBIGException
-from harmony_browse_image_generator.sizes import get_target_grid_parameters
+from harmony_browse_image_generator.sizes import (
+    get_target_grid_parameters,
+    create_tiled_output_parameters,
+)
 
 
 def create_browse_imagery(message: HarmonyMessage, input_file_path: str,
-                          logger: Logger) -> tuple[Path, Path]:
+                          logger: Logger) -> list[tuple[Path, Path, Path]]:
     """Create browse image from input geotiff.
 
     Take input browse image and return a 2-element tuple for the file paths
@@ -49,25 +53,39 @@ def create_browse_imagery(message: HarmonyMessage, input_file_path: str,
                 raise HyBIGException(
                     f'incorrect number of bands for image: {in_dataset.count}')
 
-            grid_parameters = get_target_grid_parameters(message, in_dataset)
-
             raster, color_map = prepare_raster_for_writing(raster, output_driver)
 
-            write_georaster_as_browse(
-                in_dataset,
-                raster,
-                color_map,
-                grid_parameters,
-                logger=logger,
-                driver=output_driver,
-                out_file_name=out_image_file,
-                out_world_name=out_world_file,
+            grid_parameters = get_target_grid_parameters(message, in_dataset)
+            grid_parameter_list, tile_locators = create_tiled_output_parameters(
+                grid_parameters
             )
+
+            processed_files = []
+            for grid_parameters, tile_location in zip_longest(grid_parameter_list,
+                                                              tile_locators):
+                tiled_out_image_file = get_tiled_filename(out_image_file, tile_location)
+                tiled_out_world_file = get_tiled_filename(out_world_file, tile_location)
+                tiled_out_aux_xml_file = get_aux_xml_filename(tiled_out_image_file)
+                logger.info(f'out image file: {tiled_out_image_file}: {tile_location}')
+
+                write_georaster_as_browse(
+                    in_dataset,
+                    raster,
+                    color_map,
+                    grid_parameters,
+                    logger=logger,
+                    driver=output_driver,
+                    out_file_name=tiled_out_image_file,
+                    out_world_name=tiled_out_world_file,
+                )
+                processed_files.append(
+                    (tiled_out_image_file, tiled_out_world_file, tiled_out_aux_xml_file)
+                )
 
     except Exception as exception:
         raise HyBIGException(str(exception)) from exception
 
-    return (out_image_file, out_world_file)
+    return processed_files
 
 
 def convert_mulitband_to_raster(dataset: DatasetReader) -> ndarray:
@@ -236,6 +254,25 @@ def get_color_map_from_image(image: Image) -> dict:
     for idx in range(0, color_tuples.shape[0]):
         color_map[idx] = tuple(color_tuples[idx])
     return color_map
+
+
+def get_aux_xml_filename(image_filename: Path) -> Path:
+    """get aux.xml filenames."""
+    return image_filename.with_suffix(
+        image_filename.suffix + '.aux.xml'
+    )
+
+
+def get_tiled_filename(input_file: Path, locator: dict | None = None) -> Path:
+    """Add a column, row identifier to the output files.
+
+    Only update if there is a valid locator dict.
+    """
+    if locator is not None:
+        print(f'locator: {locator}')
+        return input_file.with_suffix(
+            f".r{int(locator['row']):02d}c{int(locator['col']):02d}{input_file.suffix}")
+    return input_file
 
 
 def output_image_file(input_file_path: Path, driver: str = 'PNG'):

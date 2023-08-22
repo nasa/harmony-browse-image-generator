@@ -6,7 +6,7 @@
     Global Imagery Browse Services (GIBS) compatible browse imagery.
 
 """
-from os.path import basename, splitext
+from os.path import basename
 from pathlib import Path
 from shutil import rmtree
 from tempfile import mkdtemp
@@ -17,7 +17,11 @@ from harmony.util import bbox_to_geometry, download, generate_output_filename, s
 from pystac import Asset, Catalog, Item
 
 from harmony_browse_image_generator.browse import create_browse_imagery
-from harmony_browse_image_generator.utilities import get_file_mime_type
+from harmony_browse_image_generator.utilities import (
+    get_asset_name,
+    get_file_mime_type,
+    get_tiled_file_extension,
+)
 
 
 class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
@@ -57,36 +61,34 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
                 cfg=self.config,
                 access_token=self.message.accessToken)
 
-            # The following line would be replaced by invoking service logic
-            # The assumption is output will contain a 2-element tuple with a
-            # browse image and an ESRI world file:
-            # (Note until the service logic is created, the input file will be
-            # entirely spurious)
-            browse_image_name, world_file_name = create_browse_imagery(
+            # Create browse images.
+            image_file_list = create_browse_imagery(
                 self.message,
                 input_data_filename,
                 logger=self.logger
             )
 
-            # Stage the browse image:
-            browse_image_url = self.stage_output(browse_image_name,
-                                                 asset.href)
+            # image_file_list is a list of tuples (image, world, auxiliary)
+            # we need to stage them each individually, and then add their final
+            # locations to a list before creating the stac item.
+            item_assets = []
 
-            browse_aux_url = self.stage_output(
-                browse_image_name.with_suffix(
-                    browse_image_name.suffix + '.aux.xml'
-                ),
-                asset.href
-            )
+            for browse_image_name, world_file_name, aux_xml_file_name in image_file_list:
+                # Stage the images:
+                browse_image_url = self.stage_output(browse_image_name,
+                                                     asset.href)
+                browse_aux_url = self.stage_output(aux_xml_file_name,
+                                                   asset.href)
+                world_file_url = self.stage_output(world_file_name,
+                                                   asset.href)
+                item_assets.append(('data', browse_image_url, 'data'))
+                item_assets.append(('metadata', world_file_url, 'metadata'))
+                item_assets.append(('auxiliary', browse_aux_url, 'metadata'))
 
-            # Stage the world file:
-            world_file_url = self.stage_output(world_file_name,
-                                               asset.href)
+            manifest_url = self.stage_manifest(image_file_list, asset.href)
+            item_assets.insert(0, ('data', manifest_url, 'metadata'))
 
-            return self.create_output_stac_item(
-                item, [('data', browse_image_url, 'data'),
-                       ('metadata', world_file_url, 'metadata'),
-                       ('auxiliary', browse_aux_url, 'metadata')])
+            return self.create_output_stac_item(item, item_assets)
 
         except Exception as exception:
             self.logger.exception(exception)
@@ -101,11 +103,8 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
             message.
 
         """
-        if transformed_file.name.endswith('.aux.xml'):
-            ext = '.'.join(transformed_file.name.split('.')[-3:])
-        else:
-            ext = splitext(transformed_file)[1]
 
+        ext = get_tiled_file_extension(transformed_file)
         output_file_name = generate_output_filename(
             input_file, ext=ext
         )
@@ -135,9 +134,28 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
         output_stac_item.geometry = bbox_to_geometry(output_stac_item.bbox)
 
         for name, url, role in item_assets:
-            output_stac_item.assets[name] = Asset(
+            asset_name = get_asset_name(name, url)
+
+            output_stac_item.assets[asset_name] = Asset(
                 url, title=basename(url),
                 media_type=get_file_mime_type(url), roles=[role]
             )
 
         return output_stac_item
+
+    def stage_manifest(self, image_file_list: list[tuple[Path, Path, Path]],
+                       asset_href: str) -> str:
+        """Write a manifest file of the output images.
+
+        Write a file that will serve as the 'data' key for tiled output.  At
+        some point we will have to find out why this is necessary, but this is
+        a clever work around to that necessity.
+
+        """
+        manifest_fn = Path(image_file_list[0][0]).parent / 'manifest.txt'
+
+        with open(manifest_fn, 'w', encoding='UTF-8') as file_pointer:
+            file_pointer.writelines(
+                f'{img}, {wld}, {aux}\n' for img, wld, aux in image_file_list)
+
+        return self.stage_output(manifest_fn, asset_href)
