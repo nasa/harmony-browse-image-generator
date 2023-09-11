@@ -275,7 +275,7 @@ def compute_tile_dimensions(origins: ndarray) -> ndarray:
     From a list of origin locations, return the dimension for each tile.
 
     """
-    return list(np.diff(origins, append=origins[-1]).astype('int16'))
+    return list(np.diff(origins, append=origins[-1]).astype('int'))
 
 
 def compute_tile_boundaries(target_size: int, full_size: int) -> list[float]:
@@ -326,7 +326,10 @@ def needs_tiling(grid_parameters: GridParams) -> bool:
         and grid_parameters['transform'].a <= 500.
     ):
         should_tile = True
-    elif grid_parameters['transform'].a <= .01:
+    elif (
+        not grid_parameters['crs'].is_projected
+        and grid_parameters['transform'].a <= 0.01
+    ):
         should_tile = True
     else:
         should_tile = False
