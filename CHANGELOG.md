@@ -1,40 +1,35 @@
+## v0.0.5
+### 2023-09-12
+ - Fixes tiling selection. Fixes bug for large numbers of tiles.
+
 ## v0.0.4
-
 ### 2023-08-11
-
 - **DAS-1833**
-  - Browse images are tiled according to the GIBS ICD document.  That means
-    full Earth images that are ~1km in resolution are cut into 10x10degree
-    images and returned tiled.
+    - Browse images are tiled according to the GIBS ICD document.  That means
+      full Earth images that are ~1km in resolution are cut into 10x10degree
+      images and returned tiled.
 
 ## v0.0.3
-
 ### 2023-08-03
 - **DAS-1885**
     - PNG images are written as single band paletted images.
 
 ## v0.0.2
-
 ### 2023-07-25
-
 - **DAS-1835**
     - Uses Harmony Message's parameters, or computes defaults when generating
       and output browse image. When no parameters are passed with the Message,
       the code will resize and reproject to try to make GIBS compatible images.
 
 ## v0.0.1
-
 ### 2023-07-12
-
 - **DAS-1816**
     - Adds functionality to determine GIBS compatible output parameters, while
       allowing a user to override any parameters in the harmony message.
 
 
 ## v0.0.0
-
 ### 2023-05-18
-
 - **DAS-1600**
     - Updates the service to generate PNG images from input geotiffs. The
       service can read single band geotiffs with or without a palette and
