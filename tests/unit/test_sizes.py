@@ -619,7 +619,7 @@ class TestBestGuessTargetDimensions(TestCase):
                 expected_target_dimensions = {'height': 720, 'width': 720}
                 crs = MagicMock()
                 crs.is_projected = True
-                # This isn't possible?
+
                 actual_dimensions = best_guess_target_dimensions(
                     in_dataset, scale_extent, crs
                 )
