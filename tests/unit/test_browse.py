@@ -136,13 +136,14 @@ class TestBrowse(TestCase):
     @patch('harmony_browse_image_generator.browse.reproject')
     @patch('rasterio.open')
     def test_create_browse_imagery_with_mocks(self, rasterio_open_mock, reproject_mock):
+        file_transform = Affine(90.0, 0.0, -180.0, 0.0, -45.0, 90.0)
         ds_mock = Mock(DatasetReader)
         dest_write_mock = Mock(DatasetWriter)
         ds_mock.read.return_value = self.data
         ds_mock.driver = 'GTiff'
         ds_mock.height = 4
         ds_mock.width = 4
-        ds_mock.transform = Affine.identity()
+        ds_mock.transform = file_transform
         ds_mock.crs = CRS.from_string('EPSG:4326')
         ds_mock.count = 1
         ds_mock.colormap = MagicMock(side_effect=ValueError)
@@ -203,7 +204,7 @@ class TestBrowse(TestCase):
             call(
                 source=expected_raster[0, :, :],
                 destination=dest,
-                src_transform=Affine.identity(),
+                src_transform=file_transform,
                 src_crs=ds_mock.crs,
                 dst_transform=target_transform,
                 dst_crs=CRS.from_string('EPSG:4326'),
@@ -213,7 +214,7 @@ class TestBrowse(TestCase):
             call(
                 source=expected_raster[1, :, :],
                 destination=dest,
-                src_transform=Affine.identity(),
+                src_transform=file_transform,
                 src_crs=ds_mock.crs,
                 dst_transform=target_transform,
                 dst_crs=CRS.from_string('EPSG:4326'),
@@ -223,7 +224,7 @@ class TestBrowse(TestCase):
             call(
                 source=expected_raster[2, :, :],
                 destination=dest,
-                src_transform=Affine.identity(),
+                src_transform=file_transform,
                 src_crs=ds_mock.crs,
                 dst_transform=target_transform,
                 dst_crs=CRS.from_string('EPSG:4326'),
