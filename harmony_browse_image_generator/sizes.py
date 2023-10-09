@@ -95,7 +95,7 @@ epsg_4326_resolutions = [
     ResolutionInfo("15.625m", 0.0001373291015625, 1310720, 2521440, 13, 2),
 ]
 
-# Conversion used above to get the resolution from pixel_size and width
+# Conversion used above: resolution / pixel_size
 METERS_PER_DEGREE = 113777.77777777778
 
 # This is Table 4.1.8-2 NSIDC Sea Ice Polar Stereographic Extent (EPSG:3413) Resolutions
