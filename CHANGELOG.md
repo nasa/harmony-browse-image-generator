@@ -1,4 +1,4 @@
-## v0.0.6
+## Unreleased
 ### 2023-10-09
  - Output dimension calculation no based on input data resolution and the scale
    extent.
