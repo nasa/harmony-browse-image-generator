@@ -247,8 +247,6 @@ class TestAdapter(TestCase):
                              expected_call.kwargs['resampling'])
 
         # Ensure the browse image and ESRI world file were staged as expected:
-        # TODO: "expected_downloaded_files" arguments will need updating when
-        # the service processes anything.
         mock_stage.assert_has_calls([
             call(expected_browse_full_path,
                  expected_browse_basename,
@@ -429,8 +427,6 @@ class TestAdapter(TestCase):
                              expected_call.kwargs['resampling'])
 
         # Ensure the browse image and ESRI world file were staged as expected:
-        # TODO: "expected_downloaded_files" arguments will need updating when
-        # the service processes anything.
         mock_stage.assert_has_calls([
             call(expected_browse_full_path,
                  expected_browse_basename,

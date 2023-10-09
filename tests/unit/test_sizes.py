@@ -736,7 +736,6 @@ class TestBestGuessTargetDimensions(TestCase):
 
     def test_longlat_crs(self):
         # 36km Mid-Latitude EASE Grid 2
-        # TODO [MHS, 10/05/2023]
         ml_test_transform = rasterio.transform.from_bounds(
             nsidc_ease2_36km_grid['left'],
             nsidc_ease2_36km_grid['bottom'],
@@ -761,7 +760,6 @@ class TestBestGuessTargetDimensions(TestCase):
                     'ymax': 86.0,
                 }
 
-                # in_dataset's height and width
                 infile_res = 0.31668943359375
                 expected_height = round((86 - -86) / infile_res)
                 expected_width = round((180 - -180) / infile_res)
