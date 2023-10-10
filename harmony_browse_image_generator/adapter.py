@@ -17,6 +17,12 @@ from harmony.util import bbox_to_geometry, download, generate_output_filename, s
 from pystac import Asset, Catalog, Item
 
 from harmony_browse_image_generator.browse import create_browse_imagery
+from harmony_browse_image_generator.exceptions import HyBIGInvalidMessage
+from harmony_browse_image_generator.message_utility import (
+    has_crs,
+    has_scale_extents,
+    has_scale_sizes,
+)
 from harmony_browse_image_generator.utilities import (
     get_asset_name,
     get_file_mime_type,
@@ -36,12 +42,20 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
         return super().invoke()
 
     def validate_message(self):
-        """ Validates that the contents of the Harmony message provides all
+        """Validates that the contents of the Harmony message provides all
             necessary parameters.
 
-            Validation rules will be added as part of DAS-1829.
+        Currently imposed rules:
+        1. if scale extent and scale size must each by accompanied by crs.
 
         """
+
+        if has_scale_extents(self.message) or has_scale_sizes(self.message):
+            if not has_crs(self.message):
+                raise HyBIGInvalidMessage(
+                    'Harmony message must include a crs '
+                    'with scaleExtent or scaleSizes.'
+                )
 
     def process_item(self, item: Item, source: HarmonySource) -> Item:
         """ Processes a single input STAC item. """

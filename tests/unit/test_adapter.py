@@ -1,10 +1,11 @@
-from unittest import skip, TestCase
+from unittest import TestCase, skip
 
 from harmony.message import Message
 from harmony.util import config
 
 from harmony_browse_image_generator.adapter import BrowseImageGeneratorAdapter
-from tests.utilities import create_stac, Granule
+from harmony_browse_image_generator.exceptions import HyBIGInvalidMessage
+from tests.utilities import Granule, create_stac
 
 
 class TestAdapter(TestCase):
@@ -22,9 +23,80 @@ class TestAdapter(TestCase):
                                              'application/x-netcdf4',
                                              ['data']))
 
-    @skip('Method not yet implemented')
-    def test_validate_message(self):
-        """ Ensure only messages with expected content will be processed. """
+
+    def test_validate_message_scale_extent_no_crs(self):
+        """Ensure only messages with expected content will be processed."""
+        message = Message(
+            {
+                'format': {
+                    'scaleExtent': {
+                        'x': {'min': 3, 'max': 10},
+                        'y': {'min': 0, 'max': 10},
+                    }
+                }
+            }
+        )
+        adapter = BrowseImageGeneratorAdapter(
+            message, config=self.config, catalog=self.input_stac
+        )
+        with self.assertRaisesRegex(
+            HyBIGInvalidMessage,
+            ('Harmony message must include a crs with scaleExtent or scaleSizes.'),
+        ):
+            adapter.validate_message()
+
+    def test_validate_message_scale_size_no_crs(self):
+        """Ensure only messages with expected content will be processed."""
+        message = Message(
+            {
+                'format': {
+                    'scaleSize': {
+                        'x': 5,
+                        'y': 5,
+                    }
+                }
+            }
+        )
+        adapter = BrowseImageGeneratorAdapter(
+            message, config=self.config, catalog=self.input_stac
+        )
+        with self.assertRaisesRegex(
+            HyBIGInvalidMessage,
+            ('Harmony message must include a crs with scaleExtent or scaleSizes.'),
+        ):
+            adapter.validate_message()
+
+    def test_validate_message_has_crs(self):
+        """Ensure only messages with expected content will be processed."""
+        message = Message(
+            {
+                'format': {
+                    'crs': 'epsg:4326',
+                    'scaleExtent': {
+                        'x': {'min': 3, 'max': 10},
+                        'y': {'min': 0, 'max': 10},
+                    },
+                }
+            }
+        )
+        try:
+            adapter = BrowseImageGeneratorAdapter(
+                message, config=self.config, catalog=self.input_stac
+            )
+            adapter.validate_message()
+        except Exception:
+            self.fail('valid message threw excpetion')
+
+    def test_validate_message_empty(self):
+        """Ensure only messages with expected content will be processed."""
+        message = Message({})
+        try:
+            adapter = BrowseImageGeneratorAdapter(
+                message, config=self.config, catalog=self.input_stac
+            )
+            adapter.validate_message()
+        except Exception:
+            self.fail('valid message thre excpetion')
 
     def test_create_output_stac_items(self):
         """ Ensure a STAC item is created with Assets for both the browse image

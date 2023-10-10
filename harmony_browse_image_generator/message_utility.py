@@ -65,6 +65,14 @@ def has_dimensions(message: Message) -> bool:
     return _has_all_attributes(message, ['format.height', 'format.width'])
 
 
+def has_crs(message: Message) -> bool:
+    """Returns true if Harmony message contains a crs."""
+    target_crs = rgetattr(message, 'format.crs')
+    if target_crs is None:
+        return False
+    return True
+
+
 def has_scale_extents(message: Message) -> bool:
     """ Ensure the supplied Harmony message contains values for the minimum and
         maximum extents of the target grid in both the x and y dimensions.
