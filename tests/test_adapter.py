@@ -174,23 +174,27 @@ class TestAdapter(TestCase):
         # dimensions from input data
         in_dataset = rasterio_open(self.red_tif_fixture)
         icd_scale_extent = {'xmin': -180.0, 'ymin': -90.0, 'xmax': 180.0, 'ymax': 90.0}
+        expected_width = round((180 - -180) / in_dataset.transform.a)
+        expected_height = round((90 - -90) / -in_dataset.transform.e)
         expected_transform = from_bounds(
             icd_scale_extent['xmin'],
             icd_scale_extent['ymin'],
             icd_scale_extent['xmax'],
             icd_scale_extent['ymax'],
-            in_dataset.width,
-            in_dataset.height,
+            expected_width,
+            expected_height,
         )
 
-        expected_params = {'width': in_dataset.width,
-                           'height': in_dataset.height,
-                           'crs': in_dataset.crs,
-                           'transform': expected_transform,
-                           'driver': 'JPEG',
-                           'dtype': 'uint8',
-                           'dst_nodata': 255,
-                           'count': 3}
+        expected_params = {
+            'width': expected_width,
+            'height': expected_height,
+            'crs': in_dataset.crs,
+            'transform': expected_transform,
+            'driver': 'JPEG',
+            'dtype': 'uint8',
+            'dst_nodata': 255,
+            'count': 3,
+        }
         raster = convert_mulitband_to_raster(in_dataset)
 
         dest = np.full((expected_params['height'], expected_params['width']),
@@ -243,8 +247,6 @@ class TestAdapter(TestCase):
                              expected_call.kwargs['resampling'])
 
         # Ensure the browse image and ESRI world file were staged as expected:
-        # TODO: "expected_downloaded_files" arguments will need updating when
-        # the service processes anything.
         mock_stage.assert_has_calls([
             call(expected_browse_full_path,
                  expected_browse_basename,
@@ -363,23 +365,28 @@ class TestAdapter(TestCase):
         # dimensions from input data
         in_dataset = rasterio_open(self.red_tif_fixture)
         icd_scale_extent = {'xmin': -180.0, 'ymin': -90.0, 'xmax': 180.0, 'ymax': 90.0}
+
+        expected_width = round((180 - -180) / in_dataset.transform.a)
+        expected_height = round((90 - -90) / -in_dataset.transform.e)
         expected_transform = from_bounds(
             icd_scale_extent['xmin'],
             icd_scale_extent['ymin'],
             icd_scale_extent['xmax'],
             icd_scale_extent['ymax'],
-            in_dataset.width,
-            in_dataset.height,
+            expected_width,
+            expected_height,
         )
 
-        expected_params = {'width': in_dataset.width,
-                           'height': in_dataset.height,
-                           'crs': in_dataset.crs,
-                           'transform': expected_transform,
-                           'driver': 'PNG',
-                           'dtype': 'uint8',
-                           'dst_nodata': 255,
-                           'count': 3}
+        expected_params = {
+            'width': expected_width,
+            'height': expected_height,
+            'crs': in_dataset.crs,
+            'transform': expected_transform,
+            'driver': 'PNG',
+            'dtype': 'uint8',
+            'dst_nodata': 255,
+            'count': 3,
+        }
         raster = convert_mulitband_to_raster(in_dataset)
         raster, color_map = prepare_raster_for_writing(raster, 'PNG')
 
@@ -420,8 +427,6 @@ class TestAdapter(TestCase):
                              expected_call.kwargs['resampling'])
 
         # Ensure the browse image and ESRI world file were staged as expected:
-        # TODO: "expected_downloaded_files" arguments will need updating when
-        # the service processes anything.
         mock_stage.assert_has_calls([
             call(expected_browse_full_path,
                  expected_browse_basename,

@@ -95,6 +95,9 @@ epsg_4326_resolutions = [
     ResolutionInfo("15.625m", 0.0001373291015625, 1310720, 2521440, 13, 2),
 ]
 
+# Conversion used above: resolution / pixel_size
+METERS_PER_DEGREE = 113777.77777777778
+
 # This is Table 4.1.8-2 NSIDC Sea Ice Polar Stereographic Extent (EPSG:3413) Resolutions
 epsg_3413_resolutions = [
     ResolutionInfo("2km", 2048, 4096, 4096, 3, 2),
@@ -118,12 +121,12 @@ def get_target_grid_parameters(message: Message,
 
     This computes the target grid of the ouptut image. The grid is defined by
     of the extent of the output: ScaleExtents, and either the grid cell sizes:
-    ScaleSizes or the scaleDimensions: width and height.
+    ScaleSizes or the dimensions: width and height.
 
     - User submitted parameters take precedence over computed
     parameters.
 
-    - Computed parameters should generate GIBS suitable images.
+    - Computed parameters attempt to generate GIBS suitable images.
 
     """
     target_crs = choose_target_crs(message.format.srs, dataset)
@@ -143,6 +146,7 @@ def choose_scale_extent(message: Message, target_crs: CRS) -> ScaleExtent:
 
     """
     if has_scale_extents(message):
+        # These values must be in the target_crs projection.
         scale_extent = {
             'xmin': message.format.scaleExtent.x.min,
             'ymin': message.format.scaleExtent.y.min,
@@ -164,26 +168,26 @@ def choose_target_dimensions(message: Message, dataset: DatasetReader,
 
     This routine finalizes the output grid.  The target dimensions are
     returned.  These along with the CRS and scaleExent will be used to
-    selecting the correct output transformation
+    selecting the correct output transformation for the final image.
 
-    To determine the target dimensions the following must occur.
+    To determine the target dimensions the following occurs.
 
-    The input harmony message format is searched for height and width or scaleSizes.
-    If scalesizes are found, they are converted to height and width and returned.
+    The input harmony message format is searched for dimensions or scaleSizes:
+    If dimensions (height and width) are found, they are returned.
+    If scaleSize is found, it is converted to height and width and returned.
 
-    If no scaleSizes or grid sizes are input. The input dataset metadata
-    scaleSizes are checked against the GIBS preferred resolutions and the best
-    fit resolution with the ScaleExtent is used to compute a target dimension
-    to return.
+    If no scaleSize or dimensions are input. The input dataset metadata
+    resolution is checked against the GIBS preferred resolutions and the best
+    fit resolution along with the scaleExtent is used to compute the target
+    dimensions to return.
 
     """
     if has_dimensions(message):
         dimensions = {'height': message.format.height, 'width': message.format.width}
     elif has_scale_sizes(message):
-        scale_size = message.format.scaleSize
-        width = round((scale_extent['xmax'] - scale_extent['xmin']) / scale_size.x)
-        height = round((scale_extent['ymax'] - scale_extent['ymin']) / scale_size.y)
-        dimensions = {'height': height, 'width': width}
+        dimensions = compute_target_dimensions(
+            scale_extent, message.format.scaleSize.x, message.format.scaleSize.y
+        )
     else:
         dimensions = best_guess_target_dimensions(dataset, scale_extent, target_crs)
 
@@ -395,45 +399,78 @@ def best_guess_scale_extent(in_crs: CRS) -> ScaleExtent:
     return scale_extent
 
 
-def best_guess_target_dimensions(dataset: DatasetReader,
-                                 scale_extent: ScaleExtent,
-                                 crs: CRS) -> Dimensions:
+def best_guess_target_dimensions(
+    dataset: DatasetReader, scale_extent: ScaleExtent, target_crs: CRS
+) -> Dimensions:
     """Return best guess for output image dimensions.
 
     Using the information from the scaleExtent and the input dataset metadata,
     compute the height and width appropriate for the output image.
 
-    North and South have matching resolutions so we just use the 3413 resolutions.
-
+    North and South projections have matching resolutions so we just use the
+    3413 resolutions for all projected data.
     """
     resolution_list = None
-    if not crs.is_projected:
+    if not target_crs.is_projected:
         resolution_list = epsg_4326_resolutions
     else:
         resolution_list = epsg_3413_resolutions
 
-    return guess_dimension(dataset, scale_extent, resolution_list)
+    x_res, y_res = resolution_in_target_crs_units(dataset, target_crs)
+    return guess_dimensions(x_res, y_res, scale_extent, resolution_list)
 
 
-def guess_dimension(dataset: DatasetReader, scale_extent: ScaleExtent,
-                    icd_resolution_list: list[ResolutionInfo]) -> Dimensions:
+def resolution_in_target_crs_units(
+    dataset: DatasetReader, target_crs: CRS
+) -> list[float]:
+    """Return the x and y target resolutions
+
+    The input resolution can be determined from the Affine transformation, but
+    if the input dataset is projected, and the target CRS is unprojected, we
+    need to convert the resolution meters into degrees.
+
+    This routine is only called for best_guess_target_dimensions which means
+    the user has not supplied any input parameters and we are trying to
+    determine the dimensions for the output image.
+    """
+    if dataset.crs.is_projected == target_crs.is_projected:
+        x_res = dataset.transform.a
+        y_res = abs(dataset.transform.e)
+    elif target_crs.is_projected:
+        # transform from latlon to meters
+        x_res = dataset.transform.a * METERS_PER_DEGREE
+        y_res = abs(dataset.transform.e) * METERS_PER_DEGREE
+    else:
+        # transform from meters to lat/lon
+        x_res = dataset.transform.a / METERS_PER_DEGREE
+        y_res = abs(dataset.transform.e) / METERS_PER_DEGREE
+
+    return x_res, y_res
+
+
+def guess_dimensions(
+    x_res: float,
+    y_res: float,
+    scale_extent: ScaleExtent,
+    icd_resolution_list: list[ResolutionInfo],
+) -> Dimensions:
     """Guess Dimensions given the input information and ICD resolutions."""
     coarsest_resolution = icd_resolution_list[0].pixel_size
-    xres = (scale_extent['xmax'] - scale_extent['xmin']) / dataset.width
-    yres = (scale_extent['ymax'] - scale_extent['ymin']) / dataset.height
-    if xres > coarsest_resolution and yres > coarsest_resolution:
-        dimensions = {'height': dataset.height, 'width': dataset.width}
+
+    if x_res > coarsest_resolution and y_res > coarsest_resolution:
+        dimensions = compute_target_dimensions(scale_extent, x_res, y_res)
     else:
-        target_res = find_closest_resolution(
-            list({xres, yres}), icd_resolution_list
+        target_res = find_closest_resolution(list({x_res, y_res}), icd_resolution_list)
+        dimensions = compute_target_dimensions(
+            scale_extent, target_res.pixel_size, target_res.pixel_size
         )
-        dimensions = compute_target_dimensions(scale_extent, target_res.pixel_size)
     return dimensions
 
 
-def compute_target_dimensions(scale_extent: ScaleExtent,
-                              res: float) -> Dimensions:
-    """compute dimensions from inputs.
+def compute_target_dimensions(
+    scale_extent: ScaleExtent, x_res: float, y_res: float
+) -> Dimensions:
+    """Compute dimensions from inputs.
 
     We round the computed dimensions because we need to have integer values of
     height and width. Because of the rounding, this function could return a
@@ -442,12 +479,12 @@ def compute_target_dimensions(scale_extent: ScaleExtent,
     computed values of scaleExtent, we are already self consistent.  If there's
     a discrepancy, the user has described a scaleExtent in the input
     HarmonyMessage and has *not* specified a scaleSize. So we honor the
-    scaleExtent.
+    scaleExtent in a previous function.
 
     """
     return {
-        'height': round((scale_extent['ymax'] - scale_extent['ymin']) / res),
-        'width': round((scale_extent['xmax'] - scale_extent['xmin']) / res),
+        'height': round((scale_extent['ymax'] - scale_extent['ymin']) / y_res),
+        'width': round((scale_extent['xmax'] - scale_extent['xmin']) / x_res),
     }
 
 

@@ -1,3 +1,11 @@
+## Unreleased
+### 2023-10-09
+ - Input parameters have new constraint. If a user supplies a scaleExtent or
+   scaleSize in the request, the target CRS must also be included or the
+   request will fail.
+ - Output dimension calculation no based on input data resolution and the scale
+   extent.
+
 ## v0.0.5
 ### 2023-09-12
  - Fixes tiling selection. Fixes bug for large numbers of tiles.

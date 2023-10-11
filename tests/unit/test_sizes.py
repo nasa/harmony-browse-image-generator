@@ -1,16 +1,17 @@
 """Tests covering the size module."""
 
-from unittest import TestCase, skip
+from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
 import rasterio
-from rasterio import Affine
 from harmony.message import Message
+from rasterio import Affine
 from rasterio.crs import CRS
 
 from harmony_browse_image_generator.crs import PREFERRED_CRS
 from harmony_browse_image_generator.exceptions import HyBIGValueError
 from harmony_browse_image_generator.sizes import (
+    METERS_PER_DEGREE,
     best_guess_scale_extent,
     best_guess_target_dimensions,
     choose_scale_extent,
@@ -27,8 +28,21 @@ from harmony_browse_image_generator.sizes import (
     get_target_grid_parameters,
     icd_defined_extent_from_crs,
     needs_tiling,
+    resolution_in_target_crs_units,
 )
 from tests.unit.utility import rasterio_test_file
+
+nsidc_ease2_36km_grid = {
+    'epsg': 6933,
+    'width': 964,
+    'height': 406,
+    'left': -17367530.44,
+    'bottom': -7314540.49,
+    'right': 17367529.639999997,
+    'top': 7314540.83,
+    'xres': 36032.22,
+    'yres': 36032.22,
+}
 
 nsidc_np_seaice_grid = {
     'epsg': 3413,
@@ -44,7 +58,7 @@ nsidc_np_seaice_grid = {
 
 sp_seaice_grid = {
     'epsg': 3031,
-    'width': 346,
+    'width': 316,
     'height': 332,
     'left': -3950000.0,
     'bottom': -3950000.0,
@@ -111,31 +125,42 @@ class TestGetTargetGridParameters(TestCase):
 
         """
 
-        height = sp_seaice_grid['height']
-        width = sp_seaice_grid['width']
-        crs = CRS.from_epsg(sp_seaice_grid['epsg'])
         preferred_scale_extent = {
             'xmin': -4194304.0,
             'ymin': -4194304.0,
             'xmax': 4194304.0,
             'ymax': 4194304.0,
         }
-        expected_x_resolution = (
-            preferred_scale_extent['xmax'] - preferred_scale_extent['xmin']
-        ) / width
+        expected_height = round(
+            (preferred_scale_extent['ymax'] - preferred_scale_extent['ymin'])
+            / sp_seaice_grid['yres']
+        )  # 336
+        expected_width = round(
+            (preferred_scale_extent['xmax'] - preferred_scale_extent['xmin'])
+            / sp_seaice_grid['xres']
+        )  # 336
+
         expected_y_resolution = (
             preferred_scale_extent['ymax'] - preferred_scale_extent['ymin']
-        ) / height
-        transform = Affine.translation(
+        ) / expected_height
+        expected_x_resolution = (
+            preferred_scale_extent['xmax'] - preferred_scale_extent['xmin']
+        ) / expected_width
+
+        expected_transform = Affine.translation(
             preferred_scale_extent['xmin'], preferred_scale_extent['ymax']
         ) * Affine.scale(expected_x_resolution, -1 * expected_y_resolution)
 
+        crs = CRS.from_epsg(sp_seaice_grid['epsg'])
         expected_parameters = {
-            'height': height,
-            'width': width,
+            'height': expected_height,
+            'width': expected_width,
             'crs': crs,
-            'transform': transform,
+            'transform': expected_transform,
         }
+
+        height = sp_seaice_grid['height']
+        width = sp_seaice_grid['width']
         with rasterio_test_file(
             height=height,
             width=width,
@@ -614,7 +639,7 @@ class TestBestGuessTargetDimensions(TestCase):
             width=25714,
             crs=CRS.from_epsg(6931),
             transform=Affine(
-                699.980556095664, 0.0, -9000000.0, 699.980556095664, 0.0, 9000000.0
+                699.980556095664, 0.0, -9000000.0, 0.0, 699.980556095664, 9000000.0
             ),
             dtype='uint8',
         ) as tmp_file:
@@ -629,12 +654,12 @@ class TestBestGuessTargetDimensions(TestCase):
                 # expected resolution is "500m" and the pixel_size is 512m
                 # (9000000 - -9000000 ) / 512 = 35156
                 expected_target_dimensions = {'height': 35156, 'width': 35156}
-                crs = MagicMock(is_projected=True)
+                target_crs = MagicMock(is_projected=True)
                 expected_x_resolution = 512
                 expected_y_resolution = 512
 
                 actual_dimensions = best_guess_target_dimensions(
-                    in_dataset, scale_extent, crs
+                    in_dataset, scale_extent, target_crs
                 )
 
                 self.assertDictEqual(expected_target_dimensions, actual_dimensions)
@@ -665,7 +690,7 @@ class TestBestGuessTargetDimensions(TestCase):
             height=11983,
             width=11983,
             crs=CRS.from_epsg(6931),
-            transform=Affine(700.0423, 0.0, -4194304.0, 700.0423, 0.0, 4194304.0),
+            transform=Affine(700.0423, 0.0, -4194304.0, 0.0, 700.0423, 4194304.0),
             dtype='uint8',
         ) as tmp_file:
             with rasterio.open(tmp_file) as in_dataset:
@@ -711,10 +736,20 @@ class TestBestGuessTargetDimensions(TestCase):
 
     def test_longlat_crs(self):
         # 36km Mid-Latitude EASE Grid 2
+        ml_test_transform = rasterio.transform.from_bounds(
+            nsidc_ease2_36km_grid['left'],
+            nsidc_ease2_36km_grid['bottom'],
+            nsidc_ease2_36km_grid['right'],
+            nsidc_ease2_36km_grid['top'],
+            nsidc_ease2_36km_grid['width'],
+            nsidc_ease2_36km_grid['height'],
+        )
+
         with rasterio_test_file(
             height=406,
             width=964,
-            crs=CRS.from_epsg(6933),
+            crs=CRS.from_epsg(nsidc_ease2_36km_grid['epsg']),
+            transform=ml_test_transform,
             dtype='uint8',
         ) as tmp_file:
             with rasterio.open(tmp_file) as in_dataset:
@@ -725,22 +760,37 @@ class TestBestGuessTargetDimensions(TestCase):
                     'ymax': 86.0,
                 }
 
-                # in_dataset's height and width
-                expected_target_dimensions = {'height': 406, 'width': 964}
-                crs = MagicMock()
-                crs.is_projected = False
+                infile_res = 0.31668943359375
+                expected_height = round((86 - -86) / infile_res)
+                expected_width = round((180 - -180) / infile_res)
+                expected_target_dimensions = {
+                    'height': expected_height,
+                    'width': expected_width,
+                }
+                target_crs = MagicMock()
+                target_crs.is_projected = False
 
                 actual_dimensions = best_guess_target_dimensions(
-                    in_dataset, scale_extent, crs
+                    in_dataset, scale_extent, target_crs
                 )
 
                 self.assertDictEqual(expected_target_dimensions, actual_dimensions)
 
     def test_longlat_crs_with_high_resolution(self):
-        # .36km Mid-Latitude EASE Grid 2
+        # 360m Mid-Latitude EASE Grid 2
+        # 360m -> 250m preferred
+        test_transform = rasterio.transform.from_bounds(
+            nsidc_ease2_36km_grid['left'],
+            nsidc_ease2_36km_grid['bottom'],
+            nsidc_ease2_36km_grid['right'],
+            nsidc_ease2_36km_grid['top'],
+            nsidc_ease2_36km_grid['width'] * 100,
+            nsidc_ease2_36km_grid['height'] * 100,
+        )
         with rasterio_test_file(
-            height=40600,
-            width=96400,
+            height=nsidc_ease2_36km_grid['height'] * 100,
+            width=nsidc_ease2_36km_grid['width'] * 100,
+            transform=test_transform,
             crs=CRS.from_epsg(6933),
             dtype='uint8',
         ) as tmp_file:
@@ -752,10 +802,16 @@ class TestBestGuessTargetDimensions(TestCase):
                     'ymax': 86.0,
                 }
 
-                # in_dataset's height and width
-                expected_target_dimensions = {'height': 39140, 'width': 81920}
-                crs = MagicMock()
-                crs.is_projected = False
+                # resolution is 360 meters, which resolves to 250m preferred.
+                target_resolution = epsg_4326_resolutions[3].pixel_size
+                expected_height = round((86 - -86) / target_resolution)
+                expected_width = round((180 - -180) / target_resolution)
+                expected_target_dimensions = {
+                    'height': expected_height,
+                    'width': expected_width,
+                }
+                target_crs = MagicMock()
+                target_crs.is_projected = False
                 expected_x_resolution = (
                     round(scale_extent['xmax'] - scale_extent['xmin'])
                     / expected_target_dimensions['width']
@@ -766,23 +822,118 @@ class TestBestGuessTargetDimensions(TestCase):
                 )
 
                 actual_dimensions = best_guess_target_dimensions(
-                    in_dataset, scale_extent, crs
+                    in_dataset, scale_extent, target_crs
                 )
                 self.assertDictEqual(expected_target_dimensions, actual_dimensions)
 
                 # Assert the resolutions are found in the preferred resolutions
                 self.assertAlmostEqual(
                     expected_x_resolution,
-                    epsg_4326_resolutions[2].pixel_size,
+                    epsg_4326_resolutions[3].pixel_size,
                     msg='Expected Resolution is incorrect',
                     delta=1e-6,
                 )
                 self.assertAlmostEqual(
                     expected_y_resolution,
-                    epsg_4326_resolutions[2].pixel_size,
+                    epsg_4326_resolutions[3].pixel_size,
                     msg='Expected Resolution is incorrect',
                     delta=1e-6,
                 )
+
+
+class TestResolutionInTargetCRS(TestCase):
+    """Ensure resolution ends up in target_crs units"""
+
+    def test_dataset_matches_target_crs_meters(self):
+        ml_test_transform = rasterio.transform.from_bounds(
+            nsidc_ease2_36km_grid['left'],
+            nsidc_ease2_36km_grid['bottom'],
+            nsidc_ease2_36km_grid['right'],
+            nsidc_ease2_36km_grid['top'],
+            nsidc_ease2_36km_grid['width'],
+            nsidc_ease2_36km_grid['height'],
+        )
+        with rasterio_test_file(
+            crs=CRS.from_epsg(nsidc_ease2_36km_grid['epsg']),
+            transform=ml_test_transform,
+        ) as test_file:
+            with rasterio.open(test_file) as test_dataset:
+                target_crs = CRS.from_epsg(3413)
+                expected_x_res = ml_test_transform.a
+                expected_y_res = -ml_test_transform.e
+
+                actual_x_res, actual_y_res = resolution_in_target_crs_units(
+                    test_dataset, target_crs
+                )
+
+                self.assertEqual(expected_x_res, actual_x_res)
+                self.assertEqual(expected_y_res, actual_y_res)
+
+    def test_dataset_matches_target_crs_degrees(self):
+        """Input dataset and target unprojected."""
+        global_one_degree_transform = rasterio.transform.from_bounds(
+            -180, -90, 180, 90, 360, 180
+        )
+        with rasterio_test_file(
+            crs=CRS.from_string(PREFERRED_CRS['global']),
+            transform=global_one_degree_transform,
+        ) as test_file:
+            with rasterio.open(test_file) as test_dataset:
+                target_crs = CRS.from_string(PREFERRED_CRS['global'])
+                expected_x_res = global_one_degree_transform.a
+                expected_y_res = -global_one_degree_transform.e
+
+                actual_x_res, actual_y_res = resolution_in_target_crs_units(
+                    test_dataset, target_crs
+                )
+
+                self.assertEqual(expected_x_res, actual_x_res)
+                self.assertEqual(expected_y_res, actual_y_res)
+
+    def test_dataset_meters_target_crs_degrees(self):
+        ml_test_transform = rasterio.transform.from_bounds(
+            nsidc_ease2_36km_grid['left'],
+            nsidc_ease2_36km_grid['bottom'],
+            nsidc_ease2_36km_grid['right'],
+            nsidc_ease2_36km_grid['top'],
+            nsidc_ease2_36km_grid['width'],
+            nsidc_ease2_36km_grid['height'],
+        )
+        with rasterio_test_file(
+            crs=CRS.from_epsg(nsidc_ease2_36km_grid['epsg']),
+            transform=ml_test_transform,
+        ) as test_file:
+            with rasterio.open(test_file) as test_dataset:
+                target_crs = CRS.from_epsg(4326)
+                expected_x_res = ml_test_transform.a / METERS_PER_DEGREE
+                expected_y_res = -ml_test_transform.e / METERS_PER_DEGREE
+
+                actual_x_res, actual_y_res = resolution_in_target_crs_units(
+                    test_dataset, target_crs
+                )
+
+                self.assertEqual(expected_x_res, actual_x_res)
+                self.assertEqual(expected_y_res, actual_y_res)
+
+    def test_dataset_degrees_target_crs_meters(self):
+        global_one_degree_transform = rasterio.transform.from_bounds(
+            -180, -90, 180, 90, 360, 180
+        )
+        with rasterio_test_file(
+            crs=CRS.from_string(PREFERRED_CRS['global']),
+            transform=global_one_degree_transform,
+        ) as test_file:
+            with rasterio.open(test_file) as test_dataset:
+                target_crs = CRS.from_string(PREFERRED_CRS['north'])
+                expected_x_res = global_one_degree_transform.a * METERS_PER_DEGREE
+                expected_y_res = -global_one_degree_transform.e * METERS_PER_DEGREE
+
+                actual_x_res, actual_y_res = resolution_in_target_crs_units(
+                    test_dataset, target_crs
+                )
+
+                self.assertEqual(expected_x_res, actual_x_res)
+                self.assertEqual(expected_y_res, actual_y_res)
 
 
 class TestFindClosestResolution(TestCase):
