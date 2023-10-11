@@ -433,19 +433,17 @@ def resolution_in_target_crs_units(
     the user has not supplied any input parameters and we are trying to
     determine the dimensions for the output image.
     """
-    x_res = None
-    y_res = None
     if dataset.crs.is_projected == target_crs.is_projected:
         x_res = dataset.transform.a
-        y_res = -dataset.transform.e
+        y_res = abs(dataset.transform.e)
     elif target_crs.is_projected:
         # transform from latlon to meters
         x_res = dataset.transform.a * METERS_PER_DEGREE
-        y_res = -dataset.transform.e * METERS_PER_DEGREE
+        y_res = abs(dataset.transform.e) * METERS_PER_DEGREE
     else:
         # transform from meters to lat/lon
         x_res = dataset.transform.a / METERS_PER_DEGREE
-        y_res = -dataset.transform.e / METERS_PER_DEGREE
+        y_res = abs(dataset.transform.e) / METERS_PER_DEGREE
 
     return x_res, y_res
 

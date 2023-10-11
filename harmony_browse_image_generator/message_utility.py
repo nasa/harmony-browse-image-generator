@@ -68,9 +68,7 @@ def has_dimensions(message: Message) -> bool:
 def has_crs(message: Message) -> bool:
     """Returns true if Harmony message contains a crs."""
     target_crs = rgetattr(message, 'format.crs')
-    if target_crs is None:
-        return False
-    return True
+    return target_crs is not None
 
 
 def has_scale_extents(message: Message) -> bool:

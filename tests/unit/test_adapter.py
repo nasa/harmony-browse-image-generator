@@ -85,7 +85,7 @@ class TestAdapter(TestCase):
             )
             adapter.validate_message()
         except Exception:
-            self.fail('valid message threw excpetion')
+            self.fail('valid message threw exception')
 
     def test_validate_message_empty(self):
         """Ensure only messages with expected content will be processed."""
@@ -96,7 +96,7 @@ class TestAdapter(TestCase):
             )
             adapter.validate_message()
         except Exception:
-            self.fail('valid message thre excpetion')
+            self.fail('valid message threw exception')
 
     def test_create_output_stac_items(self):
         """ Ensure a STAC item is created with Assets for both the browse image

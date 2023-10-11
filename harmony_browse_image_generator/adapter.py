@@ -43,13 +43,12 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
 
     def validate_message(self):
         """Validates that the contents of the Harmony message provides all
-            necessary parameters.
+        necessary parameters.
 
         Currently imposed rules:
-        1. if scale extent and scale size must each by accompanied by crs.
+        1. scaleExtent and scaleSize must be accompanied by crs.
 
         """
-
         if has_scale_extents(self.message) or has_scale_sizes(self.message):
             if not has_crs(self.message):
                 raise HyBIGInvalidMessage(
