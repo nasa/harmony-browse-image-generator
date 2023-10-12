@@ -16,7 +16,6 @@ from harmony_browse_image_generator.sizes import (
     best_guess_target_dimensions,
     choose_scale_extent,
     choose_target_dimensions,
-    compute_cells_per_tile,
     compute_tile_boundaries,
     compute_tile_dimensions,
     create_tiled_output_parameters,
@@ -24,6 +23,7 @@ from harmony_browse_image_generator.sizes import (
     epsg_3413_resolutions,
     epsg_4326_resolutions,
     find_closest_resolution,
+    get_cells_per_tile,
     get_rasterio_parameters,
     get_target_grid_parameters,
     icd_defined_extent_from_crs,
@@ -205,6 +205,9 @@ class TestRasterioParameters(TestCase):
 class TestTiling(TestCase):
     """Tests for Tiling images."""
 
+    @classmethod
+    def setUpClass(cls):
+        cls.CELLS_PER_TILE = 4096
 
     def test_needs_tiling(self):
         """ Does the grid need to be tiled. The grid parameters checked in each
@@ -214,8 +217,8 @@ class TestTiling(TestCase):
         """
         with self.subTest('Projected, needs tiling'):
             grid_parameters = {
-                'height': 400,
-                'width': 400,
+                'height': 8192,
+                'width': 8193,
                 'crs': CRS.from_epsg(nsidc_np_seaice_grid['epsg']),
                 'transform': Affine(400, 0.0, -3850000.0, 0.0, 400, 5850000.0)
             }
@@ -223,8 +226,8 @@ class TestTiling(TestCase):
 
         with self.subTest('Projected, does not need tiling'):
             grid_parameters = {
-                'height': 400,
-                'width': 400,
+                'height': 8192,
+                'width': 8192,
                 'crs': CRS.from_epsg(nsidc_np_seaice_grid['epsg']),
                 'transform': Affine(600, 0.0, -3850000.0, 0.0, 600, 5850000.0)
             }
@@ -248,26 +251,12 @@ class TestTiling(TestCase):
             }
             self.assertFalse(needs_tiling(grid_parameters))
 
-    def test_compute_cells_per_tile(self):
+    def test_get_cells_per_tile(self):
         """test how tiles sizes are generated."""
-        projected_crs = CRS.from_string(PREFERRED_CRS['north'])
-        unprojected_crs = CRS.from_string(PREFERRED_CRS['global'])
-
-        with self.subTest('projected CRS - meters'):
-            resolution = 500.0
-            expected_cells_per_tile = 2000
-            actual_cells_per_tile = compute_cells_per_tile(resolution, projected_crs)
-            self.assertEqual(expected_cells_per_tile, actual_cells_per_tile)
-            self.assertIsInstance(actual_cells_per_tile, int)
-
-
-        with self.subTest('unprojected CRS - degrees'):
-            resolution = 0.009
-            expected_cells_per_tile = 1111
-            actual_cells_per_tile = compute_cells_per_tile(resolution, unprojected_crs)
-            self.assertEqual(expected_cells_per_tile, actual_cells_per_tile)
-            self.assertIsInstance(actual_cells_per_tile, int)
-
+        expected_cells_per_tile = self.CELLS_PER_TILE
+        actual_cells_per_tile = get_cells_per_tile()
+        self.assertEqual(expected_cells_per_tile, actual_cells_per_tile)
+        self.assertIsInstance(actual_cells_per_tile, int)
 
     def test_compute_tile_boundaries_exact(self):
         """tests subdivision of output image."""
@@ -307,7 +296,7 @@ class TestTiling(TestCase):
 
         self.assertEqual(expected_dimensions, actual_dimensions)
 
-    @patch('harmony_browse_image_generator.sizes.compute_cells_per_tile')
+    @patch('harmony_browse_image_generator.sizes.get_cells_per_tile')
     @patch('harmony_browse_image_generator.sizes.needs_tiling')
     def test_create_tile_output_parameters(
         self, needs_tiling_mock, cells_per_tile_mock

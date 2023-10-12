@@ -226,11 +226,11 @@ def create_tiled_output_parameters(
 ) -> (list[GridParams], list[dict] | None):
     """Split the output grid if necessary.
 
-    When the grid resolution is less than 1km (.0087890625 degrees)
-    (and the scale extents are full width.? TODO [MHS, 08/08/2023] )
+    When the number of grid cells exceeds 8192x8192, we tile the output
+    to a reasonable size: 4096x4096
 
     returns a list of GridParams object that completely cover the input scale
-    extent.
+    extent tiled as needed.
 
     """
     if not needs_tiling(grid_parameters):
@@ -243,8 +243,8 @@ def create_tiled_output_parameters(
     resolution_x = transform.a
     resolution_y = np.abs(transform.e)
 
-    cells_per_tile_width = compute_cells_per_tile(resolution_x, crs)
-    cells_per_tile_height = compute_cells_per_tile(resolution_y, crs)
+    cells_per_tile_width = get_cells_per_tile()
+    cells_per_tile_height = get_cells_per_tile()
 
     width_origins = compute_tile_boundaries(cells_per_tile_width, full_width)
     height_origins = compute_tile_boundaries(cells_per_tile_height, full_height)
@@ -300,45 +300,22 @@ def compute_tile_boundaries(target_size: int, full_size: int) -> list[float]:
     return boundaries
 
 
-def compute_cells_per_tile(resolution: float, crs: CRS) -> int:
-    """optimum cells per tile."""
+def get_cells_per_tile() -> int:
+    """optimum cells per tile.
 
-    # constants determined with GIBS.
-    degrees_per_tile = 10.
-    meters_per_tile = 1000000.
-
-    if crs.is_projected:
-        cells_per_tile = int(np.round(meters_per_tile / resolution))
-    else:
-        cells_per_tile = int(np.round(degrees_per_tile / resolution))
-
-    return cells_per_tile
+    From discussions this is chosen to be 4096, so that any image that is tiled
+    will end up with 4096x4096 gridcell tiles.
+    """
+    return 4096
 
 
 def needs_tiling(grid_parameters: GridParams) -> bool:
     """Returns true if the grid is too large for GIBS.
 
-    For a lat/lon unprojected grid, this means resolution of 1km or ~.01
-    degrees/grid cell
-
-    For a projected grid, I think 1km at full resoution is too coarse to chop
-    and we should choose 250m or 500m as the default TODO [MHS, 08/09/2023]
-
+    From discussion, this limit is set to 8192*8192 cells.
     """
-    if (
-        grid_parameters['crs'].is_projected
-        and grid_parameters['transform'].a <= 500.
-    ):
-        should_tile = True
-    elif (
-        not grid_parameters['crs'].is_projected
-        and grid_parameters['transform'].a <= 0.01
-    ):
-        should_tile = True
-    else:
-        should_tile = False
-
-    return should_tile
+    MAX_UNTILED_GRIDCELLS = 8192 * 8192
+    return grid_parameters['height'] * grid_parameters['width'] > MAX_UNTILED_GRIDCELLS
 
 
 def icd_defined_extent_from_crs(crs: CRS) -> ScaleExtent:

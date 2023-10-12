@@ -1,5 +1,8 @@
 ## Unreleased
-### 2023-10-09
+### 2023-10-11
+ - Tiling is now determined by gridcell count as a proxy for image size.  If an
+   image has more than 67108864 (8192 * 8192) cells, the resulting image will be
+   tiled and each tile will be broken down into 4096x4096 gridcell tiles.
  - Input parameters have new constraint. If a user supplies a scaleExtent or
    scaleSize in the request, the target CRS must also be included or the
    request will fail.
