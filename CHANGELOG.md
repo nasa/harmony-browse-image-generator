@@ -1,5 +1,6 @@
-## Unreleased
-### 2023-10-11
+## v0.0.6
+### 2023-10-12
+ - scaleExtent input parameter validated for correct order.
  - Tiling is now determined by gridcell count as a proxy for image size.  If an
    image has more than 67108864 (8192 * 8192) cells, the resulting image will be
    tiled and each tile will be broken down into 4096x4096 gridcell tiles.

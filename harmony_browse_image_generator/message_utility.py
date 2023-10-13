@@ -93,6 +93,19 @@ def has_scale_sizes(message: Message) -> bool:
     return _has_all_attributes(message, scale_size_attributes)
 
 
+def has_valid_scale_extents(message: Message) -> bool:
+    """Ensure any input scale_extents are valid."""
+    if has_scale_extents(message):
+        return (
+            float(rgetattr(message, 'format.scaleExtent.x.min'))
+            < float(rgetattr(message, 'format.scaleExtent.x.max'))
+        ) and (
+            float(rgetattr(message, 'format.scaleExtent.y.min'))
+            < float(rgetattr(message, 'format.scaleExtent.y.max'))
+        )
+    return True
+
+
 def _has_all_attributes(message: Message, attributes: list[str]) -> bool:
     """ Ensure that the supplied Harmony message has non-None attribute values
         for all the listed attributes.

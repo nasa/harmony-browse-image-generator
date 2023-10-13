@@ -9,6 +9,7 @@ from harmony_browse_image_generator.message_utility import (
     has_dimensions,
     has_scale_extents,
     has_scale_sizes,
+    has_valid_scale_extents,
     rgetattr,
 )
 
@@ -142,6 +143,37 @@ class TestMessageUtility(TestCase):
         with self.subTest('format = None returns False'):
             test_message = Message({})
             self.assertFalse(has_scale_sizes(test_message))
+
+    def test_has_valid_scale_extents(self):
+        with self.subTest('ScaleExtent present and valid returns True'):
+            test_message = Message(
+                {
+                    'format': {
+                        'scaleExtent': {
+                            'x': {'min': -180, 'max': 180},
+                            'y': {'min': -90, 'max': 90},
+                        }
+                    }
+                }
+            )
+            self.assertTrue(has_valid_scale_extents(test_message))
+
+        with self.subTest('ScaleExtent missing returns True'):
+            test_message = Message({'format': {}})
+            self.assertTrue(has_valid_scale_extents(test_message))
+
+        with self.subTest('ScaleExtent present and invalid returns False'):
+            test_message = Message(
+                {
+                    'format': {
+                        'scaleExtent': {
+                            'x': {'min': 180, 'max': -180},
+                            'y': {'min': -90, 'max': 90},
+                        }
+                    }
+                }
+            )
+            self.assertFalse(has_valid_scale_extents(test_message))
 
     def test_has_scale_extents(self):
         """Ensure the function correctly identifies whether the supplied

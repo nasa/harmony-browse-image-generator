@@ -22,6 +22,7 @@ from harmony_browse_image_generator.message_utility import (
     has_crs,
     has_scale_extents,
     has_scale_sizes,
+    has_valid_scale_extents,
 )
 from harmony_browse_image_generator.utilities import (
     get_asset_name,
@@ -47,6 +48,7 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
 
         Currently imposed rules:
         1. scaleExtent and scaleSize must be accompanied by crs.
+        2. scaleExtent min values must be smaller than the max values
 
         """
         if has_scale_extents(self.message) or has_scale_sizes(self.message):
@@ -55,6 +57,11 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
                     'Harmony message must include a crs '
                     'with scaleExtent or scaleSizes.'
                 )
+
+        if not has_valid_scale_extents(self.message):
+            raise HyBIGInvalidMessage(
+                'Harmony ScaleExtents must be in order [xmin,ymin,xmax,ymax].'
+            )
 
     def process_item(self, item: Item, source: HarmonySource) -> Item:
         """ Processes a single input STAC item. """
