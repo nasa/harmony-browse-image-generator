@@ -298,12 +298,6 @@ class TestBrowse(TestCase):
                     [0, 104, 198, 255],
                     [0, 104, 198, 255],
                 ],
-                [
-                    [255, 255, 255, 255],
-                    [255, 255, 255, 255],
-                    [255, 255, 255, 255],
-                    [255, 255, 255, 255],
-                ],
             ],
             dtype='uint8',
         )
@@ -464,23 +458,24 @@ class TestBrowse(TestCase):
 
         palettize_mock.assert_called_once_with(raster)
 
-    @patch('harmony_browse_image_generator.browse.quantize_pil_image')
+    @patch('harmony_browse_image_generator.browse.Image')
     @patch('harmony_browse_image_generator.browse.get_color_map_from_image')
-    def test_palettize_raster(self, get_color_map_mock, quantize_mock):
-        """Test that the quantize function is called with a correct image."""
+    def test_palettize_raster(self, get_color_map_mock, image_mock):
+        """Test that the quantize function is called by a correct image."""
         raster = self.random.integers(255, dtype='uint8', size=(4, 10, 11))
-        multiband_image = Image.fromarray(reshape_as_image(raster))
         quantized_output = Image.fromarray(
             self.random.integers(254, size=(10, 11), dtype='uint8')
         )
-        quantize_mock.return_value = quantized_output
+        multiband_image_mock = MagicMock()
+        image_mock.fromarray.return_value = multiband_image_mock
+        multiband_image_mock.quantize.return_value = quantized_output
 
         expected_out_raster = np.array(quantized_output.getdata()).reshape(1, 10, 11)
         print(expected_out_raster.shape)
 
         out_raster, out_map = palettize_raster(raster)
 
-        quantize_mock.assert_called_once_with(multiband_image, max_colors=255)
+        multiband_image_mock.quantize.assert_called_once_with(colors=254)
         get_color_map_mock.assert_called_once_with(quantized_output)
         np.testing.assert_array_equal(expected_out_raster, out_raster)
 

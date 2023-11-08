@@ -1,3 +1,12 @@
+## v0.0.7
+### 2023-11-06
+ - Memory usage improvements
+   - Changes the quantization method from external imgquant library to the
+     Pillow built-in `quantize`.
+   - Updates commands in the `convert_singleband_to_raster` to use fewer
+     temporary arrays as well as using `uint8` arrays instead of `float32`
+     arrays.
+
 ## v0.0.6
 ### 2023-10-12
  - scaleExtent input parameter validated for correct order.

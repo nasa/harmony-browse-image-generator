@@ -223,7 +223,7 @@ def get_rasterio_parameters(crs: CRS, scale_extent: ScaleExtent,
 
 def create_tiled_output_parameters(
         grid_parameters: GridParams
-) -> (list[GridParams], list[dict] | None):
+) -> (list[GridParams], list[dict | None]):
     """Split the output grid if necessary.
 
     When the number of grid cells exceeds 8192x8192, we tile the output

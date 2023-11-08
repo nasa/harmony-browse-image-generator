@@ -1,8 +1,8 @@
 """Module containing core functionality for browse image generation."""
 import re
 from itertools import zip_longest
-from pathlib import Path
 from logging import Logger
+from pathlib import Path
 
 import matplotlib
 import numpy as np
@@ -15,15 +15,14 @@ from matplotlib.colors import Normalize
 from numpy import around, concatenate, ndarray
 from osgeo_utils.auxiliary.color_palette import ColorPalette
 from PIL import Image
-from imagequant import quantize_pil_image
 from rasterio.io import DatasetReader
-from rasterio.plot import reshape_as_raster, reshape_as_image
-from rasterio.warp import reproject, Resampling
+from rasterio.plot import reshape_as_image, reshape_as_raster
+from rasterio.warp import Resampling, reproject
 
 from harmony_browse_image_generator.exceptions import HyBIGException
 from harmony_browse_image_generator.sizes import (
-    get_target_grid_parameters,
     create_tiled_output_parameters,
+    get_target_grid_parameters,
 )
 
 
@@ -126,18 +125,22 @@ def convert_singleband_to_raster(dataset: DatasetReader) -> ndarray:
     # Can add Message and visicurl to above later
     if color_palette:
         return convert_paletted_1band_to_raster(dataset, color_palette)
-    return convert_colormapped_1band_to_raster(dataset)
+    return convert_gray_1band_to_raster(dataset)
 
 
-def convert_colormapped_1band_to_raster(dataset):
+def convert_gray_1band_to_raster(dataset):
     """Convert a 1-band raster without a color association."""
     band = dataset.read(1)
     cmap = matplotlib.colormaps['Greys_r']
     norm = Normalize()
     norm.autoscale(band)
     scalar_map = ScalarMappable(cmap=cmap, norm=norm)
-    rgba_image = around(scalar_map.to_rgba(band) * 255.0).astype('uint8')
-    return reshape_as_raster(rgba_image)
+
+    rgba_image = np.zeros((*band.shape, 4), dtype='uint8')
+    for row_no in range(band.shape[0]):
+        rgba_image_slice = scalar_map.to_rgba(band[row_no, :], bytes=True)
+        rgba_image[row_no, :, :] = rgba_image_slice
+    return reshape_as_raster(rgba_image[..., 0:3])
 
 
 def convert_paletted_1band_to_raster(dataset: DatasetReader,
@@ -156,8 +159,8 @@ def convert_paletted_1band_to_raster(dataset: DatasetReader,
                                                           scaled_colors,
                                                           extend='max')
     scalar_map = matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap)
-    scaled_raster = scalar_map.to_rgba(band) * 255.0
-    return reshape_as_raster(around(scaled_raster).astype('uint8'))
+    scaled_raster = scalar_map.to_rgba(band, bytes=True)
+    return reshape_as_raster(scaled_raster)
 
 
 def get_color_palette(dataset) -> ColorPalette | None:
@@ -224,21 +227,29 @@ def palettize_raster(raster: ndarray) -> (ndarray, dict):
     """convert an RGB or RGBA image into a 1band image and palette.
 
     Converts a 3 or 4 band np raster into a PIL image.
-    Quantizes the image into a 2d raster and palette
-    Converts raster into 1 band raster.
-    """
-    # 0 to 254; reserve 255 for off grid fill values
-    max_colors = 255
+    Quantizes the image into a 1band raster with palette
 
+    Transparency is handled by first removing the Alpha layer and creating
+    quantized raster from just the RGB layers. Next the Alpha layer values are
+    treated as either transparent or opaque and any transparent values are
+    written to the final raster as 254 and add the mapped RGBA value to the
+    color palette.
+
+    """
+    # 0 to 253;
+    # reserve 254 for transparent images
+    # reserve 255 for off grid fill values
+    max_colors = 254
+
+    # TODO [MHS, 11/01/2023] DAS-2020 raster, alpha = remove_alpha(raster)
     multiband_image = Image.fromarray(reshape_as_image(raster))
-    quantized_image = quantize_pil_image(
-        multiband_image,
-        max_colors=max_colors,
-    )
+    quantized_image = multiband_image.quantize(colors=max_colors)
+
+    color_map = get_color_map_from_image(quantized_image)
+    # TODO [MHS, 11/01/2023] DAS-2020 if transparency replace values in
+    # quantized image and color_map
 
     one_band_raster = np.expand_dims(np.array(quantized_image), 0)
-    color_map = get_color_map_from_image(quantized_image)
-
     return one_band_raster, color_map
 
 
