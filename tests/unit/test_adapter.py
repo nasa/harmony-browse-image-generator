@@ -4,7 +4,7 @@ from harmony.message import Message
 from harmony.util import config
 
 from harmony_browse_image_generator.adapter import BrowseImageGeneratorAdapter
-from harmony_browse_image_generator.exceptions import HyBIGInvalidMessage
+from harmony_browse_image_generator.exceptions import HyBIGInvalidMessageError
 from tests.utilities import Granule, create_stac
 
 
@@ -40,7 +40,7 @@ class TestAdapter(TestCase):
             message, config=self.config, catalog=self.input_stac
         )
         with self.assertRaisesRegex(
-            HyBIGInvalidMessage,
+            HyBIGInvalidMessageError,
             ('Harmony message must include a crs with scaleExtent or scaleSizes.'),
         ):
             adapter.validate_message()
@@ -61,7 +61,7 @@ class TestAdapter(TestCase):
             message, config=self.config, catalog=self.input_stac
         )
         with self.assertRaisesRegex(
-            HyBIGInvalidMessage,
+            HyBIGInvalidMessageError,
             ('Harmony message must include a crs with scaleExtent or scaleSizes.'),
         ):
             adapter.validate_message()

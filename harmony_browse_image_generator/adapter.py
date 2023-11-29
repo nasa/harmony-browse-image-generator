@@ -17,7 +17,8 @@ from harmony.util import bbox_to_geometry, download, generate_output_filename, s
 from pystac import Asset, Catalog, Item
 
 from harmony_browse_image_generator.browse import create_browse_imagery
-from harmony_browse_image_generator.exceptions import HyBIGInvalidMessage
+from harmony_browse_image_generator.color_utility import get_color_palette_from_item
+from harmony_browse_image_generator.exceptions import HyBIGInvalidMessageError
 from harmony_browse_image_generator.message_utility import (
     has_crs,
     has_scale_extents,
@@ -53,13 +54,13 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
         """
         if has_scale_extents(self.message) or has_scale_sizes(self.message):
             if not has_crs(self.message):
-                raise HyBIGInvalidMessage(
+                raise HyBIGInvalidMessageError(
                     'Harmony message must include a crs '
                     'with scaleExtent or scaleSizes.'
                 )
 
         if not has_valid_scale_extents(self.message):
-            raise HyBIGInvalidMessage(
+            raise HyBIGInvalidMessageError(
                 'Harmony ScaleExtents must be in order [xmin,ymin,xmax,ymax].'
             )
 
@@ -73,6 +74,8 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
             asset = next(item_asset for item_asset in item.assets.values()
                          if 'data' in (item_asset.roles or []))
 
+            color_palette = get_color_palette_from_item(item)
+
             # Download the input:
             input_data_filename = download(
                 asset.href,
@@ -85,7 +88,9 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
             image_file_list = create_browse_imagery(
                 self.message,
                 input_data_filename,
-                logger=self.logger
+                source,
+                color_palette,
+                logger=self.logger,
             )
 
             # image_file_list is a list of tuples (image, world, auxiliary)

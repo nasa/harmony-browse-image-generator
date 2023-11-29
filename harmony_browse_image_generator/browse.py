@@ -7,9 +7,9 @@ from pathlib import Path
 import matplotlib
 import numpy as np
 import rasterio
-import requests
 from affine import dumpsw
 from harmony.message import Message as HarmonyMessage
+from harmony.message import Source as HarmonySource
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 from numpy import around, concatenate, ndarray
@@ -19,15 +19,23 @@ from rasterio.io import DatasetReader
 from rasterio.plot import reshape_as_image, reshape_as_raster
 from rasterio.warp import Resampling, reproject
 
-from harmony_browse_image_generator.exceptions import HyBIGException
+from harmony_browse_image_generator.color_utility import get_color_palette
+from harmony_browse_image_generator.exceptions import (
+    HyBIGError,
+)
 from harmony_browse_image_generator.sizes import (
     create_tiled_output_parameters,
     get_target_grid_parameters,
 )
 
 
-def create_browse_imagery(message: HarmonyMessage, input_file_path: str,
-                          logger: Logger) -> list[tuple[Path, Path, Path]]:
+def create_browse_imagery(
+    message: HarmonyMessage,
+    input_file_path: str,
+    source: HarmonySource,
+    item_color_palette: ColorPalette | None,
+    logger: Logger,
+) -> list[tuple[Path, Path, Path]]:
     """Create browse image from input geotiff.
 
     Take input browse image and return a 2-element tuple for the file paths
@@ -45,11 +53,14 @@ def create_browse_imagery(message: HarmonyMessage, input_file_path: str,
             validate_file_type(in_dataset)
 
             if in_dataset.count == 1:
-                raster = convert_singleband_to_raster(in_dataset)
+                color_palette = get_color_palette(
+                    in_dataset, source, item_color_palette
+                )
+                raster = convert_singleband_to_raster(in_dataset, color_palette)
             elif in_dataset.count in (3, 4):
                 raster = convert_mulitband_to_raster(in_dataset)
             else:
-                raise HyBIGException(
+                raise HyBIGError(
                     f'incorrect number of bands for image: {in_dataset.count}')
 
             raster, color_map = prepare_raster_for_writing(raster, output_driver)
@@ -82,7 +93,7 @@ def create_browse_imagery(message: HarmonyMessage, input_file_path: str,
                 )
 
     except Exception as exception:
-        raise HyBIGException(str(exception)) from exception
+        raise HyBIGError(str(exception)) from exception
 
     return processed_files
 
@@ -108,24 +119,22 @@ def convert_mulitband_to_raster(dataset: DatasetReader) -> ndarray:
         raster = concatenate([partial_raster.data, bands[3:4, :, :]])
 
     else:
-        raise HyBIGException(
-            f'Cannot create image from {dataset.count} band image')
+        raise HyBIGError(f'Cannot create image from {dataset.count} band image')
 
     return raster
 
 
-def convert_singleband_to_raster(dataset: DatasetReader) -> ndarray:
+def convert_singleband_to_raster(
+    dataset: DatasetReader,
+    color_palette: ColorPalette | None = None,
+) -> ndarray:
     """Convert input dataset to a 4 band raster image.
 
-    If the image is paletted, read the palette and use that for the image
-    otherwise, use a default grayscale colormap for the image.
-
+    Use a palette if provided otherwise return a greyscale image.
     """
-    color_palette = get_color_palette(dataset)
-    # Can add Message and visicurl to above later
-    if color_palette:
-        return convert_paletted_1band_to_raster(dataset, color_palette)
-    return convert_gray_1band_to_raster(dataset)
+    if color_palette is None:
+        return convert_gray_1band_to_raster(dataset)
+    return convert_paletted_1band_to_raster(dataset, color_palette)
 
 
 def convert_gray_1band_to_raster(dataset):
@@ -163,54 +172,11 @@ def convert_paletted_1band_to_raster(dataset: DatasetReader,
     return reshape_as_raster(scaled_raster)
 
 
-def get_color_palette(dataset) -> ColorPalette | None:
-    """Get a color palette if color information is provided."""
-    try:
-        colormap = dataset.colormap(1)
-        palette = convert_colormap_to_palette(colormap)
-    except ValueError:
-        palette = None
-
-    return palette
-
-
-def convert_colormap_to_palette(colormap: dict) -> ColorPalette:
-    """Convert a GeoTIFF palette to GDAL ColorPalette.
-
-    Reformats a palette as dictionary and loads it into a ColorPalette.
-
-    a GeoTIFF's colormap looks like a dictionary of tiff's value to (r,g,b,[a])
-    {0: (9, 60, 112, 255),
-     1: (9, 65, 122, 255),
-     2: (9, 80, 132, 255),
-     3: (9, 100, 142, 255),...}
-
-    """
-    list_of_key_rgba = [list((key, *rgba)) for key, rgba in colormap.items()]
-    strings_of_key_r_g_b_a = [
-        ' '.join([str(item) for item in line]) for line in list_of_key_rgba
-    ]
-    palette = ColorPalette()
-    palette.read_file_txt(lines=strings_of_key_r_g_b_a)
-    return palette
-
-
 def image_driver(mime: str) -> str:
     """Return requested rasterio driver for output image."""
     if re.search('jpeg', mime, re.I):
         return 'JPEG'
     return 'PNG'
-
-
-def palette_from_remote_colortable(url: str) -> ColorPalette:
-    """Return a gdal ColorPalette from a remote colortable."""
-    response = requests.get(url, timeout=10)
-    if not response.ok:
-        raise HyBIGException(f'Could not read remote colortable at {url}')
-
-    palette = ColorPalette()
-    palette.read_file_txt(lines=response.text.split('\n'))
-    return palette
 
 
 def prepare_raster_for_writing(raster: ndarray, driver: str) -> (ndarray, dict | None):
@@ -311,7 +277,7 @@ def validate_file_type(dsr: DatasetReader) -> None:
 
     """
     if dsr.driver != 'GTiff':
-        raise HyBIGException(f'Input file type not supported: {dsr.driver}')
+        raise HyBIGError(f'Input file type not supported: {dsr.driver}')
 
 
 def get_destination(grid_parameters: dict, n_bands: int) -> ndarray:

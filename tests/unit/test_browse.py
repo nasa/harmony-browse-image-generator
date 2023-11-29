@@ -1,14 +1,15 @@
 """ Unit tests for browse module. """
 
+import shutil
+import tempfile
 from logging import getLogger
 from pathlib import Path
-from shutil import rmtree
-from tempfile import mkdtemp
 from unittest import TestCase
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import Mock, call, patch
 
 import numpy as np
 from harmony.message import Message as HarmonyMessage
+from harmony.message import Source as HarmonySource
 from numpy.testing import assert_array_equal
 from osgeo_utils.auxiliary.color_palette import ColorPalette
 from PIL import Image
@@ -16,29 +17,28 @@ from rasterio import Affine
 from rasterio.crs import CRS
 from rasterio.io import DatasetReader, DatasetWriter
 from rasterio.warp import Resampling
-from rasterio.plot import reshape_as_image
 
 from harmony_browse_image_generator.browse import (
-    convert_colormap_to_palette,
     convert_mulitband_to_raster,
     convert_singleband_to_raster,
     create_browse_imagery,
     get_color_map_from_image,
-    get_color_palette,
     output_image_file,
     output_world_file,
-    palette_from_remote_colortable,
     palettize_raster,
     prepare_raster_for_writing,
     validate_file_type,
 )
-from harmony_browse_image_generator.exceptions import HyBIGException
+from harmony_browse_image_generator.color_utility import (
+    convert_colormap_to_palette,
+    get_color_palette,
+    palette_from_remote_colortable,
+)
+from harmony_browse_image_generator.exceptions import (
+    HyBIGError,
+    HyBIGNoColorInformation,
+)
 from tests.unit.utility import rasterio_test_file
-
-
-def encode_color(r, g, b, a=255):
-    """How an rgb[a] triplet is coded for a palette."""
-    return (((((int(a) << 8) + int(r)) << 8) + int(g)) << 8) + int(b)
 
 
 class TestBrowse(TestCase):
@@ -69,6 +69,12 @@ class TestBrowse(TestCase):
         cls.colormap = {100: red, 200: yellow, 300: green, 400: blue}
         cls.random = np.random.default_rng()
 
+    def setUp(self):
+        self.tmp_dir = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp_dir)
+
     def test_create_browse_imagery_with_bad_raster(self):
         """Check that preferred metadata for global projection is found."""
         two_dimensional_raster = np.array(
@@ -97,9 +103,11 @@ class TestBrowse(TestCase):
             count=2,
         ) as test_tif_filename:
             with self.assertRaisesRegex(
-                HyBIGException, 'incorrect number of bands for image: 2'
+                HyBIGError, 'incorrect number of bands for image: 2'
             ):
-                create_browse_imagery(message, test_tif_filename, self.logger)
+                create_browse_imagery(
+                    message, test_tif_filename, HarmonySource({}), None, self.logger
+                )
 
     def test_create_browse_imagery_with_single_band_raster(self):
         """Check that preferred metadata for global projection is found."""
@@ -129,9 +137,11 @@ class TestBrowse(TestCase):
             count=2,
         ) as test_tif_filename:
             with self.assertRaisesRegex(
-                HyBIGException, 'incorrect number of bands for image: 2'
+                HyBIGError, 'incorrect number of bands for image: 2'
             ):
-                create_browse_imagery(message, test_tif_filename, None)
+                create_browse_imagery(
+                    message, test_tif_filename, HarmonySource({}), None, None
+                )
 
     @patch('harmony_browse_image_generator.browse.reproject')
     @patch('rasterio.open')
@@ -146,7 +156,7 @@ class TestBrowse(TestCase):
         ds_mock.transform = file_transform
         ds_mock.crs = CRS.from_string('EPSG:4326')
         ds_mock.count = 1
-        ds_mock.colormap = MagicMock(side_effect=ValueError)
+        ds_mock.colormap = Mock(side_effect=ValueError)
 
         expected_raster = np.array(
             [
@@ -187,7 +197,11 @@ class TestBrowse(TestCase):
 
         # Act to run the test
         out_file_list = create_browse_imagery(
-            message, './input_file_path', self.logger
+            message,
+            self.tmp_dir / 'input_file_path',
+            HarmonySource({}),
+            None,
+            self.logger,
         )
 
         # Ensure tiling logic was not called:
@@ -264,19 +278,19 @@ class TestBrowse(TestCase):
             )
 
         self.assertEqual(
-            Path('./input_file_path.jpg').resolve(), actual_image.resolve()
+            (self.tmp_dir / 'input_file_path.jpg').resolve(), actual_image.resolve()
         )
         self.assertEqual(
-            Path('./input_file_path.jgw').resolve(), actual_world.resolve()
+            (self.tmp_dir / 'input_file_path.jgw').resolve(), actual_world.resolve()
         )
         self.assertEqual(
-            Path('./input_file_path.jpg.aux.xml').resolve(), actual_aux.resolve()
+            (self.tmp_dir / 'input_file_path.jpg.aux.xml').resolve(),
+            actual_aux.resolve(),
         )
 
     def test_convert_singleband_to_raster_without_colortable(self):
         ds = Mock(DatasetReader)
         ds.read.return_value = self.data
-        ds.colormap = MagicMock(side_effect=ValueError)
 
         expected_raster = np.array(
             [
@@ -302,7 +316,7 @@ class TestBrowse(TestCase):
             dtype='uint8',
         )
 
-        actual_raster = convert_singleband_to_raster(ds)
+        actual_raster = convert_singleband_to_raster(ds, None)
         assert_array_equal(expected_raster, actual_raster)
 
     def test_convert_singleband_to_raster_with_colormap(self):
@@ -340,8 +354,8 @@ class TestBrowse(TestCase):
             dtype='uint8',
         )
         # Read down: red, yellow, green, blue
-
-        actual_raster = convert_singleband_to_raster(ds)
+        image_palette = convert_colormap_to_palette(self.colormap)
+        actual_raster = convert_singleband_to_raster(ds, image_palette)
         assert_array_equal(expected_raster, actual_raster)
 
     def test_convert_3_multiband_to_raster(self):
@@ -423,7 +437,7 @@ class TestBrowse(TestCase):
             [self.data, self.data, self.data, self.data, self.data]
         )
 
-        with self.assertRaises(HyBIGException) as excepted:
+        with self.assertRaises(HyBIGError) as excepted:
             convert_mulitband_to_raster(ds)
 
         self.assertEqual(
@@ -466,7 +480,7 @@ class TestBrowse(TestCase):
         quantized_output = Image.fromarray(
             self.random.integers(254, size=(10, 11), dtype='uint8')
         )
-        multiband_image_mock = MagicMock()
+        multiband_image_mock = Mock()
         image_mock.fromarray.return_value = multiband_image_mock
         multiband_image_mock.quantize.return_value = quantized_output
 
@@ -509,7 +523,7 @@ class TestBrowse(TestCase):
         actual_color_map = get_color_map_from_image(test_image)
         self.assertDictEqual(expected_color_map, actual_color_map)
 
-    def test_get_color_palette_map_exists(self):
+    def test_get_color_palette_map_exists_source_does_not(self):
         ds = Mock(DatasetReader)
         ds.colormap.return_value = self.colormap
 
@@ -523,18 +537,19 @@ class TestBrowse(TestCase):
         expected_palette = ColorPalette()
         expected_palette.read_file_txt(lines=lines)
 
-        actual_palette = get_color_palette(ds)
+        actual_palette = get_color_palette(ds, HarmonySource({}))
 
         self.assertEqual(expected_palette, actual_palette)
 
-    def test_get_color_palette_map_does_not_exist(self):
+    def test_get_color_palette_source_and_map_do_not_exist(self):
+        """get_color_palette returns None
+
+        when source, Item and geotiff have no color information.
+        """
         ds = Mock(DatasetReader)
         ds.colormap.side_effect = ValueError
-        expected_palette = None
 
-        actual_palette = get_color_palette(ds)
-
-        self.assertEqual(expected_palette, actual_palette)
+        self.assertIsNone(get_color_palette(ds, HarmonySource({}), None))
 
     def test_output_image_file(self):
         input_filename = Path('/path/to/some.tiff')
@@ -578,52 +593,11 @@ class TestBrowse(TestCase):
         ds = Mock(DatasetReader)
         ds.driver = 'NetCDF4'
         with self.assertRaisesRegex(
-            HyBIGException, 'Input file type not supported: NetCDF4'
+            HyBIGError, 'Input file type not supported: NetCDF4'
         ):
             validate_file_type(ds)
 
-    def test_convert_colormap_to_palette_3bands(self):
-        input_colormap = {
-            5: (255, 0, 0),  # red
-            100: (0, 255, 0),  # blue
-            30: (0, 0, 255),  # green
-            50: (10, 100, 201),
-        }
-
-        # 3 color palettes are stores as coded 4-bypte int values
-        # Alpha/Red/Green/Blue
-        # where Alpha is always 255
-        # so (1,1,1) is stored as '0b11111111000000010000000100000001' or 4278255873
-        # (255, 0, 0), as: 0b11111111 11111111 00000000 00000000
-
-        red = 0b11111111111111110000000000000000
-        green = 0b11111111000000001111111100000000
-        blue = 0b11111111000000000000000011111111
-        last = encode_color(10, 100, 201)
-
-        actual_palette = convert_colormap_to_palette(input_colormap)
-
-        self.assertEqual(actual_palette.get_color(5), red)
-        self.assertEqual(actual_palette.get_color(100), green)
-        self.assertEqual(actual_palette.get_color(30), blue)
-        self.assertEqual(actual_palette.get_color(50), last)
-
-    def test_convert_colormap_to_palette_4bands(self):
-        input_colormap = {
-            5: (255, 0, 0, 100),  # red
-            100: (0, 255, 0, 200),  # blue
-            30: (0, 0, 255, 255),  # green
-            50: (10, 100, 201, 255),  # other
-        }
-
-        actual_palette = convert_colormap_to_palette(input_colormap)
-
-        for color_level, rgba_tuple in input_colormap.items():
-            self.assertEqual(
-                actual_palette.get_color(color_level), encode_color(*rgba_tuple)
-            )
-
-    @patch('harmony_browse_image_generator.browse.requests.get')
+    @patch('harmony_browse_image_generator.color_utility.requests.get')
     def test_palette_from_remote_colortable(self, mock_get):
         with self.subTest('successful retrieval of colortable'):
             returned_colortable = (
@@ -650,13 +624,13 @@ class TestBrowse(TestCase):
             url = 'http://this-domain-does-not-exist.com/bad-url'
             mock_get.return_value.ok = False
 
-            with self.assertRaises(HyBIGException) as excepted:
+            with self.assertRaises(HyBIGError) as excepted:
                 palette_from_remote_colortable(url)
 
             self.assertEqual(
                 excepted.exception.message,
                 (
-                    'Could not read remote colortable at'
+                    'Failed to retrieve color table at'
                     ' http://this-domain-does-not-exist.com/bad-url'
                 ),
             )

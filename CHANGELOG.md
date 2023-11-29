@@ -1,3 +1,26 @@
+## v0.0.8
+### 2023-11-21
+ - Adds support for colortables.
+   - HyBIG has the ability to apply a colortable single band input GeoTIFF and it
+     follows a series of steps to determine which color information to use. It
+     searches each of these locations and uses the first color information
+     found.
+
+     1. The input stac `Item`: The `Item`'s `assets` are searched for one with
+        the role of `palette`.  If it finds an matching asset entry, it will
+        use the data found at the `href` of that asset as the color table to
+        apply to the input data.
+     2. The HarmonyMessage's `Source`: If the `Source` contains a single
+        `variable` and that `variable` contains a `relatedUrls` with
+        `urlContentType` of `VisualizationURL` and `type` of `Color Map` the
+        color map will be read from that object's `url` value.
+     3. The input GeoTIFF's own colormap: If the GeoTIFF contains it's own
+        colormap that will be used.
+     4. Finally if no color information can be determined the output will use a
+        greyscale colormap
+
+     Three and four band input GeoTIFFs are presumed to be RGB[A].
+
 ## v0.0.7
 ### 2023-11-06
  - Memory usage improvements

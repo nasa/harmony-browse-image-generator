@@ -17,7 +17,7 @@ from pyproj.crs import CRS as pyCRS
 from rasterio.crs import CRS
 from rasterio.io import DatasetReader
 
-from harmony_browse_image_generator.exceptions import HyBIGInvalidMessage
+from harmony_browse_image_generator.exceptions import HyBIGInvalidMessageError
 
 # These are the CRSs that GIBS will accept as input. When the user hasn't
 # directly specified an output CRS, the code will attempt to choose the best
@@ -60,7 +60,9 @@ def choose_crs_from_srs(srs: SRS):
             return CRS.from_string(srs.wkt)
         return CRS.from_string(srs.proj4)
     except Exception as exception:
-        raise HyBIGInvalidMessage(f'Bad input SRS: {str(exception)}') from exception
+        raise HyBIGInvalidMessageError(
+            f'Bad input SRS: {str(exception)}'
+        ) from exception
 
 
 def is_preferred_crs(crs: CRS) -> bool:
