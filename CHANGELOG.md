@@ -1,3 +1,9 @@
+## v0.0.9
+### 2023-12-06
+ - Scale and mask input GeoTIFFs. Any input file that includes scale\_factor,
+   add\_offset or \_FillValue will have those values applied when reading the
+   input data.
+
 ## v0.0.8
 ### 2023-11-21
  - Adds support for colortables.

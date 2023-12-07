@@ -11,20 +11,14 @@ from collections import namedtuple
 from typing import TypedDict
 
 import numpy as np
-from numpy import ndarray
 from affine import Affine
 from harmony.message import Message
 from pyproj import Transformer
 from pyproj.crs import CRS as pyCRS
-
 # pylint: disable-next=no-name-in-module
 from rasterio.crs import CRS
-from rasterio.io import DatasetReader
-from rasterio.transform import (
-    AffineTransformer,
-    from_bounds,
-    from_origin,
-)
+from rasterio.transform import AffineTransformer, from_bounds, from_origin
+from xarray import DataArray
 
 from harmony_browse_image_generator.crs import (
     PREFERRED_CRS,
@@ -69,7 +63,7 @@ class Dimensions(TypedDict):
 
 
 ResolutionInfo = namedtuple(
-    'resolutionInfo',
+    'ResolutionInfo',
     [
         'resolution',
         'pixel_size',
@@ -115,8 +109,7 @@ epsg_3413_resolutions = [
 epsg_3031_resolutions = epsg_3413_resolutions
 
 
-def get_target_grid_parameters(message: Message,
-                               dataset: DatasetReader) -> GridParams:
+def get_target_grid_parameters(message: Message, data_array: DataArray) -> GridParams:
     """Get the output image parameters.
 
     This computes the target grid of the ouptut image. The grid is defined by
@@ -129,10 +122,10 @@ def get_target_grid_parameters(message: Message,
     - Computed parameters attempt to generate GIBS suitable images.
 
     """
-    target_crs = choose_target_crs(message.format.srs, dataset)
+    target_crs = choose_target_crs(message.format.srs, data_array)
     target_scale_extent = choose_scale_extent(message, target_crs)
     target_dimensions = choose_target_dimensions(
-        message, dataset, target_scale_extent, target_crs
+        message, data_array, target_scale_extent, target_crs
     )
     return get_rasterio_parameters(target_crs, target_scale_extent, target_dimensions)
 
@@ -147,12 +140,14 @@ def choose_scale_extent(message: Message, target_crs: CRS) -> ScaleExtent:
     """
     if has_scale_extents(message):
         # These values must be in the target_crs projection.
-        scale_extent = {
-            'xmin': message.format.scaleExtent.x.min,
-            'ymin': message.format.scaleExtent.y.min,
-            'xmax': message.format.scaleExtent.x.max,
-            'ymax': message.format.scaleExtent.y.max,
-        }
+        scale_extent = ScaleExtent(
+            {
+                'xmin': message.format.scaleExtent.x.min,
+                'ymin': message.format.scaleExtent.y.min,
+                'xmax': message.format.scaleExtent.x.max,
+                'ymax': message.format.scaleExtent.y.max,
+            }
+        )
     elif is_preferred_crs(target_crs):
         scale_extent = icd_defined_extent_from_crs(target_crs)
     else:
@@ -161,9 +156,9 @@ def choose_scale_extent(message: Message, target_crs: CRS) -> ScaleExtent:
     return scale_extent
 
 
-def choose_target_dimensions(message: Message, dataset: DatasetReader,
-                             scale_extent: ScaleExtent,
-                             target_crs: CRS) -> Dimensions:
+def choose_target_dimensions(
+    message: Message, data_array: DataArray, scale_extent: ScaleExtent, target_crs: CRS
+) -> Dimensions:
     """This selects or computes the target Dimensions.
 
     This routine finalizes the output grid.  The target dimensions are
@@ -183,13 +178,15 @@ def choose_target_dimensions(message: Message, dataset: DatasetReader,
 
     """
     if has_dimensions(message):
-        dimensions = {'height': message.format.height, 'width': message.format.width}
+        dimensions = Dimensions(
+            {'height': message.format.height, 'width': message.format.width}
+        )
     elif has_scale_sizes(message):
         dimensions = compute_target_dimensions(
             scale_extent, message.format.scaleSize.x, message.format.scaleSize.y
         )
     else:
-        dimensions = best_guess_target_dimensions(dataset, scale_extent, target_crs)
+        dimensions = best_guess_target_dimensions(data_array, scale_extent, target_crs)
 
     return dimensions
 
@@ -223,7 +220,7 @@ def get_rasterio_parameters(crs: CRS, scale_extent: ScaleExtent,
 
 def create_tiled_output_parameters(
         grid_parameters: GridParams
-) -> (list[GridParams], list[dict | None]):
+) -> tuple[list[GridParams], list[dict] | list[None]]:
     """Split the output grid if necessary.
 
     When the number of grid cells exceeds 8192x8192, we tile the output
@@ -262,18 +259,22 @@ def create_tiled_output_parameters(
             x_loc, y_loc = transformer.xy(row, col, offset='ul')
             tile_grid_transform = from_origin(x_loc, y_loc, resolution_x, resolution_y)
             if height > 0 and width > 0:
-                grid_parameter_list.append({
-                    'width': width,
-                    'height': height,
-                    'crs': crs,
-                    'transform': tile_grid_transform,
-                })
+                grid_parameter_list.append(
+                    GridParams(
+                        {
+                            'width': width,
+                            'height': height,
+                            'crs': crs,
+                            'transform': tile_grid_transform,
+                        }
+                    )
+                )
                 tile_locator.append({'row': h_idx, 'col': w_idx})
 
     return grid_parameter_list, tile_locator
 
 
-def compute_tile_dimensions(origins: ndarray) -> ndarray:
+def compute_tile_dimensions(origins: list[int]) -> list[int]:
     """return a list of tile dimensions.
 
     From a list of origin locations, return the dimension for each tile.
@@ -282,7 +283,7 @@ def compute_tile_dimensions(origins: ndarray) -> ndarray:
     return list(np.diff(origins, append=origins[-1]).astype('int'))
 
 
-def compute_tile_boundaries(target_size: int, full_size: int) -> list[float]:
+def compute_tile_boundaries(target_size: int, full_size: int) -> list[int]:
     """returns a list of boundary cells.
 
     The returned boundary cells are the column [or row] values for each of the
@@ -325,15 +326,19 @@ def icd_defined_extent_from_crs(crs: CRS) -> ScaleExtent:
 
     """
     if crs.to_string() == PREFERRED_CRS['global']:
-        scale_extent = {'xmin': -180.0, 'ymin': -90.0, 'xmax': 180.0, 'ymax': 90.0}
+        scale_extent = ScaleExtent(
+            {'xmin': -180.0, 'ymin': -90.0, 'xmax': 180.0, 'ymax': 90.0}
+        )
     elif crs.to_string() in [PREFERRED_CRS['north'], PREFERRED_CRS['south']]:
         # both north and south preferred CRSs have same extents.
-        scale_extent = {
-            'xmin': -4194304.0,
-            'ymin': -4194304.0,
-            'xmax': 4194304.0,
-            'ymax': 4194304.0,
-        }
+        scale_extent = ScaleExtent(
+            {
+                'xmin': -4194304.0,
+                'ymin': -4194304.0,
+                'xmax': 4194304.0,
+                'ymax': 4194304.0,
+            }
+        )
     else:
         raise HyBIGValueError(f'Invalid input CRS: {crs.to_string()}')
 
@@ -377,7 +382,7 @@ def best_guess_scale_extent(in_crs: CRS) -> ScaleExtent:
 
 
 def best_guess_target_dimensions(
-    dataset: DatasetReader, scale_extent: ScaleExtent, target_crs: CRS
+    data_array: DataArray, scale_extent: ScaleExtent, target_crs: CRS
 ) -> Dimensions:
     """Return best guess for output image dimensions.
 
@@ -393,13 +398,13 @@ def best_guess_target_dimensions(
     else:
         resolution_list = epsg_3413_resolutions
 
-    x_res, y_res = resolution_in_target_crs_units(dataset, target_crs)
+    x_res, y_res = resolution_in_target_crs_units(data_array, target_crs)
     return guess_dimensions(x_res, y_res, scale_extent, resolution_list)
 
 
 def resolution_in_target_crs_units(
-    dataset: DatasetReader, target_crs: CRS
-) -> list[float]:
+    data_array: DataArray, target_crs: CRS
+) -> tuple[float, float]:
     """Return the x and y target resolutions
 
     The input resolution can be determined from the Affine transformation, but
@@ -410,17 +415,17 @@ def resolution_in_target_crs_units(
     the user has not supplied any input parameters and we are trying to
     determine the dimensions for the output image.
     """
-    if dataset.crs.is_projected == target_crs.is_projected:
-        x_res = dataset.transform.a
-        y_res = abs(dataset.transform.e)
+    if data_array.rio.crs.is_projected == target_crs.is_projected:
+        x_res = data_array.rio.transform().a
+        y_res = abs(data_array.rio.transform().e)
     elif target_crs.is_projected:
         # transform from latlon to meters
-        x_res = dataset.transform.a * METERS_PER_DEGREE
-        y_res = abs(dataset.transform.e) * METERS_PER_DEGREE
+        x_res = data_array.rio.transform().a * METERS_PER_DEGREE
+        y_res = abs(data_array.rio.transform().e) * METERS_PER_DEGREE
     else:
         # transform from meters to lat/lon
-        x_res = dataset.transform.a / METERS_PER_DEGREE
-        y_res = abs(dataset.transform.e) / METERS_PER_DEGREE
+        x_res = data_array.rio.transform().a / METERS_PER_DEGREE
+        y_res = abs(data_array.rio.transform().e) / METERS_PER_DEGREE
 
     return x_res, y_res
 
@@ -465,8 +470,9 @@ def compute_target_dimensions(
     }
 
 
-def find_closest_resolution(resolutions: list[float], resolution_info:
-                            list[ResolutionInfo]) -> ResolutionInfo:
+def find_closest_resolution(
+    resolutions: list[float], resolution_info: list[ResolutionInfo]
+) -> ResolutionInfo | None:
     """Return closest match to GIBS preferred Resolution Info.
 
     Cycle through all input resolutions and return the resolution_info that has

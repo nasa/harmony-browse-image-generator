@@ -7,6 +7,7 @@ import rasterio
 from harmony.message import Message
 from rasterio import Affine
 from rasterio.crs import CRS
+from rioxarray import open_rasterio
 
 from harmony_browse_image_generator.crs import PREFERRED_CRS
 from harmony_browse_image_generator.exceptions import HyBIGValueError
@@ -169,8 +170,8 @@ class TestGetTargetGridParameters(TestCase):
             * Affine.scale(sp_seaice_grid['xres'], -1 * sp_seaice_grid['yres']),
         ) as tmp_file:
             message = Message({'format': {}})
-            with rasterio.open(tmp_file) as dataset_in:
-                actual_parameters = get_target_grid_parameters(message, dataset_in)
+            with open_rasterio(tmp_file) as rio_data_array:
+                actual_parameters = get_target_grid_parameters(message, rio_data_array)
                 self.assertDictEqual(expected_parameters, actual_parameters)
 
 
@@ -596,7 +597,7 @@ class TestBestGuessTargetDimensions(TestCase):
             transform=Affine(25000.0, 0.0, -9000000.0, 0.0, -25000.0, 9000000.0),
             dtype='uint8',
         ) as tmp_file:
-            with rasterio.open(tmp_file) as in_dataset:
+            with open_rasterio(tmp_file) as rio_data_array:
                 scale_extent = {
                     'xmin': -9000000.0,
                     'ymin': -9000000.0,
@@ -610,7 +611,7 @@ class TestBestGuessTargetDimensions(TestCase):
                 crs.is_projected = True
 
                 actual_dimensions = best_guess_target_dimensions(
-                    in_dataset, scale_extent, crs
+                    rio_data_array, scale_extent, crs
                 )
 
                 self.assertDictEqual(expected_target_dimensions, actual_dimensions)
@@ -632,7 +633,7 @@ class TestBestGuessTargetDimensions(TestCase):
             ),
             dtype='uint8',
         ) as tmp_file:
-            with rasterio.open(tmp_file) as in_dataset:
+            with open_rasterio(tmp_file) as rio_data_array:
                 scale_extent = {
                     'xmin': -9000000.0,
                     'ymin': -9000000.0,
@@ -648,7 +649,7 @@ class TestBestGuessTargetDimensions(TestCase):
                 expected_y_resolution = 512
 
                 actual_dimensions = best_guess_target_dimensions(
-                    in_dataset, scale_extent, target_crs
+                    rio_data_array, scale_extent, target_crs
                 )
 
                 self.assertDictEqual(expected_target_dimensions, actual_dimensions)
@@ -682,7 +683,7 @@ class TestBestGuessTargetDimensions(TestCase):
             transform=Affine(700.0423, 0.0, -4194304.0, 0.0, 700.0423, 4194304.0),
             dtype='uint8',
         ) as tmp_file:
-            with rasterio.open(tmp_file) as in_dataset:
+            with open_rasterio(tmp_file) as rio_data_array:
                 scale_extent = {
                     'xmin': -4194304.0,
                     'ymin': -4194304.0,
@@ -704,7 +705,7 @@ class TestBestGuessTargetDimensions(TestCase):
                 ) / expected_target_dimensions['height']
 
                 actual_dimensions = best_guess_target_dimensions(
-                    in_dataset, scale_extent, crs
+                    rio_data_array, scale_extent, crs
                 )
 
                 self.assertDictEqual(expected_target_dimensions, actual_dimensions)
@@ -741,7 +742,7 @@ class TestBestGuessTargetDimensions(TestCase):
             transform=ml_test_transform,
             dtype='uint8',
         ) as tmp_file:
-            with rasterio.open(tmp_file) as in_dataset:
+            with open_rasterio(tmp_file) as rio_data_array:
                 scale_extent = {
                     'xmin': -180.0,
                     'ymin': -86.0,
@@ -760,7 +761,7 @@ class TestBestGuessTargetDimensions(TestCase):
                 target_crs.is_projected = False
 
                 actual_dimensions = best_guess_target_dimensions(
-                    in_dataset, scale_extent, target_crs
+                    rio_data_array, scale_extent, target_crs
                 )
 
                 self.assertDictEqual(expected_target_dimensions, actual_dimensions)
@@ -783,7 +784,7 @@ class TestBestGuessTargetDimensions(TestCase):
             crs=CRS.from_epsg(6933),
             dtype='uint8',
         ) as tmp_file:
-            with rasterio.open(tmp_file) as in_dataset:
+            with open_rasterio(tmp_file) as rio_data_array:
                 scale_extent = {
                     'xmin': -180.0,
                     'ymin': -86.0,
@@ -811,7 +812,7 @@ class TestBestGuessTargetDimensions(TestCase):
                 )
 
                 actual_dimensions = best_guess_target_dimensions(
-                    in_dataset, scale_extent, target_crs
+                    rio_data_array, scale_extent, target_crs
                 )
                 self.assertDictEqual(expected_target_dimensions, actual_dimensions)
 
@@ -846,13 +847,13 @@ class TestResolutionInTargetCRS(TestCase):
             crs=CRS.from_epsg(nsidc_ease2_36km_grid['epsg']),
             transform=ml_test_transform,
         ) as test_file:
-            with rasterio.open(test_file) as test_dataset:
+            with open_rasterio(test_file) as test_dataarray:
                 target_crs = CRS.from_epsg(3413)
                 expected_x_res = ml_test_transform.a
                 expected_y_res = -ml_test_transform.e
 
                 actual_x_res, actual_y_res = resolution_in_target_crs_units(
-                    test_dataset, target_crs
+                    test_dataarray, target_crs
                 )
 
                 self.assertEqual(expected_x_res, actual_x_res)
@@ -867,13 +868,13 @@ class TestResolutionInTargetCRS(TestCase):
             crs=CRS.from_string(PREFERRED_CRS['global']),
             transform=global_one_degree_transform,
         ) as test_file:
-            with rasterio.open(test_file) as test_dataset:
+            with open_rasterio(test_file) as test_dataarray:
                 target_crs = CRS.from_string(PREFERRED_CRS['global'])
                 expected_x_res = global_one_degree_transform.a
                 expected_y_res = -global_one_degree_transform.e
 
                 actual_x_res, actual_y_res = resolution_in_target_crs_units(
-                    test_dataset, target_crs
+                    test_dataarray, target_crs
                 )
 
                 self.assertEqual(expected_x_res, actual_x_res)
@@ -892,13 +893,13 @@ class TestResolutionInTargetCRS(TestCase):
             crs=CRS.from_epsg(nsidc_ease2_36km_grid['epsg']),
             transform=ml_test_transform,
         ) as test_file:
-            with rasterio.open(test_file) as test_dataset:
+            with open_rasterio(test_file) as test_dataarray:
                 target_crs = CRS.from_epsg(4326)
                 expected_x_res = ml_test_transform.a / METERS_PER_DEGREE
                 expected_y_res = -ml_test_transform.e / METERS_PER_DEGREE
 
                 actual_x_res, actual_y_res = resolution_in_target_crs_units(
-                    test_dataset, target_crs
+                    test_dataarray, target_crs
                 )
 
                 self.assertEqual(expected_x_res, actual_x_res)
@@ -912,13 +913,13 @@ class TestResolutionInTargetCRS(TestCase):
             crs=CRS.from_string(PREFERRED_CRS['global']),
             transform=global_one_degree_transform,
         ) as test_file:
-            with rasterio.open(test_file) as test_dataset:
+            with open_rasterio(test_file) as test_dataarray:
                 target_crs = CRS.from_string(PREFERRED_CRS['north'])
                 expected_x_res = global_one_degree_transform.a * METERS_PER_DEGREE
                 expected_y_res = -global_one_degree_transform.e * METERS_PER_DEGREE
 
                 actual_x_res, actual_y_res = resolution_in_target_crs_units(
-                    test_dataset, target_crs
+                    test_dataarray, target_crs
                 )
 
                 self.assertEqual(expected_x_res, actual_x_res)

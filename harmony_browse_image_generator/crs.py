@@ -15,7 +15,7 @@ from pyproj.crs import CRS as pyCRS
 
 # pylint: disable-next=no-name-in-module
 from rasterio.crs import CRS
-from rasterio.io import DatasetReader
+from xarray import DataArray
 
 from harmony_browse_image_generator.exceptions import HyBIGInvalidMessageError
 
@@ -29,7 +29,7 @@ PREFERRED_CRS = {
 }
 
 
-def choose_target_crs(srs: SRS, in_dataset: DatasetReader) -> CRS:
+def choose_target_crs(srs: SRS, data_array: DataArray) -> CRS:
     """Return the target CRS for the output image.
 
     If a harmony message defines a SRS, we use that as the target ouptut CRS.
@@ -39,7 +39,7 @@ def choose_target_crs(srs: SRS, in_dataset: DatasetReader) -> CRS:
     """
     if srs is not None:
         return choose_crs_from_srs(srs)
-    return choose_crs_from_metadata(in_dataset)
+    return choose_crs_from_metadata(data_array)
 
 
 def choose_crs_from_srs(srs: SRS):
@@ -72,11 +72,11 @@ def is_preferred_crs(crs: CRS) -> bool:
     return False
 
 
-def choose_crs_from_metadata(dataset: DatasetReader) -> CRS | None:
+def choose_crs_from_metadata(data_array: DataArray) -> CRS | None:
     """Determine the best CRS based on input metadata."""
-    if is_preferred_crs(dataset.crs):
-        return dataset.crs
-    return choose_best_crs_from_metadata(dataset.crs)
+    if is_preferred_crs(data_array.rio.crs):
+        return data_array.rio.crs
+    return choose_best_crs_from_metadata(data_array.rio.crs)
 
 
 def choose_best_crs_from_metadata(crs: CRS) -> CRS:

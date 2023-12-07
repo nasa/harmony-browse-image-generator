@@ -16,6 +16,15 @@ from harmony_browse_image_generator.exceptions import (
     HyBIGNoColorInformation,
 )
 
+# Constants for output PNG images
+# Applied to transparent pixels where alpha < 255
+TRANSPARENT_RGBA = (0, 0, 0, 0)
+TRANSPARENT_IDX = 254
+
+# Applied to off grid areas during reprojection
+NODATA_RGBA = (0, 0, 0, 0)
+NODATA_IDX = 255
+
 
 def palette_from_remote_colortable(url: str) -> ColorPalette:
     """Return a gdal ColorPalette from a remote colortable."""
@@ -59,7 +68,8 @@ def get_color_palette(
 
     1. Color Infomration was found in the stac Item's `palette` asset.
     2. Color information is provided in the HarmonySource.
-    3. input GeoTIFF has a colormap
+    3. Input GeoTIFF has a colormap (this has to be the DatasetReader because a
+       DataArray does not have access to this field.)
     4. Return None and the image will default to greyscale.
 
     """
@@ -86,18 +96,18 @@ def get_remote_palette_from_source(source: HarmonySource) -> dict:
         if len(source.variables) != 1:
             raise TypeError('Palette must come from a single variable')
         variable = source.variables[0]
-        remoteColortableUrl = next(
+        remote_colortable_url = next(
             r_url.url
             for r_url in variable.relatedUrls
             if (
                 r_url.urlContentType == 'VisualizationURL' and r_url.type == 'Color Map'
             )
         )
-        return palette_from_remote_colortable(remoteColortableUrl)
+        return palette_from_remote_colortable(remote_colortable_url)
 
     except HyBIGError as hybig_exc:
         raise HyBIGError(
-            f'Failed to retrieve color table at {remoteColortableUrl}'
+            f'Failed to retrieve color table at {remote_colortable_url}'
         ) from hybig_exc
     except Exception as exc:
         raise HyBIGNoColorInformation('No color in source') from exc

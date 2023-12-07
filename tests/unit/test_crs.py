@@ -8,10 +8,10 @@ from textwrap import dedent
 from unittest import TestCase
 from unittest.mock import patch
 
-import rasterio
 from affine import Affine
 from harmony.message import SRS
 from rasterio.crs import CRS
+from rioxarray import open_rasterio
 
 from harmony_browse_image_generator.crs import (
     PREFERRED_CRS,
@@ -152,8 +152,8 @@ class TestCrs(TestCase):
             transform=Affine(25000.0, 0.0, -3850000.0, 0.0, -25000.0, 5850000.0),
             dtype='uint16',
         ) as tmp_file:
-            with rasterio.open(tmp_file) as in_dataset:
-                actual_CRS = choose_target_crs(None, in_dataset)
+            with open_rasterio(tmp_file) as rio_data_array:
+                actual_CRS = choose_target_crs(None, rio_data_array)
 
                 self.assertEqual(expected_CRS, actual_CRS)
 
@@ -166,8 +166,8 @@ class TestCrs(TestCase):
             transform=Affine.scale(500, 300),
             dtype='uint16',
         ) as tmp_file:
-            with rasterio.open(tmp_file) as in_dataset:
-                actual_CRS = choose_target_crs(None, in_dataset)
+            with open_rasterio(tmp_file) as rio_data_array:
+                actual_CRS = choose_target_crs(None, rio_data_array)
 
                 self.assertEqual(expected_CRS, actual_CRS)
 
@@ -178,8 +178,8 @@ class TestCrs(TestCase):
             count=3,
             crs=CRS.from_proj4('+proj=longlat +datum=WGS84 +no_defs +type=crs'),
         ) as tmp_file:
-            with rasterio.open(tmp_file) as in_dataset:
-                actual_CRS = choose_target_crs(None, in_dataset)
+            with open_rasterio(tmp_file) as rio_data_array:
+                actual_CRS = choose_target_crs(None, rio_data_array)
 
                 self.assertEqual(expected_CRS, actual_CRS)
 
@@ -190,8 +190,8 @@ class TestCrs(TestCase):
         input_CRS = CRS.from_wkt(WKT_EPSG_3411)
 
         with rasterio_test_file(crs=input_CRS) as tmp_file:
-            with rasterio.open(tmp_file) as in_dataset:
-                actual_CRS = choose_target_crs(None, in_dataset)
+            with open_rasterio(tmp_file) as rio_data_array:
+                actual_CRS = choose_target_crs(None, rio_data_array)
                 self.assertEqual(expected_CRS, actual_CRS)
 
     def test_choose_target_crs_from_metadata_south(self):
@@ -201,8 +201,8 @@ class TestCrs(TestCase):
         input_CRS = CRS.from_string(ease_grid_2_south)
 
         with rasterio_test_file(crs=input_CRS) as tmp_file:
-            with rasterio.open(tmp_file) as in_dataset:
-                actual_CRS = choose_best_crs_from_metadata(in_dataset.crs)
+            with open_rasterio(tmp_file) as rio_data_array:
+                actual_CRS = choose_best_crs_from_metadata(rio_data_array.rio.crs)
                 self.assertEqual(expected_CRS, actual_CRS)
 
     def test_choose_target_crs_from_metadata_global(self):
@@ -212,8 +212,8 @@ class TestCrs(TestCase):
         input_CRS = CRS.from_string(ease_grid_2_global)
 
         with rasterio_test_file(crs=input_CRS) as tmp_file:
-            with rasterio.open(tmp_file) as in_dataset:
-                actual_CRS = choose_best_crs_from_metadata(in_dataset.crs)
+            with open_rasterio(tmp_file) as rio_data_array:
+                actual_CRS = choose_best_crs_from_metadata(rio_data_array.rio.crs)
                 self.assertEqual(expected_CRS, actual_CRS)
 
     def test_multiple_crs_from_metadata(self):

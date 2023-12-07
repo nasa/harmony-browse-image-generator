@@ -9,12 +9,15 @@ import numpy as np
 from harmony.message import Message
 from harmony.util import config
 from pystac import Catalog
-from rasterio import open as rasterio_open
 from rasterio.transform import from_bounds
 from rasterio.warp import Resampling
+from rioxarray import open_rasterio
 
 from harmony_browse_image_generator.adapter import BrowseImageGeneratorAdapter
-from harmony_browse_image_generator.browse import convert_mulitband_to_raster, prepare_raster_for_writing
+from harmony_browse_image_generator.browse import (
+    convert_mulitband_to_raster,
+    prepare_raster_for_writing,
+)
 from tests.utilities import Granule, create_stac
 
 
@@ -172,10 +175,10 @@ class TestAdapter(TestCase):
         # input CRS is preferred 4326,
         # Scale Extent from icd
         # dimensions from input data
-        in_dataset = rasterio_open(self.red_tif_fixture)
+        rio_data_array = open_rasterio(self.red_tif_fixture)
         icd_scale_extent = {'xmin': -180.0, 'ymin': -90.0, 'xmax': 180.0, 'ymax': 90.0}
-        expected_width = round((180 - -180) / in_dataset.transform.a)
-        expected_height = round((90 - -90) / -in_dataset.transform.e)
+        expected_width = round((180 - -180) / rio_data_array.rio.transform().a)
+        expected_height = round((90 - -90) / -rio_data_array.rio.transform().e)
         expected_transform = from_bounds(
             icd_scale_extent['xmin'],
             icd_scale_extent['ymin'],
@@ -188,43 +191,49 @@ class TestAdapter(TestCase):
         expected_params = {
             'width': expected_width,
             'height': expected_height,
-            'crs': in_dataset.crs,
+            'crs': rio_data_array.rio.crs,
             'transform': expected_transform,
             'driver': 'JPEG',
             'dtype': 'uint8',
             'dst_nodata': 255,
             'count': 3,
         }
-        raster = convert_mulitband_to_raster(in_dataset)
+        raster = convert_mulitband_to_raster(rio_data_array)
 
         dest = np.full((expected_params['height'], expected_params['width']),
                        dtype='uint8', fill_value=0)
 
         expected_reproject_calls = [
-            call(source=raster[0, :, :],
-                 destination=dest,
-                 src_transform=in_dataset.transform,
-                 src_crs=in_dataset.crs,
-                 dst_transform=expected_params['transform'],
-                 dst_crs=expected_params['crs'],
-                 dst_nodata=expected_params['dst_nodata'],
-                 resampling=Resampling.nearest),
-            call(source=raster[1, :, :],
-                 destination=dest,
-                 src_transform=in_dataset.transform,
-                 src_crs=in_dataset.crs,
-                 dst_transform=expected_params['transform'],
-                 dst_crs=expected_params['crs'],
-                 dst_nodata=expected_params['dst_nodata'],
-                 resampling=Resampling.nearest),
-            call(source=raster[2, :, :],
-                 destination=dest,
-                 src_transform=in_dataset.transform,
-                 src_crs=in_dataset.crs,
-                 dst_transform=expected_params['transform'],
-                 dst_crs=expected_params['crs'],
-                 dst_nodata=expected_params['dst_nodata'],
-                 resampling=Resampling.nearest)
+            call(
+                source=raster[0, :, :],
+                destination=dest,
+                src_transform=rio_data_array.rio.transform(),
+                src_crs=rio_data_array.rio.crs,
+                dst_transform=expected_params['transform'],
+                dst_crs=expected_params['crs'],
+                dst_nodata=expected_params['dst_nodata'],
+                resampling=Resampling.nearest,
+            ),
+            call(
+                source=raster[1, :, :],
+                destination=dest,
+                src_transform=rio_data_array.rio.transform(),
+                src_crs=rio_data_array.rio.crs,
+                dst_transform=expected_params['transform'],
+                dst_crs=expected_params['crs'],
+                dst_nodata=expected_params['dst_nodata'],
+                resampling=Resampling.nearest,
+            ),
+            call(
+                source=raster[2, :, :],
+                destination=dest,
+                src_transform=rio_data_array.rio.transform(),
+                src_crs=rio_data_array.rio.crs,
+                dst_transform=expected_params['transform'],
+                dst_crs=expected_params['crs'],
+                dst_nodata=expected_params['dst_nodata'],
+                resampling=Resampling.nearest,
+            ),
         ]
 
 
@@ -363,11 +372,11 @@ class TestAdapter(TestCase):
         # input CRS is preferred 4326,
         # Scale Extent from icd
         # dimensions from input data
-        in_dataset = rasterio_open(self.red_tif_fixture)
+        rio_data_array = open_rasterio(self.red_tif_fixture)
         icd_scale_extent = {'xmin': -180.0, 'ymin': -90.0, 'xmax': 180.0, 'ymax': 90.0}
 
-        expected_width = round((180 - -180) / in_dataset.transform.a)
-        expected_height = round((90 - -90) / -in_dataset.transform.e)
+        expected_width = round((180 - -180) / rio_data_array.rio.transform().a)
+        expected_height = round((90 - -90) / -rio_data_array.rio.transform().e)
         expected_transform = from_bounds(
             icd_scale_extent['xmin'],
             icd_scale_extent['ymin'],
@@ -380,28 +389,30 @@ class TestAdapter(TestCase):
         expected_params = {
             'width': expected_width,
             'height': expected_height,
-            'crs': in_dataset.crs,
+            'crs': rio_data_array.rio.crs,
             'transform': expected_transform,
             'driver': 'PNG',
             'dtype': 'uint8',
             'dst_nodata': 255,
             'count': 3,
         }
-        raster = convert_mulitband_to_raster(in_dataset)
+        raster = convert_mulitband_to_raster(rio_data_array)
         raster, color_map = prepare_raster_for_writing(raster, 'PNG')
 
         dest = np.full((expected_params['height'], expected_params['width']),
                        dtype='uint8', fill_value=0)
 
         expected_reproject_calls = [
-            call(source=raster[0, :, :],
-                 destination=dest,
-                 src_transform=in_dataset.transform,
-                 src_crs=in_dataset.crs,
-                 dst_transform=expected_params['transform'],
-                 dst_crs=expected_params['crs'],
-                 dst_nodata=255,
-                 resampling=Resampling.nearest)
+            call(
+                source=raster[0, :, :],
+                destination=dest,
+                src_transform=rio_data_array.rio.transform(),
+                src_crs=rio_data_array.rio.crs,
+                dst_transform=expected_params['transform'],
+                dst_crs=expected_params['crs'],
+                dst_nodata=255,
+                resampling=Resampling.nearest,
+            )
         ]
 
 

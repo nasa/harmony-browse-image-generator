@@ -5,7 +5,7 @@ import tempfile
 from logging import getLogger
 from pathlib import Path
 from unittest import TestCase
-from unittest.mock import Mock, call, patch
+from unittest.mock import MagicMock, Mock, call, patch
 
 import numpy as np
 from harmony.message import Message as HarmonyMessage
@@ -17,12 +17,14 @@ from rasterio import Affine
 from rasterio.crs import CRS
 from rasterio.io import DatasetReader, DatasetWriter
 from rasterio.warp import Resampling
+from xarray import DataArray
 
 from harmony_browse_image_generator.browse import (
     convert_mulitband_to_raster,
     convert_singleband_to_raster,
     create_browse_imagery,
     get_color_map_from_image,
+    get_tiled_filename,
     output_image_file,
     output_world_file,
     palettize_raster,
@@ -34,10 +36,7 @@ from harmony_browse_image_generator.color_utility import (
     get_color_palette,
     palette_from_remote_colortable,
 )
-from harmony_browse_image_generator.exceptions import (
-    HyBIGError,
-    HyBIGNoColorInformation,
-)
+from harmony_browse_image_generator.exceptions import HyBIGError
 from tests.unit.utility import rasterio_test_file
 
 
@@ -145,18 +144,25 @@ class TestBrowse(TestCase):
 
     @patch('harmony_browse_image_generator.browse.reproject')
     @patch('rasterio.open')
-    def test_create_browse_imagery_with_mocks(self, rasterio_open_mock, reproject_mock):
+    @patch('harmony_browse_image_generator.browse.open_rasterio')
+    def test_create_browse_imagery_with_mocks(
+        self, rioxarray_open_mock, rasterio_open_mock, reproject_mock
+    ):
         file_transform = Affine(90.0, 0.0, -180.0, 0.0, -45.0, 90.0)
-        ds_mock = Mock(DatasetReader)
+        da_mock = MagicMock(DataArray)
+        in_dataset_mock = Mock(DatasetReader)
+        da_mock.rio._manager.acquire.return_value = in_dataset_mock
+
         dest_write_mock = Mock(DatasetWriter)
-        ds_mock.read.return_value = self.data
-        ds_mock.driver = 'GTiff'
-        ds_mock.height = 4
-        ds_mock.width = 4
-        ds_mock.transform = file_transform
-        ds_mock.crs = CRS.from_string('EPSG:4326')
-        ds_mock.count = 1
-        ds_mock.colormap = Mock(side_effect=ValueError)
+
+        da_mock.__getitem__.return_value = self.data
+        in_dataset_mock.driver = 'GTiff'
+        da_mock.rio.height = 4
+        da_mock.rio.width = 4
+        da_mock.rio.transform.return_value = file_transform
+        da_mock.rio.crs = CRS.from_string('EPSG:4326')
+        da_mock.rio.count = 1
+        in_dataset_mock.colormap = Mock(side_effect=ValueError)
 
         expected_raster = np.array(
             [
@@ -188,8 +194,10 @@ class TestBrowse(TestCase):
             dtype='uint8',
         )
 
+        rioxarray_open_mock.return_value.__enter__.side_effect = [
+            da_mock,
+        ]
         rasterio_open_mock.return_value.__enter__.side_effect = [
-            ds_mock,
             dest_write_mock,
         ]
 
@@ -210,7 +218,7 @@ class TestBrowse(TestCase):
         actual_image, actual_world, actual_aux = out_file_list[0]
 
         target_transform = Affine(90.0, 0.0, -180.0, 0.0, -45.0, 90.0)
-        dest = np.zeros((ds_mock.height, ds_mock.width), dtype='uint8')
+        dest = np.zeros((da_mock.rio.height, da_mock.rio.width), dtype='uint8')
 
         self.assertEqual(reproject_mock.call_count, 3)
 
@@ -219,7 +227,7 @@ class TestBrowse(TestCase):
                 source=expected_raster[0, :, :],
                 destination=dest,
                 src_transform=file_transform,
-                src_crs=ds_mock.crs,
+                src_crs=da_mock.rio.crs,
                 dst_transform=target_transform,
                 dst_crs=CRS.from_string('EPSG:4326'),
                 dst_nodata=255,
@@ -229,7 +237,7 @@ class TestBrowse(TestCase):
                 source=expected_raster[1, :, :],
                 destination=dest,
                 src_transform=file_transform,
-                src_crs=ds_mock.crs,
+                src_crs=da_mock.rio.crs,
                 dst_transform=target_transform,
                 dst_crs=CRS.from_string('EPSG:4326'),
                 dst_nodata=255,
@@ -239,7 +247,7 @@ class TestBrowse(TestCase):
                 source=expected_raster[2, :, :],
                 destination=dest,
                 src_transform=file_transform,
-                src_crs=ds_mock.crs,
+                src_crs=da_mock.rio.crs,
                 dst_transform=target_transform,
                 dst_crs=CRS.from_string('EPSG:4326'),
                 dst_nodata=255,
@@ -289,8 +297,8 @@ class TestBrowse(TestCase):
         )
 
     def test_convert_singleband_to_raster_without_colortable(self):
-        ds = Mock(DatasetReader)
-        ds.read.return_value = self.data
+        ds = MagicMock(DataArray)
+        ds.__getitem__.return_value = self.data
 
         expected_raster = np.array(
             [
@@ -320,9 +328,8 @@ class TestBrowse(TestCase):
         assert_array_equal(expected_raster, actual_raster)
 
     def test_convert_singleband_to_raster_with_colormap(self):
-        ds = Mock(DatasetReader)
-        ds.read.return_value = self.data
-        ds.colormap.return_value = self.colormap
+        ds = MagicMock(DataArray)
+        ds.__getitem__.return_value = self.data
 
         expected_raster = np.array(
             [
@@ -358,11 +365,55 @@ class TestBrowse(TestCase):
         actual_raster = convert_singleband_to_raster(ds, image_palette)
         assert_array_equal(expected_raster, actual_raster)
 
+    def test_convert_singleband_to_raster_with_colormap_and_bad_data(self):
+        ds = MagicMock(DataArray)
+        data_array = np.array(self.data, dtype='float')
+        data_array[0, 0] = np.nan
+        nv_color = (10, 20, 30, 40)
+
+        ds.__getitem__.return_value = data_array
+
+        # Read the image down: red, yellow, green, blue
+        expected_raster = np.array(
+            [
+                [  # red
+                    [nv_color[0], 255, 0, 0],
+                    [255, 255, 0, 0],
+                    [255, 255, 0, 0],
+                    [255, 255, 0, 0],
+                ],
+                [  # green
+                    [nv_color[1], 255, 255, 0],
+                    [0, 255, 255, 0],
+                    [0, 255, 255, 0],
+                    [0, 255, 255, 0],
+                ],
+                [  # blue
+                    [nv_color[2], 0, 0, 255],
+                    [0, 0, 0, 255],
+                    [0, 0, 0, 255],
+                    [0, 0, 0, 255],
+                ],
+                [  # alpha
+                    [nv_color[3], 255, 255, 255],
+                    [255, 255, 255, 255],
+                    [255, 255, 255, 255],
+                    [255, 255, 255, 255],
+                ],
+            ],
+            dtype='uint8',
+        )
+
+        colormap = {**self.colormap, 'nv': nv_color}
+
+        image_palette = convert_colormap_to_palette(colormap)
+        actual_raster = convert_singleband_to_raster(ds, image_palette)
+        assert_array_equal(expected_raster, actual_raster)
+
     def test_convert_3_multiband_to_raster(self):
-        ds = Mock(DatasetReader)
-        ds.count = 3
-        ds.read.return_value = np.stack([self.data, self.data, self.data])
-        ds.colormap.side_effect = ValueError
+        ds = Mock(DataArray)
+        ds.rio.count = 3
+        ds.to_numpy.return_value = np.stack([self.data, self.data, self.data])
 
         expected_raster = np.array(
             [
@@ -392,11 +443,11 @@ class TestBrowse(TestCase):
         assert_array_equal(expected_raster, actual_raster.data)
 
     def test_convert_4_multiband_to_raster(self):
-        ds = Mock(DatasetReader)
+        ds = Mock(DataArray)
         alpha = np.ones_like(self.data) * 255
         alpha[0, 0] = 1
-        ds.count = 4
-        ds.read.return_value = np.stack([self.data, self.data, self.data, alpha])
+        ds.rio.count = 4
+        ds.to_numpy.return_value = np.stack([self.data, self.data, self.data, alpha])
         expected_raster = np.array(
             [
                 [
@@ -431,9 +482,9 @@ class TestBrowse(TestCase):
         assert_array_equal(expected_raster, actual_raster.data)
 
     def test_convert_5_multiband_to_raster(self):
-        ds = Mock(DatasetReader)
-        ds.count = 5
-        ds.read.return_value = np.stack(
+        ds = Mock(DataArray)
+        ds.rio.count = 5
+        ds.to_numpy.return_value = np.stack(
             [self.data, self.data, self.data, self.data, self.data]
         )
 
@@ -474,9 +525,11 @@ class TestBrowse(TestCase):
 
     @patch('harmony_browse_image_generator.browse.Image')
     @patch('harmony_browse_image_generator.browse.get_color_map_from_image')
-    def test_palettize_raster(self, get_color_map_mock, image_mock):
+    def test_palettize_raster_no_alpha_layer(self, get_color_map_mock, image_mock):
         """Test that the quantize function is called by a correct image."""
-        raster = self.random.integers(255, dtype='uint8', size=(4, 10, 11))
+
+        raster = self.random.integers(255, dtype='uint8', size=(3, 10, 11))
+
         quantized_output = Image.fromarray(
             self.random.integers(254, size=(10, 11), dtype='uint8')
         )
@@ -484,13 +537,42 @@ class TestBrowse(TestCase):
         image_mock.fromarray.return_value = multiband_image_mock
         multiband_image_mock.quantize.return_value = quantized_output
 
-        expected_out_raster = np.array(quantized_output.getdata()).reshape(1, 10, 11)
-        print(expected_out_raster.shape)
+        expected_out_raster = np.array(quantized_output).reshape(1, 10, 11)
 
         out_raster, out_map = palettize_raster(raster)
 
         multiband_image_mock.quantize.assert_called_once_with(colors=254)
         get_color_map_mock.assert_called_once_with(quantized_output)
+
+        np.testing.assert_array_equal(expected_out_raster, out_raster)
+
+    @patch('harmony_browse_image_generator.browse.Image')
+    @patch('harmony_browse_image_generator.browse.get_color_map_from_image')
+    def test_palettize_raster_with_alpha_layer(self, get_color_map_mock, image_mock):
+        """Test that the quantize function is called by a correct image."""
+
+        raster = self.random.integers(255, dtype='uint8', size=(4, 10, 11))
+        # No transparent pixels
+        raster[3, :, :] = 255
+
+        # corner transparent:
+        raster[3, 0:3, 0:3] = 0
+
+        quantized_output = Image.fromarray(
+            self.random.integers(254, size=(10, 11), dtype='uint8')
+        )
+        multiband_image_mock = Mock()
+        image_mock.fromarray.return_value = multiband_image_mock
+        multiband_image_mock.quantize.return_value = quantized_output
+
+        expected_out_raster = np.array(quantized_output).reshape(1, 10, 11)
+        expected_out_raster[0, 0:3, 0:3] = 254
+
+        out_raster, out_map = palettize_raster(raster)
+
+        multiband_image_mock.quantize.assert_called_once_with(colors=254)
+        get_color_map_mock.assert_called_once_with(quantized_output)
+
         np.testing.assert_array_equal(expected_out_raster, out_raster)
 
     def test_get_color_map_from_image(self):
@@ -578,6 +660,19 @@ class TestBrowse(TestCase):
             expected_world_file = Path('/path/to/some.jgw')
             actual_world_file = output_world_file(input_filename, driver='JPEG')
             self.assertEqual(expected_world_file, actual_world_file)
+
+    def test_get_tiled_filename(self):
+        filename = Path('/path/to/some/location.png')
+
+        with self.subTest('no locator'):
+            actual_filename = get_tiled_filename(filename)
+            self.assertEqual(filename, actual_filename)
+
+        with self.subTest('with locator'):
+            locator = {'row': 1, 'col': 10}
+            expected_filename = Path('/path/to/some/location.r01c10.png')
+            actual_filename = get_tiled_filename(filename, locator)
+            self.assertEqual(expected_filename, actual_filename)
 
     def test_validate_file_type_valid(self):
         """validation should not raise exception."""
