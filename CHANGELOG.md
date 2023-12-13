@@ -1,3 +1,8 @@
+## v0.0.10
+### 2023-12-11
+ - Give user informative error message when when the input GeoTIFF doesn't have
+   a defined CRS.
+
 ## v0.0.9
 ### 2023-12-06
  - Scale and mask input GeoTIFFs. Any input file that includes scale\_factor,

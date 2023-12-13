@@ -61,6 +61,7 @@ def create_browse_imagery(
         ) as rio_in_array:
             in_dataset = rio_in_array.rio._manager.acquire()
             validate_file_type(in_dataset)
+            validate_file_crs(rio_in_array)
 
             if rio_in_array.rio.count == 1:
                 color_palette = get_color_palette(
@@ -317,6 +318,15 @@ def output_world_file(input_file_path: Path, driver: str = 'PNG'):
     else:
         ext = '.jgw'
     return input_file_path.with_suffix(ext)
+
+
+def validate_file_crs(data_array: DataArray) -> None:
+    """Explicit check for a CRS on the input geotiff.
+
+    Raises HyBIGError if crs is missing.
+    """
+    if data_array.rio.crs is None:
+        raise HyBIGError('Input geotiff must have defined CRS.')
 
 
 def validate_file_type(dsr: DatasetReader) -> None:

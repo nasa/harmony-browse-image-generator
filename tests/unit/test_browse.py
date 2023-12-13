@@ -29,6 +29,7 @@ from harmony_browse_image_generator.browse import (
     output_world_file,
     palettize_raster,
     prepare_raster_for_writing,
+    validate_file_crs,
     validate_file_type,
 )
 from harmony_browse_image_generator.color_utility import (
@@ -673,6 +674,22 @@ class TestBrowse(TestCase):
             expected_filename = Path('/path/to/some/location.r01c10.png')
             actual_filename = get_tiled_filename(filename, locator)
             self.assertEqual(expected_filename, actual_filename)
+
+    def test_validate_file_crs_valid(self):
+        """valid file should return None."""
+        da = Mock(DataArray)
+        da.rio.crs = CRS.from_epsg(4326)
+        try:
+            validate_file_crs(da)
+        except Exception:
+            self.fail('Valid file threw unexpected exception.')
+
+    def test_validate_file_crs_missing(self):
+        """invalid file should raise exception."""
+        da = Mock(DataArray)
+        da.rio.crs = None
+        with self.assertRaisesRegex(HyBIGError, 'Input geotiff must have defined CRS.'):
+            validate_file_crs(da)
 
     def test_validate_file_type_valid(self):
         """validation should not raise exception."""
