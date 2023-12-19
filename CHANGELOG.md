@@ -1,3 +1,8 @@
+## v0.0.11
+### 2023-12-18
+ - No user facing changes.  Refactors code to use Harmony Message utilities
+   from harmony-service-lib.
+
 ## v0.0.10
 ### 2023-12-11
  - Give user informative error message when when the input GeoTIFF doesn't have

@@ -13,6 +13,7 @@ from typing import TypedDict
 import numpy as np
 from affine import Affine
 from harmony.message import Message
+from harmony.message_utility import has_dimensions, has_scale_extents, has_scale_sizes
 from pyproj import Transformer
 from pyproj.crs import CRS as pyCRS
 # pylint: disable-next=no-name-in-module
@@ -27,11 +28,6 @@ from harmony_browse_image_generator.crs import (
     is_preferred_crs,
 )
 from harmony_browse_image_generator.exceptions import HyBIGValueError
-from harmony_browse_image_generator.message_utility import (
-    has_dimensions,
-    has_scale_extents,
-    has_scale_sizes,
-)
 
 
 class GridParams(TypedDict):

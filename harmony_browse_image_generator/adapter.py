@@ -13,18 +13,18 @@ from tempfile import mkdtemp
 
 from harmony import BaseHarmonyAdapter
 from harmony.message import Source as HarmonySource
+from harmony.message_utility import (
+    has_crs,
+    has_scale_extents,
+    has_scale_sizes,
+    has_valid_scale_extents,
+)
 from harmony.util import bbox_to_geometry, download, generate_output_filename, stage
 from pystac import Asset, Catalog, Item
 
 from harmony_browse_image_generator.browse import create_browse_imagery
 from harmony_browse_image_generator.color_utility import get_color_palette_from_item
 from harmony_browse_image_generator.exceptions import HyBIGInvalidMessageError
-from harmony_browse_image_generator.message_utility import (
-    has_crs,
-    has_scale_extents,
-    has_scale_sizes,
-    has_valid_scale_extents,
-)
 from harmony_browse_image_generator.utilities import (
     get_asset_name,
     get_file_mime_type,
