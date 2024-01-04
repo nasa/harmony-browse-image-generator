@@ -7,34 +7,41 @@ Image Browse Services (GIBS).
 ## Repository structure:
 
 ```
-|- bin
-|- docker
-|- harmony_browse_image_generator
+|- .pre-commit-config.yaml
 |- CHANGELOG.md
-|- conda_requirements.txt
-|- pip_requirements.txt
 |- README.md
+|- bin
+|- conda_requirements.txt
+|- dev-requirements.txt
+|- docker
+|- docs
+|- harmony_browse_image_generator
+|- pip_requirements.txt
 |- tests
 ```
 
-* bin - A directory containing utility scripts to build the service and test
-  images. This also includes scripts that Bamboo uses to deploy new service
-  images to AWS ECR.
-* CHANGELOG.md - This file contains a record of changes applied to each new
+* `.pre-commit-config` - a pre-commit configuration file describing functions to
+  be run on every git commit.
+* `CHANGELOG.md` - This file contains a record of changes applied to each new
   release of a service Docker image. Any release of a new service version
   should have a record of what was changed in this file.
-* README.md - This file, containing guidance on developing the service.
-* docker - A directory containing the Dockerfiles for the service and test
+* `README.md` - This file, containing guidance on developing the service.
+* `bin` - A directory containing utility scripts to build the service and test
+  images. This also includes scripts that Bamboo uses to deploy new service
+  images to AWS ECR.
+* `conda_requirements.txt` - A list of service dependencies, such as GDAL, that
+  cannot be installed via Pip.
+* `dev-requirements.txt` - list of packages required for service development.
+* `docker` - A directory containing the Dockerfiles for the service and test
   images. It also contains `service_version.txt`, which contains the semantic
   version number of the service image. Any time an update is made that should
   have an accompanying service image release, this file should be updated.
-* harmony_browse_image_generator - The directory containing Python source code
+* `docs` - directory with example usage notebooks.
+* `harmony_browse_image_generator` - The directory containing Python source code
   for the HyBIG. `adapter.py` contains the `BrowseImageGeneratorAdapter`
   class that is invoked by calls to the service.
-* conda_requirements.txt - A list of service dependencies, such as GDAL, that
-  cannot be installed via Pip.
-* pip_requirements.txt - A list of service Python package dependencies.
-* tests - A directory containing the service unit test suite.
+* `pip_requirements.txt` - A list of service Python package dependencies.
+* `tests` - A directory containing the service unit test suite.
 
 ## Local development:
 
@@ -44,8 +51,18 @@ regarding creation of a local Harmony instance.
 
 If testing small functions locally that do not require inputs from the main
 Harmony application, it is recommended that you create a Python virtual
-environment via conda, and install the necessary dependencies for the service
-within that environment via conda or Pip.
+environment via conda, and then install the necessary dependencies for the
+service within that environment via conda and pip then install the pre-commit hooks.
+
+```
+> conda create -name hybig-env python==3.11
+> conda install --file conda_requirements.txt
+> pip install -r pip_requirements.txt
+> pip install -r dev-requirements.txt
+
+> pre-commit install
+```
+
 
 ## Tests:
 
