@@ -11,10 +11,11 @@
 # 2020-05-07: Adapted from SwotRepr.
 # 2022-01-03: Updated Dockerfile path.
 # 2023-04-04: Updated for the Harmony Browse Image Generator (HyBIG).
+# 2024-01-22: Updated image name to: ghcr.io/nasa/harony-browse-image-generator-test.
 #
 ###############################################################################
 
-image="sds/harmony-browse-image-generator-test"
+image="ghcr.io/nasa/harmony-browse-image-generator-test"
 tag=${1:-latest}
 
 

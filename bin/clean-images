@@ -7,6 +7,7 @@
 #
 # 2020-05-07: Adapted from SwotRepr.
 # 2023-04-04: Updated for the Harmony Browse Image Generator (HyBIG).
+# 2024-01-22: Updated to new, GitHub-related image names.
 #
 ###############################################################################
 remove_image_by_name() {
@@ -18,7 +19,7 @@ remove_image_by_name() {
     fi
 }
 
-image_base_name="sds/harmony-browse-image-generator"
+image_base_name="ghcr.io/nasa/harmony-browse-image-generator"
 
 # First remove test images:
 remove_image_by_name "${image_base_name}-test"
