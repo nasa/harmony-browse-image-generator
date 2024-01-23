@@ -1,14 +1,15 @@
 # Harmony Browse Image Generator (HyBIG) backend service.
 
 This Harmony backend service is designed to produce browse imagery, with
-default behaviour to produce browse imagery that is compatible with Global
-Image Browse Services (GIBS).
+default behaviour to produce browse imagery that is compatible with the NASA
+Global Image Browse Services ([GIBS](https://www.earthdata.nasa.gov/eosdis/science-system-description/eosdis-components/gibs)).
 
 ## Repository structure:
 
 ```
 |- .pre-commit-config.yaml
 |- CHANGELOG.md
+|- CONTRIBUTING.md
 |- README.md
 |- bin
 |- conda_requirements.txt
@@ -25,6 +26,8 @@ Image Browse Services (GIBS).
 * `CHANGELOG.md` - This file contains a record of changes applied to each new
   release of a service Docker image. Any release of a new service version
   should have a record of what was changed in this file.
+* `CONTRIBUTING.md` - This file contains guidance for making contributions to
+  HyBIG, including recommended git best practices.
 * `README.md` - This file, containing guidance on developing the service.
 * `bin` - A directory containing utility scripts to build the service and test
   images. This also includes scripts that Bamboo uses to deploy new service
@@ -40,6 +43,9 @@ Image Browse Services (GIBS).
 * `harmony_browse_image_generator` - The directory containing Python source code
   for the HyBIG. `adapter.py` contains the `BrowseImageGeneratorAdapter`
   class that is invoked by calls to the service.
+* `legacy-CHANGELOG.md` - Notes for each version that was previously released
+  internally to EOSDIS, prior to open-source publication of the code and Docker
+  image.
 * `pip_requirements.txt` - A list of service Python package dependencies.
 * `tests` - A directory containing the service unit test suite.
 
@@ -99,11 +105,36 @@ updated:
 * CHANGELOG.md - Notes should be added to capture the changes to the service.
 * docker/service_version.txt - The semantic version number should be updated.
 
-## Docker image publication:
+## CI/CD:
 
-Initially service Docker images will be hosted in AWS Elastic Container
-Registry (ECR). When this repository is migrated to the NASA GitHub
-organisation, service images will be published to ghcr.io, instead.
+The CI/CD for HyBIG is contained in GitHub workslofws in the
+`.github/workflows` directory:
+
+* `run_tests.yml` - A reusable workflow that builds the service and test Docker
+  images, then runs the Python unit test suite in an instance of the test
+  Docker container.
+* `run_tests_on_pull_requests.yml` - Triggered for all PRs against the `main`
+  branch. It runs the workflow in `run_tests.yml` to ensure all tests pass for
+  the new code.
+* `publish_docker_image.yml` - Triggered either manually or for commits to the
+  `main` branch that contain changes to the `docker/service_version.txt` file.
+
+The `publish_docker_image.yml` workflow will:
+
+* Run the full unit test suite, to prevent publication of broken code.
+* Extract the semantic version number from `docker/service_version.txt`.
+* Extract the released notes for the most recent version from `CHANGELOG.md`.
+* Create a GitHub release that will also tag the related git commit with the
+  semantic version number.
+
+Before triggering a release, ensure both the `docker/service_version.txt` and
+`CHANGELOG.md` files are updated. The `CHANGELOG.md` file requires a specific
+format for a new release, as it looks for the following string to define the
+newest relate of the code (starting at the top of the file).
+
+```
+## vX.Y.Z
+```
 
 ## Releasing a new version of the service:
 
@@ -112,3 +143,11 @@ that service version can be released to a Harmony environment by updating the
 main Harmony Bamboo deployment project. Find the environment you wish to
 release the service version to and update the associated environment variable
 to update the semantic version tag at the end of the full Docker image name.
+
+## Get in touch:
+
+You can reach out to the maintainers of this repository via email:
+
+* david.p.auty@nasa.gov
+* matthew.savioe@colorado.edu
+* owen.m.littlejohns@nasa.gov

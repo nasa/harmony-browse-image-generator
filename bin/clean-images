@@ -2,8 +2,8 @@
 ###############################################################################
 #
 # Look for all versions of images containing the string
-# "sds/harmony-browse-image-generator" and remove them. This is primarily for
-# clean-up after development.
+# "ghcr.io/nasa/harmony-browse-image-generator" and remove them. This is
+# primarily for clean-up after development.
 #
 # 2020-05-07: Adapted from SwotRepr.
 # 2023-04-04: Updated for the Harmony Browse Image Generator (HyBIG).

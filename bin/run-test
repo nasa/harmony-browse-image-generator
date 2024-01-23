@@ -1,12 +1,13 @@
 #!/bin/bash
 ###############################################################################
 #
-# Execute the sds/harmony-browse-image-generator-test Docker image as a
-# container, within Bamboo.
+# Execute the ghcr.io/nasa/harmony-browse-image-generator-test Docker image as
+# a container, within Bamboo.
 #
 # 2020-05-07: Adapted from SwotRepr.
 # 2021-01-05: Updated for JUnit output.
 # 2023-04-04: Updated for the Harmony Browse Image Generator (HyBIG).
+# 2024-01-23: Updated to use new GitHub-related images.
 #
 ###############################################################################
 
@@ -26,4 +27,4 @@ mkdir -p coverage
 docker run --rm \
 	-v $(pwd)/test-reports:/home/tests/reports \
 	-v $(pwd)/coverage:/home/tests/coverage \
-	sds/harmony-browse-image-generator-test "$@"
+	ghcr.io/nasa/harmony-browse-image-generator-test "$@"
