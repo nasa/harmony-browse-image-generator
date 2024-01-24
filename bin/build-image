@@ -19,7 +19,7 @@ image="ghcr.io/nasa/harmony-browse-image-generator"
 tag=${1:-latest}
 
 
-# Remove old versions of: sds/harmony-browse-image-generator and
+# Remove old versions of: ghcr.io/nasa/harmony-browse-image-generator and
 # ghcr.io/nasa/harmony-browse-image-generator-test
 ./bin/clean-images
 

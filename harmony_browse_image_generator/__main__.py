@@ -5,6 +5,7 @@ from sys import argv
 from harmony import is_harmony_cli, run_cli, setup_cli
 
 from harmony_browse_image_generator.adapter import BrowseImageGeneratorAdapter
+from harmony_browse_image_generator.exceptions import SERVICE_NAME
 
 
 def main(arguments: list[str]):
@@ -12,7 +13,7 @@ def main(arguments: list[str]):
         respond to them
 
     """
-    parser = ArgumentParser(prog='harmony-browse-image-generator',
+    parser = ArgumentParser(prog=SERVICE_NAME,
                             description='Run Harmony Browse Image Generator.')
 
     setup_cli(parser)
