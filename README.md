@@ -107,7 +107,7 @@ updated:
 
 ## CI/CD:
 
-The CI/CD for HyBIG is contained in GitHub workslofws in the
+The CI/CD for HyBIG is contained in GitHub workflows in the
 `.github/workflows` directory:
 
 * `run_tests.yml` - A reusable workflow that builds the service and test Docker
@@ -149,5 +149,5 @@ to update the semantic version tag at the end of the full Docker image name.
 You can reach out to the maintainers of this repository via email:
 
 * david.p.auty@nasa.gov
-* matthew.savioe@colorado.edu
+* matthew.savoie@colorado.edu
 * owen.m.littlejohns@nasa.gov
