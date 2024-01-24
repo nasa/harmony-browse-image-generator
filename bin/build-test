@@ -4,9 +4,9 @@
 # Build a Docker container to run the test suite for the Harmony Browse Image
 # Generator (HyBIG).
 #
-# To build the sds/harmony-browse-image-generator-test image, the
-# sds/harmony-browse-image-generator image must also be present locally, as it
-# is used as the base image in `docker/tests.Dockerfile`.
+# To build the ghcr.io/nasa/harmony-browse-image-generator-test image, the
+# ghcr.io/nasa/harmony-browse-image-generator image must also be present
+# locally, as it is used as the base image in `docker/tests.Dockerfile`.
 #
 # 2020-05-07: Adapted from SwotRepr.
 # 2022-01-03: Updated Dockerfile path.

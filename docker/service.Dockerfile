@@ -1,8 +1,8 @@
 ###############################################################################
 #
-# Service image for sds/harmony-browse-image-generator, HyBIG, a Harmony
-# backend service that creates JPEG or PNG browse images from input GeoTIFF
-# imagery.
+# Service image for ghcr.io/nasa/harmony-browse-image-generator, HyBIG, a
+# Harmony backend service that creates JPEG or PNG browse images from input
+# GeoTIFF imagery.
 #
 # This image installs dependencies via Pip. The service code is then copied
 # into the Docker image.
