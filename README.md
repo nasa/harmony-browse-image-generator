@@ -30,8 +30,8 @@ Global Image Browse Services ([GIBS](https://www.earthdata.nasa.gov/eosdis/scien
   HyBIG, including recommended git best practices.
 * `README.md` - This file, containing guidance on developing the service.
 * `bin` - A directory containing utility scripts to build the service and test
-  images. This also includes scripts that Bamboo uses to deploy new service
-  images to AWS ECR.
+  images. A script to extract the release notes for the most recent service
+  version, as contained in `CHANGELOG.md` is also in this directory.
 * `conda_requirements.txt` - A list of service dependencies, such as GDAL, that
   cannot be installed via Pip.
 * `dev-requirements.txt` - list of packages required for service development.
@@ -85,10 +85,14 @@ $ ./bin/run-test
 The `tests/run_tests.sh` script will also generate a coverage report, rendered
 in HTML, and scan the code with `pylint`.
 
-Currently, the `unittest` suite is run automatically within Bamboo as part of a
-CI/CD pipeline. In future, this project will be migrated from Bitbucket to
-GitHub, at which point the CI/CD will be migrated to workflows that use GitHub
-Actions.
+Currently, the `unittest` suite is run automatically within a GitHub workflow
+as part of a CI/CD pipeline. These tests are run for all changes made in a PR
+against the `main` branch. The tests must pass in order to merge the PR.
+
+The unit tests are also run prior to publication of a new Docker image, when
+commits including changes to `docker/service_version.txt` are merged into the
+`main` branch. If these unit tests fail, the new version of the Docker image
+will not be published.
 
 ## Versioning:
 
