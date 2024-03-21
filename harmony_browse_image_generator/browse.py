@@ -119,14 +119,15 @@ def convert_mulitband_to_raster(data_array: DataArray) -> ndarray:
 
     """
     bands = data_array.to_numpy()
-    norm = Normalize()
 
     if data_array.rio.count == 3:
-        norm.autoscale(bands)
+        norm = Normalize(vmin=np.nanmin(bands), vmax=np.nanmax(bands))
         raster = around(norm(bands) * 255.0).astype('uint8')
 
     elif data_array.rio.count == 4:
-        norm.autoscale(bands[0:3, :, :])
+        norm = Normalize(
+            vmin=np.nanmin(bands[0:3, :, :]), vmax=np.nanmax(bands[0:3, :, :])
+        )
         partial_raster = around(norm(bands[0:3, :, :]) * 255.0).astype('uint8')
         raster = concatenate([partial_raster.data, bands[3:4, :, :]])
 
@@ -153,15 +154,16 @@ def convert_gray_1band_to_raster(data_array: DataArray) -> ndarray:
     """Convert a 1-band raster without a color association."""
     band = data_array[0, :, :]
     cmap = matplotlib.colormaps['Greys_r']
-    norm = Normalize()
-    norm.autoscale(band)
+    cmap.set_bad(TRANSPARENT_RGBA)
+    norm = Normalize(vmin=np.nanmin(band), vmax=np.nanmax(band))
     scalar_map = ScalarMappable(cmap=cmap, norm=norm)
 
     rgba_image = np.zeros((*band.shape, 4), dtype='uint8')
     for row_no in range(band.shape[0]):
         rgba_image_slice = scalar_map.to_rgba(band[row_no, :], bytes=True)
         rgba_image[row_no, :, :] = rgba_image_slice
-    return reshape_as_raster(rgba_image[..., 0:3])
+
+    return reshape_as_raster(rgba_image)
 
 
 def convert_paletted_1band_to_raster(
