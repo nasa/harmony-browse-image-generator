@@ -1,4 +1,5 @@
 """Utility functions shared across test files."""
+
 from contextlib import contextmanager
 from tempfile import NamedTemporaryFile
 
@@ -28,10 +29,11 @@ def rasterio_test_file(raster_data=None, **options):
         'dtype': 'uint8',
     }
 
-
     with NamedTemporaryFile(suffix='.tif') as tmp_file:
         with rasterio.Env(CHECK_DISK_FREE_SPACE="NO"):
-            with rasterio.open(tmp_file.name, 'w', **default_options | options) as tmp_rasterio_file:
+            with rasterio.open(
+                tmp_file.name, 'w', **default_options | options
+            ) as tmp_rasterio_file:
                 if raster_data is not None:
                     tmp_rasterio_file.write(raster_data)
 

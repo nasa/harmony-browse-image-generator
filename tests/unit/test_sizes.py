@@ -211,9 +211,9 @@ class TestTiling(TestCase):
         cls.CELLS_PER_TILE = 4096
 
     def test_needs_tiling(self):
-        """ Does the grid need to be tiled. The grid parameters checked in each
-            test only the x resolution from the Affine matrix and whether the
-            CRS is projected or geographic.
+        """Does the grid need to be tiled. The grid parameters checked in each
+        test only the x resolution from the Affine matrix and whether the
+        CRS is projected or geographic.
 
         """
         with self.subTest('Projected, needs tiling'):
@@ -221,7 +221,7 @@ class TestTiling(TestCase):
                 'height': 8192,
                 'width': 8193,
                 'crs': CRS.from_epsg(nsidc_np_seaice_grid['epsg']),
-                'transform': Affine(400, 0.0, -3850000.0, 0.0, 400, 5850000.0)
+                'transform': Affine(400, 0.0, -3850000.0, 0.0, 400, 5850000.0),
             }
             self.assertTrue(needs_tiling(grid_parameters))
 
@@ -230,7 +230,7 @@ class TestTiling(TestCase):
                 'height': 8192,
                 'width': 8192,
                 'crs': CRS.from_epsg(nsidc_np_seaice_grid['epsg']),
-                'transform': Affine(600, 0.0, -3850000.0, 0.0, 600, 5850000.0)
+                'transform': Affine(600, 0.0, -3850000.0, 0.0, 600, 5850000.0),
             }
             self.assertFalse(needs_tiling(grid_parameters))
 
@@ -239,7 +239,7 @@ class TestTiling(TestCase):
                 'height': 180000,
                 'width': 360000,
                 'crs': CRS.from_epsg(4326),
-                'transform': Affine(0.001, 0.0, -180, 0.0, -0.001, 180)
+                'transform': Affine(0.001, 0.0, -180, 0.0, -0.001, 180),
             }
             self.assertTrue(needs_tiling(grid_parameters))
 
@@ -248,7 +248,7 @@ class TestTiling(TestCase):
                 'height': 1800,
                 'width': 3600,
                 'crs': CRS.from_epsg(4326),
-                'transform': Affine(0.1, 0.0, -180, 0.0, -0.1, 180)
+                'transform': Affine(0.1, 0.0, -180, 0.0, -0.1, 180),
             }
             self.assertFalse(needs_tiling(grid_parameters))
 

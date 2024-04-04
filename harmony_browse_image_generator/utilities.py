@@ -1,4 +1,5 @@
 """ Module containing utility functionality. """
+
 import re
 from mimetypes import guess_type as guess_mime_type
 from os.path import splitext
@@ -9,7 +10,7 @@ KNOWN_MIME_TYPES = {
     '.h5': 'application/x-hdf5',
     '.wld': 'text/plain',
     '.jgw': 'text/plain',
-    '.pgw': 'text/plain'
+    '.pgw': 'text/plain',
 }
 
 
@@ -42,11 +43,11 @@ def get_asset_name(name: str, url: str) -> str:
 
 
 def get_file_mime_type(file_name: Path | str) -> str | None:
-    """ This function tries to infer the MIME type of a file string. If the
-        `mimetypes.guess_type` function cannot guess the MIME type of the
-        granule, a dictionary of known file types is checked using the file
-        extension. That dictionary only contains keys for MIME types that
-        `mimetypes.guess_type` cannot resolve.
+    """This function tries to infer the MIME type of a file string. If the
+    `mimetypes.guess_type` function cannot guess the MIME type of the
+    granule, a dictionary of known file types is checked using the file
+    extension. That dictionary only contains keys for MIME types that
+    `mimetypes.guess_type` cannot resolve.
 
     """
     mime_type = guess_mime_type(file_name, False)

@@ -1,4 +1,5 @@
 """Module containing core functionality for browse image generation."""
+
 import re
 from itertools import zip_longest
 from logging import Logger
@@ -50,10 +51,8 @@ def create_browse_imagery(
 
     """
     output_driver = image_driver(message.format.mime)
-    out_image_file = output_image_file(Path(input_file_path),
-                                       driver=output_driver)
-    out_world_file = output_world_file(Path(input_file_path),
-                                       driver=output_driver)
+    out_image_file = output_image_file(Path(input_file_path), driver=output_driver)
+    out_world_file = output_world_file(Path(input_file_path), driver=output_driver)
 
     try:
         with open_rasterio(
@@ -83,8 +82,9 @@ def create_browse_imagery(
             )
 
             processed_files = []
-            for grid_parameters, tile_location in zip_longest(grid_parameter_list,
-                                                              tile_locators):
+            for grid_parameters, tile_location in zip_longest(
+                grid_parameter_list, tile_locators
+            ):
                 tiled_out_image_file = get_tiled_filename(out_image_file, tile_location)
                 tiled_out_world_file = get_tiled_filename(out_world_file, tile_location)
                 tiled_out_aux_xml_file = get_aux_xml_filename(tiled_out_image_file)
@@ -286,9 +286,7 @@ def get_color_map_from_image(image: Image) -> dict:
 
 def get_aux_xml_filename(image_filename: Path) -> Path:
     """get aux.xml filenames."""
-    return image_filename.with_suffix(
-        image_filename.suffix + '.aux.xml'
-    )
+    return image_filename.with_suffix(image_filename.suffix + '.aux.xml')
 
 
 def get_tiled_filename(input_file: Path, locator: dict | None = None) -> Path:
@@ -298,7 +296,8 @@ def get_tiled_filename(input_file: Path, locator: dict | None = None) -> Path:
     """
     if locator is not None:
         return input_file.with_suffix(
-            f".r{int(locator['row']):02d}c{int(locator['col']):02d}{input_file.suffix}")
+            f".r{int(locator['row']):02d}c{int(locator['col']):02d}{input_file.suffix}"
+        )
     return input_file
 
 
@@ -342,8 +341,8 @@ def validate_file_type(dsr: DatasetReader) -> None:
 def get_destination(grid_parameters: GridParams, n_bands: int) -> ndarray:
     """Initialize an array for writing an output raster."""
     return np.zeros(
-        (n_bands, grid_parameters['height'], grid_parameters['width']),
-        dtype='uint8')
+        (n_bands, grid_parameters['height'], grid_parameters['width']), dtype='uint8'
+    )
 
 
 def write_georaster_as_browse(

@@ -1,6 +1,5 @@
 """Tests exercising the crs module"""
 
-
 from pathlib import Path
 from shutil import rmtree
 from tempfile import TemporaryDirectory
@@ -81,6 +80,7 @@ WKT_EPSG_6050 = dedent(
     '''
 )
 
+
 class TestCrs(TestCase):
     """A class that tests the crs module."""
 
@@ -116,7 +116,7 @@ class TestCrs(TestCase):
                     '+proj=stere +lat_0=90 +lon_0=-33 +k=0.994'
                     ' +x_0=2000000 +y_0=2000000 +datum=WGS84 +units=m +no_defs +type=crs'
                 ),
-                'epsg': ''
+                'epsg': '',
             }
         )
         actual_CRS = choose_target_crs(test_srs, None)
@@ -269,4 +269,4 @@ class TestCrs(TestCase):
         for epsg_code, expected, name in epsg_test_codes:
             with self.subTest(f'{epsg_code}: {name}'):
                 actual_CRS = choose_best_crs_from_metadata(epsg_code)
-                self.assertEqual(actual_CRS, CRS.from_string( PREFERRED_CRS[expected]))
+                self.assertEqual(actual_CRS, CRS.from_string(PREFERRED_CRS[expected]))
