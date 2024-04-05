@@ -38,7 +38,7 @@ def palette_from_remote_colortable(url: str) -> ColorPalette:
 
 
 def get_color_palette_from_item(item: Item) -> ColorPalette | None:
-    """Return a color palete
+    """Return a color palette
 
     If the input Item has an associated color information, fetch the data from
     the location and read into a ColorPalette

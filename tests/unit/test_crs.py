@@ -113,8 +113,8 @@ class TestCrs(TestCase):
         test_srs = SRS(
             {
                 'proj4': (
-                    '+proj=stere +lat_0=90 +lon_0=-33 +k=0.994'
-                    ' +x_0=2000000 +y_0=2000000 +datum=WGS84 +units=m +no_defs +type=crs'
+                    '+proj=stere +lat_0=90 +lon_0=-33 +k=0.994 '
+                    '+x_0=2000000 +y_0=2000000 +datum=WGS84 +units=m +no_defs +type=crs'
                 ),
                 'epsg': '',
             }
