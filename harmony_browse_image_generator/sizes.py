@@ -7,6 +7,7 @@ most options from the input Harmony Message.
 There's a number of "rules" from the GIBS ICD that are codified in this module.
 
 """
+
 from collections import namedtuple
 from typing import TypedDict
 
@@ -16,6 +17,7 @@ from harmony.message import Message
 from harmony.message_utility import has_dimensions, has_scale_extents, has_scale_sizes
 from pyproj import Transformer
 from pyproj.crs import CRS as pyCRS
+
 # pylint: disable-next=no-name-in-module
 from rasterio.crs import CRS
 from rasterio.transform import AffineTransformer, from_bounds, from_origin
@@ -32,6 +34,7 @@ from harmony_browse_image_generator.exceptions import HyBIGValueError
 
 class GridParams(TypedDict):
     """Convenience to describe a grid parameters dictionary."""
+
     height: int
     width: int
     crs: CRS
@@ -40,6 +43,7 @@ class GridParams(TypedDict):
 
 class ScaleExtent(TypedDict):
     """Convenience to describe a scale extent dictionary."""
+
     xmin: float
     ymin: float
     xmax: float
@@ -48,12 +52,14 @@ class ScaleExtent(TypedDict):
 
 class ScaleSize(TypedDict):
     """Convenience to describe a scale size dictionary."""
+
     x: float
     y: float
 
 
 class Dimensions(TypedDict):
     """Convenience to describe a scale a dimension dictionary."""
+
     width: int
     height: int
 
@@ -187,8 +193,9 @@ def choose_target_dimensions(
     return dimensions
 
 
-def get_rasterio_parameters(crs: CRS, scale_extent: ScaleExtent,
-                            dimensions: Dimensions) -> GridParams:
+def get_rasterio_parameters(
+    crs: CRS, scale_extent: ScaleExtent, dimensions: Dimensions
+) -> GridParams:
     """Convert the grid into rasterio consumable format.
 
     Returns a Dictionary of keyword params suitable for rasterio to use in
@@ -215,7 +222,7 @@ def get_rasterio_parameters(crs: CRS, scale_extent: ScaleExtent,
 
 
 def create_tiled_output_parameters(
-        grid_parameters: GridParams
+    grid_parameters: GridParams,
 ) -> tuple[list[GridParams], list[dict] | list[None]]:
     """Split the output grid if necessary.
 

@@ -585,6 +585,7 @@ class TestBrowse(TestCase):
         """
         # random image with values of 0 to 4.
         image_data = self.random.integers(5, size=(5, 6), dtype='uint8')
+        # fmt: off
         palette_sequence = [
             255, 0, 0, 255,
             0, 255, 0, 255,
@@ -592,6 +593,7 @@ class TestBrowse(TestCase):
             225, 100, 25, 25,
             0, 0, 0, 0
         ]
+        # fmt: on
         test_image = Image.fromarray(image_data)
         test_image.putpalette(palette_sequence, rawmode='RGBA')
 
@@ -600,7 +602,7 @@ class TestBrowse(TestCase):
             1: (0, 255, 0, 255),
             2: (0, 0, 255, 255),
             3: (225, 100, 25, 25),
-            4: (0, 0, 0, 0)
+            4: (0, 0, 0, 0),
         }
 
         actual_color_map = get_color_map_from_image(test_image)

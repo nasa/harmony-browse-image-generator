@@ -6,6 +6,7 @@
     Global Imagery Browse Services (GIBS) compatible browse imagery.
 
 """
+
 from os.path import basename
 from pathlib import Path
 from shutil import rmtree
@@ -33,13 +34,13 @@ from harmony_browse_image_generator.utilities import (
 
 
 class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
-    """ This class extends the BaseHarmonyAdapter class from the
-        harmony-service-lib package to implement HyBIG operations.
+    """This class extends the BaseHarmonyAdapter class from the
+    harmony-service-lib package to implement HyBIG operations.
 
     """
 
     def invoke(self) -> Catalog:
-        """ Adds validation to process_item based invocations. """
+        """Adds validation to process_item based invocations."""
         self.validate_message()
         return super().invoke()
 
@@ -65,14 +66,17 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
             )
 
     def process_item(self, item: Item, source: HarmonySource) -> Item:
-        """ Processes a single input STAC item. """
+        """Processes a single input STAC item."""
         try:
             working_directory = mkdtemp()
             results = item.clone()
             results.assets = {}
 
-            asset = next(item_asset for item_asset in item.assets.values()
-                         if 'data' in (item_asset.roles or []))
+            asset = next(
+                item_asset
+                for item_asset in item.assets.values()
+                if 'data' in (item_asset.roles or [])
+            )
 
             color_palette = get_color_palette_from_item(item)
 
@@ -82,7 +86,8 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
                 working_directory,
                 logger=self.logger,
                 cfg=self.config,
-                access_token=self.message.accessToken)
+                access_token=self.message.accessToken,
+            )
 
             # Create browse images.
             image_file_list = create_browse_imagery(
@@ -98,14 +103,15 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
             # locations to a list before creating the stac item.
             item_assets = []
 
-            for browse_image_name, world_file_name, aux_xml_file_name in image_file_list:
+            for (
+                browse_image_name,
+                world_file_name,
+                aux_xml_file_name,
+            ) in image_file_list:
                 # Stage the images:
-                browse_image_url = self.stage_output(browse_image_name,
-                                                     asset.href)
-                browse_aux_url = self.stage_output(aux_xml_file_name,
-                                                   asset.href)
-                world_file_url = self.stage_output(world_file_name,
-                                                   asset.href)
+                browse_image_url = self.stage_output(browse_image_name, asset.href)
+                browse_aux_url = self.stage_output(aux_xml_file_name, asset.href)
+                world_file_url = self.stage_output(world_file_name, asset.href)
                 item_assets.append(('data', browse_image_url, 'data'))
                 item_assets.append(('metadata', world_file_url, 'metadata'))
                 item_assets.append(('auxiliary', browse_aux_url, 'metadata'))
@@ -122,27 +128,28 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
             rmtree(working_directory)
 
     def stage_output(self, transformed_file: Path, input_file: str) -> str:
-        """ Generate an output file name based on the input asset URL and the
-            operations performed to produce the output. Use this name to stage
-            the output in the S3 location specified in the input Harmony
-            message.
+        """Generate an output file name based on the input asset URL and the
+        operations performed to produce the output. Use this name to stage
+        the output in the S3 location specified in the input Harmony
+        message.
 
         """
 
         ext = get_tiled_file_extension(transformed_file)
-        output_file_name = generate_output_filename(
-            input_file, ext=ext
+        output_file_name = generate_output_filename(input_file, ext=ext)
+
+        return stage(
+            transformed_file,
+            output_file_name,
+            get_file_mime_type(transformed_file),
+            location=self.message.stagingLocation,
+            logger=self.logger,
+            cfg=self.config,
         )
 
-        return stage(transformed_file,
-                     output_file_name,
-                     get_file_mime_type(transformed_file),
-                     location=self.message.stagingLocation,
-                     logger=self.logger,
-                     cfg=self.config)
-
-    def create_output_stac_item(self, input_stac_item: Item,
-                                item_assets: list[tuple[str, str, str]]) -> Item:
+    def create_output_stac_item(
+        self, input_stac_item: Item, item_assets: list[tuple[str, str, str]]
+    ) -> Item:
         """Create an output STAC item used to access the browse imagery and
             ESRI world file as staged in S3.
 
@@ -162,14 +169,17 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
             asset_name = get_asset_name(name, url)
 
             output_stac_item.assets[asset_name] = Asset(
-                url, title=basename(url),
-                media_type=get_file_mime_type(url), roles=[role]
+                url,
+                title=basename(url),
+                media_type=get_file_mime_type(url),
+                roles=[role],
             )
 
         return output_stac_item
 
-    def stage_manifest(self, image_file_list: list[tuple[Path, Path, Path]],
-                       asset_href: str) -> str:
+    def stage_manifest(
+        self, image_file_list: list[tuple[Path, Path, Path]], asset_href: str
+    ) -> str:
         """Write a manifest file of the output images.
 
         Write a file that will serve as the 'data' key for tiled output.  At
@@ -181,6 +191,7 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
 
         with open(manifest_fn, 'w', encoding='UTF-8') as file_pointer:
             file_pointer.writelines(
-                f'{img}, {wld}, {aux}\n' for img, wld, aux in image_file_list)
+                f'{img}, {wld}, {aux}\n' for img, wld, aux in image_file_list
+            )
 
         return self.stage_output(manifest_fn, asset_href)

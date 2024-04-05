@@ -107,10 +107,10 @@ def choose_best_crs_from_metadata(crs: CRS) -> CRS:
     if projection_params.get('proj', None) == 'longlat':
         return CRS.from_string(PREFERRED_CRS['global'])
 
-    if projection_params.get('lat_0', 0.) >= 80:
+    if projection_params.get('lat_0', 0.0) >= 80:
         return CRS.from_string(PREFERRED_CRS['north'])
 
-    if projection_params.get('lat_0', 0.) <= -80:
+    if projection_params.get('lat_0', 0.0) <= -80:
         return CRS.from_string(PREFERRED_CRS['south'])
 
     return CRS.from_string(PREFERRED_CRS['global'])
