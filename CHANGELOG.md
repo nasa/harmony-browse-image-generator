@@ -1,3 +1,9 @@
+## v1.0.1
+### 2024-04-05
+
+This version of HyBIG updates the repository to use `black` code formatting
+throughout. There should be no functional change to the service.
+
 ## v1.0.0
 ### 2024-01-22
 This version of the Harmony Browse Image Generator (HyBIG) contains all
