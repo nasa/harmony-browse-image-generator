@@ -173,6 +173,9 @@ review and `git add` the changes before you can make a commit.
 It is planned to implement additional hooks, possibly including tools such as
 `mypy`.
 
+[pre-commit.ci](pre-commit.ci) is configured such that these same hooks will be
+automatically run for every pull request.
+
 ## Releasing a new version of the service:
 
 Once a new Docker image has been published with a new semantic version tag,
