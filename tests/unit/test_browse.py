@@ -57,6 +57,15 @@ class TestBrowse(TestCase):
             ]
         ).astype('uint16')
 
+        cls.floatdata = np.array(
+            [
+                [100.0, 200.0, 300.0, 400.0],
+                [100.0, 200.0, 300.0, 400.0],
+                [100.0, 200.0, 300.0, 400.0],
+                [100.0, 200.0, 300.0, 400.0],
+            ]
+        ).astype('float64')
+
         cls.levels = [100, 200, 300, 400]
 
         # R, G, B, A tuples
@@ -298,28 +307,38 @@ class TestBrowse(TestCase):
         )
 
     def test_convert_singleband_to_raster_without_colortable(self):
-        ds = MagicMock(DataArray)
-        ds.__getitem__.return_value = self.data
+        """Tests convert_gray_1band_to_raster."""
+
+        return_data = np.copy(self.floatdata)
+        return_data[0][1] = np.nan
+        ds = DataArray(return_data)
+        ds = ds.expand_dims('band')
 
         expected_raster = np.array(
             [
                 [
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                ],
-                [
-                    [0, 104, 198, 255],
+                    [0, 0, 198, 255],
                     [0, 104, 198, 255],
                     [0, 104, 198, 255],
                     [0, 104, 198, 255],
                 ],
                 [
+                    [0, 0, 198, 255],
                     [0, 104, 198, 255],
                     [0, 104, 198, 255],
                     [0, 104, 198, 255],
+                ],
+                [
+                    [0, 0, 198, 255],
                     [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                ],
+                [
+                    [255, 0, 255, 255],
+                    [255, 255, 255, 255],
+                    [255, 255, 255, 255],
+                    [255, 255, 255, 255],
                 ],
             ],
             dtype='uint8',

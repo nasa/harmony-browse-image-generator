@@ -184,7 +184,7 @@ def convert_paletted_1band_to_raster(
         levels, scaled_colors, extend='max'
     )
 
-    # handle no data values
+    # handle palette no data value
     if palette.ndv is not None:
         nodata_colors = palette.color_to_color_entry(palette.ndv, with_alpha=True)
         cmap.set_bad(
