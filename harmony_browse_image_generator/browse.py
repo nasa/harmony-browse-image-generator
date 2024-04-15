@@ -131,10 +131,11 @@ def convert_mulitband_to_raster(data_array: DataArray) -> ndarray:
 
     bands = data_array.to_numpy()
 
-    # Create a [1, x, y] alpha layer where nan values are transparent.
+    # Create an alpha layer where input NaN values are transparent.
     nan_mask = np.isnan(bands).any(axis=0)
     missing_alpha = np.where(nan_mask, TRANSPARENT, OPAQUE)
 
+    # grab any existing alpha layer
     bands, image_alpha = remove_alpha(bands)
 
     norm = Normalize(vmin=np.nanmin(bands), vmax=np.nanmax(bands))
@@ -143,6 +144,8 @@ def convert_mulitband_to_raster(data_array: DataArray) -> ndarray:
     )
 
     if image_alpha is not None:
+        # merge missing alpha with the image's alpha prefering transparency to
+        # opaqueness
         alpha = np.minimum(missing_alpha, image_alpha)
     else:
         alpha = missing_alpha

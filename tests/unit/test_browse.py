@@ -314,8 +314,7 @@ class TestBrowse(TestCase):
 
         return_data = np.copy(self.floatdata)
         return_data[0][1] = np.nan
-        ds = DataArray(return_data)
-        ds = ds.expand_dims('band')
+        ds = DataArray(return_data).expand_dims('band')
 
         expected_raster = np.array(
             [
@@ -346,7 +345,6 @@ class TestBrowse(TestCase):
             ],
             dtype='uint8',
         )
-
         actual_raster = convert_singleband_to_raster(ds, None)
         assert_array_equal(expected_raster, actual_raster)
 
@@ -471,9 +469,6 @@ class TestBrowse(TestCase):
         )
 
         actual_raster = convert_mulitband_to_raster(ds)
-        import pprint
-
-        pprint.pprint(f'{actual_raster}')
         assert_array_equal(expected_raster, actual_raster.data)
 
     def test_convert_4_multiband_to_raster(self):
@@ -524,7 +519,6 @@ class TestBrowse(TestCase):
         )
 
         actual_raster = convert_mulitband_to_raster(ds)
-        print(actual_raster)
         assert_array_equal(expected_raster, actual_raster.data)
 
     def test_convert_5_multiband_to_raster(self):
