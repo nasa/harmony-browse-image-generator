@@ -482,7 +482,7 @@ class TestBrowse(TestCase):
         """
         ds = Mock(DataArray)
         bad_data = np.copy(self.floatdata)
-        bad_data[1, 1] = np.NaN
+        bad_data[1, 1] = np.nan
 
         alpha = np.ones_like(self.data) * 255
         alpha[0, 0] = 1
