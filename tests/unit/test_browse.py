@@ -477,16 +477,27 @@ class TestBrowse(TestCase):
         assert_array_equal(expected_raster, actual_raster.data)
 
     def test_convert_4_multiband_to_raster(self):
+        """Input data has NaN _fillValue match in the red layer at [1,1]
+        and alpha chanel also exists with a single transparent value at [0,0]
+
+        See that the expected output has transformed the missing data [nan]
+        into fully transparent at [1,1] and retained the transparent value of 1
+        at [0,0]
+
+        """
         ds = Mock(DataArray)
+        bad_data = np.copy(self.floatdata)
+        bad_data[1, 1] = np.NaN
+
         alpha = np.ones_like(self.data) * 255
         alpha[0, 0] = 1
         ds.rio.count = 4
-        ds.to_numpy.return_value = np.stack([self.data, self.data, self.data, alpha])
+        ds.to_numpy.return_value = np.stack([bad_data, self.data, self.data, alpha])
         expected_raster = np.array(
             [
                 [
                     [0, 85, 170, 255],
-                    [0, 85, 170, 255],
+                    [0, 0, 170, 255],
                     [0, 85, 170, 255],
                     [0, 85, 170, 255],
                 ],
@@ -504,7 +515,7 @@ class TestBrowse(TestCase):
                 ],
                 [
                     [1, 255, 255, 255],
-                    [255, 255, 255, 255],
+                    [255, 0, 255, 255],
                     [255, 255, 255, 255],
                     [255, 255, 255, 255],
                 ],
@@ -513,6 +524,7 @@ class TestBrowse(TestCase):
         )
 
         actual_raster = convert_mulitband_to_raster(ds)
+        print(actual_raster)
         assert_array_equal(expected_raster, actual_raster.data)
 
     def test_convert_5_multiband_to_raster(self):
