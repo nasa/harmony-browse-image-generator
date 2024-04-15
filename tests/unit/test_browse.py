@@ -19,6 +19,7 @@ from rasterio.io import DatasetReader, DatasetWriter
 from rasterio.warp import Resampling
 from xarray import DataArray
 
+
 from harmony_browse_image_generator.browse import (
     convert_mulitband_to_raster,
     convert_singleband_to_raster,
@@ -36,6 +37,8 @@ from harmony_browse_image_generator.color_utility import (
     convert_colormap_to_palette,
     get_color_palette,
     palette_from_remote_colortable,
+    OPAQUE,
+    TRANSPARENT,
 )
 from harmony_browse_image_generator.exceptions import HyBIGError
 from tests.unit.utility import rasterio_test_file
@@ -348,8 +351,7 @@ class TestBrowse(TestCase):
         assert_array_equal(expected_raster, actual_raster)
 
     def test_convert_singleband_to_raster_with_colormap(self):
-        ds = MagicMock(DataArray)
-        ds.__getitem__.return_value = self.data
+        ds = DataArray(self.data).expand_dims('band')
 
         expected_raster = np.array(
             [
@@ -386,12 +388,10 @@ class TestBrowse(TestCase):
         assert_array_equal(expected_raster, actual_raster)
 
     def test_convert_singleband_to_raster_with_colormap_and_bad_data(self):
-        ds = MagicMock(DataArray)
         data_array = np.array(self.data, dtype='float')
         data_array[0, 0] = np.nan
+        ds = DataArray(data_array).expand_dims('band')
         nv_color = (10, 20, 30, 40)
-
-        ds.__getitem__.return_value = data_array
 
         # Read the image down: red, yellow, green, blue
         expected_raster = np.array(
@@ -431,9 +431,14 @@ class TestBrowse(TestCase):
         assert_array_equal(expected_raster, actual_raster)
 
     def test_convert_3_multiband_to_raster(self):
-        ds = Mock(DataArray)
-        ds.rio.count = 3
-        ds.to_numpy.return_value = np.stack([self.data, self.data, self.data])
+
+        bad_data = np.copy(self.floatdata)
+        bad_data[1][1] = np.nan
+        bad_data[1][2] = np.nan
+        ds = DataArray(
+            np.stack([self.floatdata, bad_data, self.floatdata]),
+            dims=('band', 'y', 'x'),
+        )
 
         expected_raster = np.array(
             [
@@ -445,7 +450,7 @@ class TestBrowse(TestCase):
                 ],
                 [
                     [0, 85, 170, 255],
-                    [0, 85, 170, 255],
+                    [0, 0, 0, 255],
                     [0, 85, 170, 255],
                     [0, 85, 170, 255],
                 ],
@@ -455,11 +460,20 @@ class TestBrowse(TestCase):
                     [0, 85, 170, 255],
                     [0, 85, 170, 255],
                 ],
+                [
+                    [OPAQUE, OPAQUE, OPAQUE, OPAQUE],
+                    [OPAQUE, TRANSPARENT, TRANSPARENT, OPAQUE],
+                    [OPAQUE, OPAQUE, OPAQUE, OPAQUE],
+                    [OPAQUE, OPAQUE, OPAQUE, OPAQUE],
+                ],
             ],
             dtype='uint8',
         )
 
         actual_raster = convert_mulitband_to_raster(ds)
+        import pprint
+
+        pprint.pprint(f'{actual_raster}')
         assert_array_equal(expected_raster, actual_raster.data)
 
     def test_convert_4_multiband_to_raster(self):
@@ -512,7 +526,8 @@ class TestBrowse(TestCase):
             convert_mulitband_to_raster(ds)
 
         self.assertEqual(
-            excepted.exception.message, 'Cannot create image from 5 band image'
+            excepted.exception.message,
+            'Cannot create image from 5 band image. Expecting 3 or 4 bands.',
         )
 
     def test_prepare_raster_for_writing_jpeg_3band(self):

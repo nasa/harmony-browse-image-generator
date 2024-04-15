@@ -13,7 +13,6 @@ from harmony.message import Message as HarmonyMessage
 from harmony.message import Source as HarmonySource
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
-from numpy import around, concatenate, ndarray
 from osgeo_utils.auxiliary.color_palette import ColorPalette
 from PIL import Image
 from rasterio.io import DatasetReader
@@ -21,14 +20,20 @@ from rasterio.plot import reshape_as_image, reshape_as_raster
 from rasterio.warp import Resampling, reproject
 from rioxarray import open_rasterio
 from xarray import DataArray
+from numpy import ndarray
+
 
 from harmony_browse_image_generator.color_utility import (
     NODATA_IDX,
     NODATA_RGBA,
+    OPAQUE,
+    TRANSPARENT,
     TRANSPARENT_IDX,
     TRANSPARENT_RGBA,
     get_color_palette,
+    remove_alpha,
 )
+
 from harmony_browse_image_generator.exceptions import HyBIGError
 from harmony_browse_image_generator.sizes import (
     GridParams,
@@ -113,28 +118,36 @@ def create_browse_imagery(
 def convert_mulitband_to_raster(data_array: DataArray) -> ndarray:
     """Convert multiband to a raster image.
 
-    Reads the three/four bands from the file, then normalizes them to the range
+    Reads the three or four bands from the file, then normalizes them to the range
     0 to 255. This assumes the input image is already in RGB or RGBA format and
     just ensures that the output is 8bit.
 
     """
+    if data_array.rio.count not in [3, 4]:
+        raise HyBIGError(
+            f'Cannot create image from {data_array.rio.count} band image. '
+            'Expecting 3 or 4 bands.'
+        )
+
     bands = data_array.to_numpy()
 
-    if data_array.rio.count == 3:
-        norm = Normalize(vmin=np.nanmin(bands), vmax=np.nanmax(bands))
-        raster = around(norm(bands) * 255.0).astype('uint8')
+    # Create a [1, x, y] alpha layer where nan values are transparent.
+    nan_mask = np.isnan(bands).any(axis=0)
+    missing_alpha = np.where(nan_mask, TRANSPARENT, OPAQUE)
 
-    elif data_array.rio.count == 4:
-        norm = Normalize(
-            vmin=np.nanmin(bands[0:3, :, :]), vmax=np.nanmax(bands[0:3, :, :])
-        )
-        partial_raster = around(norm(bands[0:3, :, :]) * 255.0).astype('uint8')
-        raster = concatenate([partial_raster.data, bands[3:4, :, :]])
+    bands, image_alpha = remove_alpha(bands)
 
+    norm = Normalize(vmin=np.nanmin(bands), vmax=np.nanmax(bands))
+    raster = np.nan_to_num(np.around(norm(bands) * 255.0), copy=False, nan=0.0).astype(
+        'uint8'
+    )
+
+    if image_alpha is not None:
+        alpha = np.minimum(missing_alpha, image_alpha)
     else:
-        raise HyBIGError(f'Cannot create image from {data_array.rio.count} band image')
+        alpha = missing_alpha
 
-    return raster
+    return np.concatenate((raster, alpha[None, ...]), axis=0)
 
 
 def convert_singleband_to_raster(
@@ -222,13 +235,6 @@ def prepare_raster_for_writing(
         return raster, None
 
     return palettize_raster(raster)
-
-
-def remove_alpha(raster: ndarray) -> tuple[ndarray, ndarray | None]:
-    """Pull raster array off of input if it exists."""
-    if raster.shape[0] == 4:
-        return raster[0:3, :, :], raster[3, :, :]
-    return raster, None
 
 
 def palettize_raster(raster: ndarray) -> tuple[ndarray, dict]:
