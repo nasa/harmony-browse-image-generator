@@ -60,15 +60,6 @@ class TestBrowse(TestCase):
             ]
         ).astype('uint16')
 
-        cls.floatdata = np.array(
-            [
-                [100.0, 200.0, 300.0, 400.0],
-                [100.0, 200.0, 300.0, 400.0],
-                [100.0, 200.0, 300.0, 400.0],
-                [100.0, 200.0, 300.0, 400.0],
-            ]
-        ).astype('float64')
-
         cls.levels = [100, 200, 300, 400]
 
         # R, G, B, A tuples
@@ -312,7 +303,7 @@ class TestBrowse(TestCase):
     def test_convert_singleband_to_raster_without_colortable(self):
         """Tests convert_gray_1band_to_raster."""
 
-        return_data = np.copy(self.floatdata)
+        return_data = np.copy(self.data).astype('float64')
         return_data[0][1] = np.nan
         ds = DataArray(return_data).expand_dims('band')
 
@@ -430,11 +421,11 @@ class TestBrowse(TestCase):
 
     def test_convert_3_multiband_to_raster(self):
 
-        bad_data = np.copy(self.floatdata)
+        bad_data = np.copy(self.data).astype('float64')
         bad_data[1][1] = np.nan
         bad_data[1][2] = np.nan
         ds = DataArray(
-            np.stack([self.floatdata, bad_data, self.floatdata]),
+            np.stack([self.data, bad_data, self.data]),
             dims=('band', 'y', 'x'),
         )
 
@@ -481,7 +472,7 @@ class TestBrowse(TestCase):
 
         """
         ds = Mock(DataArray)
-        bad_data = np.copy(self.floatdata)
+        bad_data = np.copy(self.data).astype('float64')
         bad_data[1, 1] = np.nan
 
         alpha = np.ones_like(self.data) * 255
