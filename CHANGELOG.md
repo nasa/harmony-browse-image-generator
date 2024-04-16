@@ -2,7 +2,7 @@
 ### 2024-04-05
 
 This version of HyBIG correctly handles missing/bad input data marked by _FillValue or NoData.
-Any time one of the bad values occurs in the raster the output png image will be transparent.
+Anytime a bad values occurs in the input raster, the output png image will set to transparent.
 
 ## v1.0.1
 ### 2024-04-05
