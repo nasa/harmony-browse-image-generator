@@ -271,10 +271,9 @@ def add_alpha(
 ) -> tuple[ndarray, dict]:
     """If the input data had alpha values, manually set the quantized_image
     index to the transparent index in those places."""
-    max_alpha = 255
-    if alpha is not None and np.any(alpha != max_alpha):
+    if alpha is not None and np.any(alpha != OPAQUE):
         # Set any alpha to the transparent index value
-        quantized_array = np.where(alpha != max_alpha, TRANSPARENT_IDX, quantized_array)
+        quantized_array = np.where(alpha != OPAQUE, TRANSPARENT_IDX, quantized_array)
         color_map[TRANSPARENT_IDX] = TRANSPARENT_RGBA
     return quantized_array, color_map
 
