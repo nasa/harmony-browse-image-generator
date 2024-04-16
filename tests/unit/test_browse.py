@@ -19,7 +19,6 @@ from rasterio.io import DatasetReader, DatasetWriter
 from rasterio.warp import Resampling
 from xarray import DataArray
 
-
 from harmony_browse_image_generator.browse import (
     convert_mulitband_to_raster,
     convert_singleband_to_raster,
@@ -34,11 +33,11 @@ from harmony_browse_image_generator.browse import (
     validate_file_type,
 )
 from harmony_browse_image_generator.color_utility import (
+    OPAQUE,
+    TRANSPARENT,
     convert_colormap_to_palette,
     get_color_palette,
     palette_from_remote_colortable,
-    OPAQUE,
-    TRANSPARENT,
 )
 from harmony_browse_image_generator.exceptions import HyBIGError
 from tests.unit.utility import rasterio_test_file
