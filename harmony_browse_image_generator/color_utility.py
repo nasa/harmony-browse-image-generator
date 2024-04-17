@@ -31,7 +31,7 @@ NODATA_RGBA = (0, 0, 0, 0)
 NODATA_IDX = 255
 
 
-def remove_alpha(raster: nd.ndarray) -> tuple[nd.ndarray, nd.ndarray, None]:
+def remove_alpha(raster: np.ndarray) -> tuple[np.ndarray, np.ndarray, None]:
     """remove alpha layer when it exists."""
     if raster.shape[0] == 4:
         return raster[0:3, :, :], raster[3, :, :]
