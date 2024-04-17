@@ -5,6 +5,9 @@ that are used to generate browse images.
 
 """
 
+from typing import TYPE_CHECKING
+
+import numpy as np
 import requests
 from harmony.message import Source as HarmonySource
 from osgeo_utils.auxiliary.color_palette import ColorPalette
@@ -18,12 +21,21 @@ from harmony_browse_image_generator.exceptions import (
 
 # Constants for output PNG images
 # Applied to transparent pixels where alpha < 255
+TRANSPARENT = np.uint8(0)
+OPAQUE = np.uint8(255)
 TRANSPARENT_RGBA = (0, 0, 0, 0)
 TRANSPARENT_IDX = 254
 
 # Applied to off grid areas during reprojection
 NODATA_RGBA = (0, 0, 0, 0)
 NODATA_IDX = 255
+
+
+def remove_alpha(raster: np.ndarray) -> tuple[np.ndarray, np.ndarray, None]:
+    """remove alpha layer when it exists."""
+    if raster.shape[0] == 4:
+        return raster[0:3, :, :], raster[3, :, :]
+    return raster, None
 
 
 def palette_from_remote_colortable(url: str) -> ColorPalette:

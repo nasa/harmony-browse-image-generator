@@ -13,7 +13,7 @@ from harmony.message import Message as HarmonyMessage
 from harmony.message import Source as HarmonySource
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
-from numpy import around, concatenate, ndarray
+from numpy import ndarray
 from osgeo_utils.auxiliary.color_palette import ColorPalette
 from PIL import Image
 from rasterio.io import DatasetReader
@@ -25,9 +25,12 @@ from xarray import DataArray
 from harmony_browse_image_generator.color_utility import (
     NODATA_IDX,
     NODATA_RGBA,
+    OPAQUE,
+    TRANSPARENT,
     TRANSPARENT_IDX,
     TRANSPARENT_RGBA,
     get_color_palette,
+    remove_alpha,
 )
 from harmony_browse_image_generator.exceptions import HyBIGError
 from harmony_browse_image_generator.sizes import (
@@ -113,27 +116,39 @@ def create_browse_imagery(
 def convert_mulitband_to_raster(data_array: DataArray) -> ndarray:
     """Convert multiband to a raster image.
 
-    Reads the three/four bands from the file, then normalizes them to the range
+    Reads the three or four bands from the file, then normalizes them to the range
     0 to 255. This assumes the input image is already in RGB or RGBA format and
     just ensures that the output is 8bit.
 
     """
+    if data_array.rio.count not in [3, 4]:
+        raise HyBIGError(
+            f'Cannot create image from {data_array.rio.count} band image. '
+            'Expecting 3 or 4 bands.'
+        )
+
     bands = data_array.to_numpy()
-    norm = Normalize()
 
-    if data_array.rio.count == 3:
-        norm.autoscale(bands)
-        raster = around(norm(bands) * 255.0).astype('uint8')
+    # Create an alpha layer where input NaN values are transparent.
+    nan_mask = np.isnan(bands).any(axis=0)
+    nan_alpha = np.where(nan_mask, TRANSPARENT, OPAQUE)
 
-    elif data_array.rio.count == 4:
-        norm.autoscale(bands[0:3, :, :])
-        partial_raster = around(norm(bands[0:3, :, :]) * 255.0).astype('uint8')
-        raster = concatenate([partial_raster.data, bands[3:4, :, :]])
+    # grab any existing alpha layer
+    bands, image_alpha = remove_alpha(bands)
 
+    norm = Normalize(vmin=np.nanmin(bands), vmax=np.nanmax(bands))
+    raster = np.nan_to_num(np.around(norm(bands) * 255.0), copy=False, nan=0.0).astype(
+        'uint8'
+    )
+
+    if image_alpha is not None:
+        # merge nan alpha with the image alpha prefering transparency to
+        # opaqueness.
+        alpha = np.minimum(nan_alpha, image_alpha)
     else:
-        raise HyBIGError(f'Cannot create image from {data_array.rio.count} band image')
+        alpha = nan_alpha
 
-    return raster
+    return np.concatenate((raster, alpha[None, ...]), axis=0)
 
 
 def convert_singleband_to_raster(
@@ -153,15 +168,16 @@ def convert_gray_1band_to_raster(data_array: DataArray) -> ndarray:
     """Convert a 1-band raster without a color association."""
     band = data_array[0, :, :]
     cmap = matplotlib.colormaps['Greys_r']
-    norm = Normalize()
-    norm.autoscale(band)
+    cmap.set_bad(TRANSPARENT_RGBA)
+    norm = Normalize(vmin=np.nanmin(band), vmax=np.nanmax(band))
     scalar_map = ScalarMappable(cmap=cmap, norm=norm)
 
     rgba_image = np.zeros((*band.shape, 4), dtype='uint8')
     for row_no in range(band.shape[0]):
         rgba_image_slice = scalar_map.to_rgba(band[row_no, :], bytes=True)
         rgba_image[row_no, :, :] = rgba_image_slice
-    return reshape_as_raster(rgba_image[..., 0:3])
+
+    return reshape_as_raster(rgba_image)
 
 
 def convert_paletted_1band_to_raster(
@@ -182,7 +198,7 @@ def convert_paletted_1band_to_raster(
         levels, scaled_colors, extend='max'
     )
 
-    # handle no data values
+    # handle palette no data value
     if palette.ndv is not None:
         nodata_colors = palette.color_to_color_entry(palette.ndv, with_alpha=True)
         cmap.set_bad(
@@ -222,13 +238,6 @@ def prepare_raster_for_writing(
     return palettize_raster(raster)
 
 
-def remove_alpha(raster: ndarray) -> tuple[ndarray, ndarray | None]:
-    """Pull raster array off of input if it exists."""
-    if raster.shape[0] == 4:
-        return raster[0:3, :, :], raster[3, :, :]
-    return raster, None
-
-
 def palettize_raster(raster: ndarray) -> tuple[ndarray, dict]:
     """convert an RGB or RGBA image into a 1band image and palette.
 
@@ -262,10 +271,9 @@ def add_alpha(
 ) -> tuple[ndarray, dict]:
     """If the input data had alpha values, manually set the quantized_image
     index to the transparent index in those places."""
-    max_alpha = 255
-    if alpha is not None and np.any(alpha != max_alpha):
+    if alpha is not None and np.any(alpha != OPAQUE):
         # Set any alpha to the transparent index value
-        quantized_array = np.where(alpha != max_alpha, TRANSPARENT_IDX, quantized_array)
+        quantized_array = np.where(alpha != OPAQUE, TRANSPARENT_IDX, quantized_array)
         color_map[TRANSPARENT_IDX] = TRANSPARENT_RGBA
     return quantized_array, color_map
 

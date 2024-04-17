@@ -33,6 +33,8 @@ from harmony_browse_image_generator.browse import (
     validate_file_type,
 )
 from harmony_browse_image_generator.color_utility import (
+    OPAQUE,
+    TRANSPARENT,
     convert_colormap_to_palette,
     get_color_palette,
     palette_from_remote_colortable,
@@ -298,39 +300,46 @@ class TestBrowse(TestCase):
         )
 
     def test_convert_singleband_to_raster_without_colortable(self):
-        ds = MagicMock(DataArray)
-        ds.__getitem__.return_value = self.data
+        """Tests convert_gray_1band_to_raster."""
+
+        return_data = np.copy(self.data).astype('float64')
+        return_data[0][1] = np.nan
+        ds = DataArray(return_data).expand_dims('band')
 
         expected_raster = np.array(
             [
                 [
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                ],
-                [
-                    [0, 104, 198, 255],
+                    [0, 0, 198, 255],
                     [0, 104, 198, 255],
                     [0, 104, 198, 255],
                     [0, 104, 198, 255],
                 ],
                 [
+                    [0, 0, 198, 255],
                     [0, 104, 198, 255],
                     [0, 104, 198, 255],
                     [0, 104, 198, 255],
+                ],
+                [
+                    [0, 0, 198, 255],
                     [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                    [0, 104, 198, 255],
+                ],
+                [
+                    [255, 0, 255, 255],
+                    [255, 255, 255, 255],
+                    [255, 255, 255, 255],
+                    [255, 255, 255, 255],
                 ],
             ],
             dtype='uint8',
         )
-
         actual_raster = convert_singleband_to_raster(ds, None)
         assert_array_equal(expected_raster, actual_raster)
 
     def test_convert_singleband_to_raster_with_colormap(self):
-        ds = MagicMock(DataArray)
-        ds.__getitem__.return_value = self.data
+        ds = DataArray(self.data).expand_dims('band')
 
         expected_raster = np.array(
             [
@@ -367,12 +376,10 @@ class TestBrowse(TestCase):
         assert_array_equal(expected_raster, actual_raster)
 
     def test_convert_singleband_to_raster_with_colormap_and_bad_data(self):
-        ds = MagicMock(DataArray)
         data_array = np.array(self.data, dtype='float')
         data_array[0, 0] = np.nan
+        ds = DataArray(data_array).expand_dims('band')
         nv_color = (10, 20, 30, 40)
-
-        ds.__getitem__.return_value = data_array
 
         # Read the image down: red, yellow, green, blue
         expected_raster = np.array(
@@ -412,9 +419,14 @@ class TestBrowse(TestCase):
         assert_array_equal(expected_raster, actual_raster)
 
     def test_convert_3_multiband_to_raster(self):
-        ds = Mock(DataArray)
-        ds.rio.count = 3
-        ds.to_numpy.return_value = np.stack([self.data, self.data, self.data])
+
+        bad_data = np.copy(self.data).astype('float64')
+        bad_data[1][1] = np.nan
+        bad_data[1][2] = np.nan
+        ds = DataArray(
+            np.stack([self.data, bad_data, self.data]),
+            dims=('band', 'y', 'x'),
+        )
 
         expected_raster = np.array(
             [
@@ -426,7 +438,7 @@ class TestBrowse(TestCase):
                 ],
                 [
                     [0, 85, 170, 255],
-                    [0, 85, 170, 255],
+                    [0, 0, 0, 255],
                     [0, 85, 170, 255],
                     [0, 85, 170, 255],
                 ],
@@ -435,6 +447,12 @@ class TestBrowse(TestCase):
                     [0, 85, 170, 255],
                     [0, 85, 170, 255],
                     [0, 85, 170, 255],
+                ],
+                [
+                    [OPAQUE, OPAQUE, OPAQUE, OPAQUE],
+                    [OPAQUE, TRANSPARENT, TRANSPARENT, OPAQUE],
+                    [OPAQUE, OPAQUE, OPAQUE, OPAQUE],
+                    [OPAQUE, OPAQUE, OPAQUE, OPAQUE],
                 ],
             ],
             dtype='uint8',
@@ -444,16 +462,27 @@ class TestBrowse(TestCase):
         assert_array_equal(expected_raster, actual_raster.data)
 
     def test_convert_4_multiband_to_raster(self):
+        """Input data has NaN _fillValue match in the red layer at [1,1]
+        and alpha channel also exists with a single transparent value at [0,0]
+
+        See that the expected output has transformed the missing data [nan]
+        into fully transparent at [1,1] and retained the transparent value of 1
+        at [0,0]
+
+        """
         ds = Mock(DataArray)
+        bad_data = np.copy(self.data).astype('float64')
+        bad_data[1, 1] = np.nan
+
         alpha = np.ones_like(self.data) * 255
         alpha[0, 0] = 1
         ds.rio.count = 4
-        ds.to_numpy.return_value = np.stack([self.data, self.data, self.data, alpha])
+        ds.to_numpy.return_value = np.stack([bad_data, self.data, self.data, alpha])
         expected_raster = np.array(
             [
                 [
                     [0, 85, 170, 255],
-                    [0, 85, 170, 255],
+                    [0, 0, 170, 255],
                     [0, 85, 170, 255],
                     [0, 85, 170, 255],
                 ],
@@ -471,7 +500,7 @@ class TestBrowse(TestCase):
                 ],
                 [
                     [1, 255, 255, 255],
-                    [255, 255, 255, 255],
+                    [255, 0, 255, 255],
                     [255, 255, 255, 255],
                     [255, 255, 255, 255],
                 ],
@@ -493,7 +522,8 @@ class TestBrowse(TestCase):
             convert_mulitband_to_raster(ds)
 
         self.assertEqual(
-            excepted.exception.message, 'Cannot create image from 5 band image'
+            excepted.exception.message,
+            'Cannot create image from 5 band image. Expecting 3 or 4 bands.',
         )
 
     def test_prepare_raster_for_writing_jpeg_3band(self):
