@@ -19,10 +19,6 @@ from harmony_browse_image_generator.exceptions import (
     HyBIGNoColorInformation,
 )
 
-if TYPE_CHECKING:
-    from numpy import ndarray
-
-
 # Constants for output PNG images
 # Applied to transparent pixels where alpha < 255
 TRANSPARENT = np.uint8(0)
@@ -35,7 +31,7 @@ NODATA_RGBA = (0, 0, 0, 0)
 NODATA_IDX = 255
 
 
-def remove_alpha(raster: 'ndarray') -> tuple['ndarray', 'ndarray', None]:
+def remove_alpha(raster: nd.ndarray) -> tuple[nd.ndarray, nd.ndarray, None]:
     """remove alpha layer when it exists."""
     if raster.shape[0] == 4:
         return raster[0:3, :, :], raster[3, :, :]
