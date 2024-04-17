@@ -463,7 +463,7 @@ class TestBrowse(TestCase):
 
     def test_convert_4_multiband_to_raster(self):
         """Input data has NaN _fillValue match in the red layer at [1,1]
-        and alpha chanel also exists with a single transparent value at [0,0]
+        and alpha channel also exists with a single transparent value at [0,0]
 
         See that the expected output has transformed the missing data [nan]
         into fully transparent at [1,1] and retained the transparent value of 1
