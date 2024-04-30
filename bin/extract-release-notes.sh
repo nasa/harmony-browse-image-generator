@@ -19,4 +19,4 @@ VERSION_PATTERN="^## v"
 result=$(awk "/$VERSION_PATTERN/{c++; if(c==2) exit;} c==1" "$CHANGELOG_FILE")
 
 # Print the result
-echo "$result" |  grep -v "^#"
+echo "$result" |  grep -v "$VERSION_PATTERN"
