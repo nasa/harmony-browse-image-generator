@@ -125,19 +125,22 @@ def get_target_grid_parameters(message: Message, data_array: DataArray) -> GridP
 
     """
     target_crs = choose_target_crs(message.format.srs, data_array)
-    target_scale_extent = choose_scale_extent(message, target_crs)
+    target_scale_extent = choose_scale_extent(message, target_crs, data_array)
     target_dimensions = choose_target_dimensions(
         message, data_array, target_scale_extent, target_crs
     )
     return get_rasterio_parameters(target_crs, target_scale_extent, target_dimensions)
 
 
-def choose_scale_extent(message: Message, target_crs: CRS) -> ScaleExtent:
-    """Return the scaleExtent of the target image.
+def choose_scale_extent(
+    message: Message, target_crs: CRS, data_array: DataArray
+) -> ScaleExtent:
+    """Return the scaleExtent for the target image.
 
-    Check the message for a defined scale extent and returns that or returns
-    the best alternative based on the target_crs either returning it from a
-    lookup based on the ICD, or computed with pyproj.area_of_use
+    Returns a scale extent found in the input Message.
+
+    Otherwise, computes a bounding box in the target CRS based on the input
+    granule extent.
 
     """
     if has_scale_extents(message):
@@ -150,11 +153,11 @@ def choose_scale_extent(message: Message, target_crs: CRS) -> ScaleExtent:
                 'ymax': message.format.scaleExtent.y.max,
             }
         )
-    elif is_preferred_crs(target_crs):
-        scale_extent = icd_defined_extent_from_crs(target_crs)
     else:
-        # compute a best guess area based on the CRS's region of interest
-        scale_extent = best_guess_scale_extent(target_crs)
+        left, bottom, right, top = data_array.rio.transform_bounds(target_crs)
+        scale_extent = ScaleExtent(
+            {'xmin': left, 'ymin': bottom, 'xmax': right, 'ymax': top}
+        )
     return scale_extent
 
 
@@ -320,68 +323,6 @@ def needs_tiling(grid_parameters: GridParams) -> bool:
     """
     MAX_UNTILED_GRIDCELLS = 8192 * 8192
     return grid_parameters['height'] * grid_parameters['width'] > MAX_UNTILED_GRIDCELLS
-
-
-def icd_defined_extent_from_crs(crs: CRS) -> ScaleExtent:
-    """return the predefined scaleExtent for a GIBS image.
-
-    looks up which projetion is being used and returns the scaleExtent.
-
-    """
-    if crs.to_string() == PREFERRED_CRS['global']:
-        scale_extent = ScaleExtent(
-            {'xmin': -180.0, 'ymin': -90.0, 'xmax': 180.0, 'ymax': 90.0}
-        )
-    elif crs.to_string() in [PREFERRED_CRS['north'], PREFERRED_CRS['south']]:
-        # both north and south preferred CRSs have same extents.
-        scale_extent = ScaleExtent(
-            {
-                'xmin': -4194304.0,
-                'ymin': -4194304.0,
-                'xmax': 4194304.0,
-                'ymax': 4194304.0,
-            }
-        )
-    else:
-        raise HyBIGValueError(f'Invalid input CRS: {crs.to_string()}')
-
-    return scale_extent
-
-
-def best_guess_scale_extent(in_crs: CRS) -> ScaleExtent:
-    """Guess the best scale extent.
-
-    This routine will try to guess what a user intended if they did not include
-    a scaleExtent and also used a non-preferred CRS. We convert the CRS into a
-    pyproj crs check for an area of use.  If this exists we return the bounds,
-    projecting them if the crs is a projected crs.
-
-    if no area_of_use exists, we return the ICD defined scale extent that
-    relates to the closest prefered CRS.
-
-    """
-    crs = pyCRS(in_crs.to_wkt(version='WKT2'))
-    if crs.area_of_use is None:
-        best_crs = choose_best_crs_from_metadata(crs)
-        scale_extent = icd_defined_extent_from_crs(best_crs)
-    elif crs.is_projected:
-        transformer = Transformer.from_crs(crs.geodetic_crs, crs, always_xy=True)
-        projected_bounds = transformer.transform_bounds(*crs.area_of_use.bounds)
-        scale_extent = {
-            'xmin': projected_bounds[0],
-            'ymin': projected_bounds[1],
-            'xmax': projected_bounds[2],
-            'ymax': projected_bounds[3],
-        }
-    else:
-        scale_extent = {
-            'xmin': crs.area_of_use.bounds[0],
-            'ymin': crs.area_of_use.bounds[1],
-            'xmax': crs.area_of_use.bounds[2],
-            'ymax': crs.area_of_use.bounds[3],
-        }
-
-    return scale_extent
 
 
 def best_guess_target_dimensions(
