@@ -1,5 +1,6 @@
 """Tests covering the size module."""
 
+from pathlib import Path
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
@@ -13,7 +14,7 @@ from harmony_browse_image_generator.crs import PREFERRED_CRS
 from harmony_browse_image_generator.exceptions import HyBIGValueError
 from harmony_browse_image_generator.sizes import (
     METERS_PER_DEGREE,
-    best_guess_scale_extent,
+    ScaleExtent,
     best_guess_target_dimensions,
     choose_scale_extent,
     choose_target_dimensions,
@@ -27,7 +28,6 @@ from harmony_browse_image_generator.sizes import (
     get_cells_per_tile,
     get_rasterio_parameters,
     get_target_grid_parameters,
-    icd_defined_extent_from_crs,
     needs_tiling,
     resolution_in_target_crs_units,
 )
@@ -120,39 +120,44 @@ class TestGetTargetGridParameters(TestCase):
         self.assertDictEqual(expected_parameters, actual_parameters)
 
     def test_grid_parameters_from_harmony_no_message_information(self):
-        """input granule is in preferred_crs on a 25km grid
+        """input granule is in preferred_crs on a 25km grid"""
+        crs = CRS.from_epsg(sp_seaice_grid['epsg'])
+        height = sp_seaice_grid['height']
+        width = sp_seaice_grid['width']
+        img_transform = Affine.translation(
+            sp_seaice_grid['left'], sp_seaice_grid['top']
+        ) * Affine.scale(sp_seaice_grid['xres'], -1 * sp_seaice_grid['yres'])
 
-        But has grid extents different from the ICD defaults.
-
-        """
-
-        preferred_scale_extent = {
-            'xmin': -4194304.0,
-            'ymin': -4194304.0,
-            'xmax': 4194304.0,
-            'ymax': 4194304.0,
+        left, bottom, right, top = rasterio.transform.array_bounds(
+            height, width, img_transform
+        )
+        image_scale_extent = {
+            'xmin': left,
+            'ymin': bottom,
+            'xmax': right,
+            'ymax': top,
         }
+
         expected_height = round(
-            (preferred_scale_extent['ymax'] - preferred_scale_extent['ymin'])
+            (image_scale_extent['ymax'] - image_scale_extent['ymin'])
             / sp_seaice_grid['yres']
-        )  # 336
+        )  # 332
         expected_width = round(
-            (preferred_scale_extent['xmax'] - preferred_scale_extent['xmin'])
+            (image_scale_extent['xmax'] - image_scale_extent['xmin'])
             / sp_seaice_grid['xres']
-        )  # 336
+        )  # 316
 
         expected_y_resolution = (
-            preferred_scale_extent['ymax'] - preferred_scale_extent['ymin']
+            image_scale_extent['ymax'] - image_scale_extent['ymin']
         ) / expected_height
         expected_x_resolution = (
-            preferred_scale_extent['xmax'] - preferred_scale_extent['xmin']
+            image_scale_extent['xmax'] - image_scale_extent['xmin']
         ) / expected_width
 
         expected_transform = Affine.translation(
-            preferred_scale_extent['xmin'], preferred_scale_extent['ymax']
+            image_scale_extent['xmin'], image_scale_extent['ymax']
         ) * Affine.scale(expected_x_resolution, -1 * expected_y_resolution)
 
-        crs = CRS.from_epsg(sp_seaice_grid['epsg'])
         expected_parameters = {
             'height': expected_height,
             'width': expected_width,
@@ -160,14 +165,11 @@ class TestGetTargetGridParameters(TestCase):
             'transform': expected_transform,
         }
 
-        height = sp_seaice_grid['height']
-        width = sp_seaice_grid['width']
         with rasterio_test_file(
             height=height,
             width=width,
             crs=crs,
-            transform=Affine.translation(sp_seaice_grid['left'], sp_seaice_grid['top'])
-            * Affine.scale(sp_seaice_grid['xres'], -1 * sp_seaice_grid['yres']),
+            transform=img_transform,
         ) as tmp_file:
             message = Message({'format': {}})
             with open_rasterio(tmp_file) as rio_data_array:
@@ -397,6 +399,8 @@ class TestTiling(TestCase):
 class TestChooseScaleExtent(TestCase):
     """Test for correct scale extents."""
 
+    fixtures = Path(__file__).resolve().parent.parent / 'fixtures'
+
     def test_scale_extent_in_harmony_message(self):
         """Basic case of user supplied scaleExtent."""
         message = Message(
@@ -416,30 +420,43 @@ class TestChooseScaleExtent(TestCase):
             'ymax': 500.0,
         }
         crs = None
-        actual_scale_extent = choose_scale_extent(message, crs)
+        actual_scale_extent = choose_scale_extent(message, crs, None)
         self.assertDictEqual(expected_scale_extent, actual_scale_extent)
 
-    @patch('harmony_browse_image_generator.sizes.best_guess_scale_extent')
-    @patch('harmony_browse_image_generator.sizes.icd_defined_extent_from_crs')
-    def test_preferred_crs(self, mock_icd_extents, mock_best_guess):
-        """Preferred CRS will default to ICD expected."""
-        target_crs = CRS.from_string(PREFERRED_CRS['north'])
-        message = Message({})
-        choose_scale_extent(message, target_crs)
+    def test_scale_extent_from_input_image_and_no_crs_transformation(self):
+        """Ensure no change of output extent when src_crs == target_crs"""
 
-        mock_icd_extents.assert_called_once_with(target_crs)
-        mock_best_guess.assert_not_called()
+        with open_rasterio(
+            self.fixtures / 'RGB.byte.small.tif', mode='r', mask_and_scale=True
+        ) as in_array:
+            source_crs = in_array.rio.crs
+            left, bottom, right, top = in_array.rio.bounds()
+            expected_scale_extent = ScaleExtent(
+                {'xmin': left, 'ymin': bottom, 'xmax': right, 'ymax': top}
+            )
 
-    @patch('harmony_browse_image_generator.sizes.best_guess_scale_extent')
-    @patch('harmony_browse_image_generator.sizes.icd_defined_extent_from_crs')
-    def test_guess_extents_from_crs(self, mock_icd_extents, mock_best_guess):
-        """un-preferred CRS will try to guess scale extents."""
-        target_crs = CRS.from_string('EPSG:6931')
-        message = Message({})
-        choose_scale_extent(message, target_crs)
+            actual_scale_extent = choose_scale_extent({}, source_crs, in_array)
+            self.assertEqual(actual_scale_extent, expected_scale_extent)
 
-        mock_icd_extents.assert_not_called()
-        mock_best_guess.assert_called_once_with(target_crs)
+    def test_scale_extent_from_input_image_with_crs_transformation(self):
+        """Ensure no change of output extent when src_crs == target_crs"""
+        target_crs = CRS.from_string(PREFERRED_CRS['global'])
+        with open_rasterio(
+            self.fixtures / 'RGB.byte.small.tif', mode='r', mask_and_scale=True
+        ) as in_array:
+
+            left, bottom, right, top = (
+                -78.95864996539397,
+                23.568866283727235,
+                -76.59780097339339,
+                25.550618627487918,
+            )
+            expected_scale_extent = ScaleExtent(
+                {'xmin': left, 'ymin': bottom, 'xmax': right, 'ymax': top}
+            )
+
+            actual_scale_extent = choose_scale_extent({}, target_crs, in_array)
+            self.assertEqual(actual_scale_extent, expected_scale_extent)
 
 
 class TestChooseTargetDimensions(TestCase):
@@ -490,97 +507,6 @@ class TestChooseTargetDimensions(TestCase):
         mock_best_guess_target_dimensions.assert_called_once_with(
             dataset, scale_extent, target_crs
         )
-
-
-class TestICDDefinedExtentFromCrs(TestCase):
-    """Ensure standard CRS yield standard scaleExtents.
-
-    The expected scale extents are pulled from the ICD document.
-
-    """
-
-    def test_global_preferred_crs(self):
-        crs = CRS.from_string(PREFERRED_CRS['global'])
-        expected_scale_extent = {
-            'xmin': -180.0,
-            'ymin': -90.0,
-            'xmax': 180.0,
-            'ymax': 90.0,
-        }
-        actual_scale_extent = icd_defined_extent_from_crs(crs)
-        self.assertDictEqual(expected_scale_extent, actual_scale_extent)
-
-    def test_south_preferred_crs(self):
-        crs = CRS.from_string(PREFERRED_CRS['south'])
-        expected_scale_extent = {
-            'xmin': -4194304.0,
-            'ymin': -4194304.0,
-            'xmax': 4194304.0,
-            'ymax': 4194304.0,
-        }
-        actual_scale_extent = icd_defined_extent_from_crs(crs)
-        self.assertDictEqual(expected_scale_extent, actual_scale_extent)
-
-    def test_north_preferred_crs(self):
-        crs = CRS.from_string(PREFERRED_CRS['north'])
-        expected_scale_extent = {
-            'xmin': -4194304.0,
-            'ymin': -4194304.0,
-            'xmax': 4194304.0,
-            'ymax': 4194304.0,
-        }
-        actual_scale_extent = icd_defined_extent_from_crs(crs)
-        self.assertDictEqual(expected_scale_extent, actual_scale_extent)
-
-    def test_non_preferred(self):
-        crs = CRS.from_string('EPSG:4311')
-        with self.assertRaises(HyBIGValueError) as excepted:
-            icd_defined_extent_from_crs(crs)
-
-        self.assertEqual(excepted.exception.message, 'Invalid input CRS: EPSG:4311')
-        pass
-
-
-class TestBestGuessScaleExtent(TestCase):
-    def test_unprojected_crs_has_area_of_use(self):
-        crs = CRS.from_epsg(4326)
-        expected_extent = {'xmin': -180.0, 'ymin': -90.0, 'xmax': 180.0, 'ymax': 90.0}
-        actual_extent = best_guess_scale_extent(crs)
-        self.assertDictEqual(expected_extent, actual_extent)
-
-    def test_projected_crs_has_area_of_use(self):
-        """North Pole LAEA Canada"""
-        crs = CRS.from_epsg(3573)
-        expected_extent = {
-            'xmin': -4859208.992805643,
-            'ymin': -4886873.230107171,
-            'xmax': 4859208.992805643,
-            'ymax': 4886873.230107171,
-        }
-
-        actual_extent = best_guess_scale_extent(crs)
-        self.assertDictEqual(expected_extent, actual_extent)
-
-    def test_unprojected_crs_has_no_area_of_use(self):
-        """Use EPSG 4269 created with a dictionary."""
-        crs = CRS.from_dict(
-            {'proj': 'longlat', 'datum': 'NAD83', 'no_defs': None, 'type': 'crs'}
-        )
-
-        expected_extent = {'xmin': -180.0, 'ymin': -90.0, 'xmax': 180.0, 'ymax': 90.0}
-
-        actual_extent = best_guess_scale_extent(crs)
-
-        self.assertDictEqual(expected_extent, actual_extent)
-
-    def test_unprojected_nonstandard_crs_has_no_area_of_use(self):
-        """Use EPSG 4269."""
-        crs = CRS.from_epsg(4269)
-
-        #  west=167.65, south=14.92, east=-40.73, north=86.45
-        expected_extent = {'xmin': 167.65, 'ymin': 14.92, 'xmax': -40.73, 'ymax': 86.45}
-        actual_extent = best_guess_scale_extent(crs)
-        self.assertDictEqual(expected_extent, actual_extent)
 
 
 class TestBestGuessTargetDimensions(TestCase):
