@@ -10,7 +10,7 @@ import numpy as np
 from harmony.message import Message
 from harmony.util import config
 from pystac import Catalog
-from rasterio.transform import from_bounds
+from rasterio.transform import array_bounds, from_bounds
 from rasterio.warp import Resampling
 from rioxarray import open_rasterio
 
@@ -195,14 +195,20 @@ class TestAdapter(TestCase):
         # Scale Extent from icd
         # dimensions from input data
         rio_data_array = open_rasterio(self.red_tif_fixture)
-        icd_scale_extent = {'xmin': -180.0, 'ymin': -90.0, 'xmax': 180.0, 'ymax': 90.0}
-        expected_width = round((180 - -180) / rio_data_array.rio.transform().a)
-        expected_height = round((90 - -90) / -rio_data_array.rio.transform().e)
+        left, bottom, right, top = array_bounds(
+            rio_data_array.rio.width,
+            rio_data_array.rio.height,
+            rio_data_array.rio.transform(),
+        )
+        image_scale_extent = {'xmin': left, 'ymin': bottom, 'xmax': right, 'ymax': top}
+
+        expected_width = round((right - left) / rio_data_array.rio.transform().a)
+        expected_height = round((top - bottom) / -rio_data_array.rio.transform().e)
         expected_transform = from_bounds(
-            icd_scale_extent['xmin'],
-            icd_scale_extent['ymin'],
-            icd_scale_extent['xmax'],
-            icd_scale_extent['ymax'],
+            image_scale_extent['xmin'],
+            image_scale_extent['ymin'],
+            image_scale_extent['xmax'],
+            image_scale_extent['ymax'],
             expected_width,
             expected_height,
         )
@@ -424,15 +430,20 @@ class TestAdapter(TestCase):
         # Scale Extent from icd
         # dimensions from input data
         rio_data_array = open_rasterio(self.red_tif_fixture)
-        icd_scale_extent = {'xmin': -180.0, 'ymin': -90.0, 'xmax': 180.0, 'ymax': 90.0}
+        left, bottom, right, top = array_bounds(
+            rio_data_array.rio.width,
+            rio_data_array.rio.height,
+            rio_data_array.rio.transform(),
+        )
+        image_scale_extent = {'xmin': left, 'ymin': bottom, 'xmax': right, 'ymax': top}
 
-        expected_width = round((180 - -180) / rio_data_array.rio.transform().a)
-        expected_height = round((90 - -90) / -rio_data_array.rio.transform().e)
+        expected_width = round((right - left) / rio_data_array.rio.transform().a)
+        expected_height = round((top - bottom) / -rio_data_array.rio.transform().e)
         expected_transform = from_bounds(
-            icd_scale_extent['xmin'],
-            icd_scale_extent['ymin'],
-            icd_scale_extent['xmax'],
-            icd_scale_extent['ymax'],
+            image_scale_extent['xmin'],
+            image_scale_extent['ymin'],
+            image_scale_extent['xmax'],
+            image_scale_extent['ymax'],
             expected_width,
             expected_height,
         )
