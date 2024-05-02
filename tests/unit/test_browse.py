@@ -16,6 +16,7 @@ from PIL import Image
 from rasterio import Affine
 from rasterio.crs import CRS
 from rasterio.io import DatasetReader, DatasetWriter
+from rasterio.transform import array_bounds
 from rasterio.warp import Resampling
 from xarray import DataArray
 
@@ -166,6 +167,8 @@ class TestBrowse(TestCase):
         da_mock.rio.crs = CRS.from_string('EPSG:4326')
         da_mock.rio.count = 1
         in_dataset_mock.colormap = Mock(side_effect=ValueError)
+
+        da_mock.rio.transform_bounds.return_value = array_bounds(4, 4, file_transform)
 
         expected_raster = np.array(
             [
