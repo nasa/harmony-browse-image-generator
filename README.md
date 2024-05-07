@@ -7,47 +7,58 @@ Global Image Browse Services ([GIBS](https://www.earthdata.nasa.gov/eosdis/scien
 ## Repository structure:
 
 ```
-|- .pre-commit-config.yaml
+|- 📂 bin
+|- 📂 docker
+|- 📂 docs
+|- 📂 harmony_browse_image_generator
+|- 📂 tests
 |- CHANGELOG.md
 |- CONTRIBUTING.md
+|- LICENSE
 |- README.md
-|- bin
 |- conda_requirements.txt
 |- dev-requirements.txt
-|- docker
-|- docs
-|- harmony_browse_image_generator
+|- legacy-CHANGELOG.md
 |- pip_requirements.txt
-|- tests
 ```
 
-* `.pre-commit-config` - a pre-commit configuration file describing functions to
-  be run on every git commit.
-* `CHANGELOG.md` - This file contains a record of changes applied to each new
-  release of a service Docker image. Any release of a new service version
-  should have a record of what was changed in this file.
-* `CONTRIBUTING.md` - This file contains guidance for making contributions to
-  HyBIG, including recommended git best practices.
-* `README.md` - This file, containing guidance on developing the service.
 * `bin` - A directory containing utility scripts to build the service and test
   images. A script to extract the release notes for the most recent service
   version, as contained in `CHANGELOG.md` is also in this directory.
-* `conda_requirements.txt` - A list of service dependencies, such as GDAL, that
-  cannot be installed via Pip.
-* `dev-requirements.txt` - list of packages required for service development.
+
 * `docker` - A directory containing the Dockerfiles for the service and test
   images. It also contains `service_version.txt`, which contains the semantic
   version number of the service image. Any time an update is made that should
   have an accompanying service image release, this file should be updated.
-* `docs` - directory with example usage notebooks.
-* `harmony_browse_image_generator` - The directory containing Python source code
+
+* `docs` - A directory with example usage notebooks.
+
+* `tests` - A directory containing the service unit test suite.
+
+* `harmony_browse_image_generator` - A directory containing Python source code
   for the HyBIG. `adapter.py` contains the `BrowseImageGeneratorAdapter`
   class that is invoked by calls to the service.
+
+* `CHANGELOG.md` - This file contains a record of changes applied to each new
+  release of a service Docker image. Any release of a new service version
+  should have a record of what was changed in this file.
+
+* `CONTRIBUTING.md` - This file contains guidance for making contributions to
+  HyBIG, including recommended git best practices.
+
+* `README.md` - This file, containing guidance on developing the service.
+
+* `conda_requirements.txt` - A list of service dependencies, such as GDAL, that
+  cannot be installed via Pip.
+
+* `dev-requirements.txt` - list of packages required for service development.
+
 * `legacy-CHANGELOG.md` - Notes for each version that was previously released
   internally to EOSDIS, prior to open-source publication of the code and Docker
   image.
+
 * `pip_requirements.txt` - A list of service Python package dependencies.
-* `tests` - A directory containing the service unit test suite.
+
 
 ## Local development:
 
@@ -74,7 +85,7 @@ service within that environment via conda and pip then install the pre-commit ho
 
 This service utilises the Python `unittest` package to perform unit tests on
 classes and functions in the service. After local development is complete, and
-test have been updated, they can be run via:
+test have been updated, they can be run in Docker via:
 
 ```bash
 $ ./bin/build-image
@@ -106,8 +117,8 @@ major.minor.patch.
 When publishing a new Docker image for the service, two files need to be
 updated:
 
-* CHANGELOG.md - Notes should be added to capture the changes to the service.
-* docker/service_version.txt - The semantic version number should be updated.
+* `CHANGELOG.md` - Notes should be added to capture the changes to the service.
+* `docker/service_version.txt` - The semantic version number should be updated.
 
 ## CI/CD:
 
@@ -130,14 +141,15 @@ The `publish_docker_image.yml` workflow will:
 * Extract the released notes for the most recent version from `CHANGELOG.md`.
 * Create a GitHub release that will also tag the related git commit with the
   semantic version number.
+* Build and deploy a this service's docker image to `ghcr.io`.
 
 Before triggering a release, ensure both the `docker/service_version.txt` and
 `CHANGELOG.md` files are updated. The `CHANGELOG.md` file requires a specific
 format for a new release, as it looks for the following string to define the
-newest relate of the code (starting at the top of the file).
+newest release of the code (starting at the top of the file).
 
 ```
-## vX.Y.Z
+## vX.Y.Z - YYYY-MM-DD
 ```
 
 ### pre-commit hooks:
@@ -152,7 +164,7 @@ checking the repository for some coding standard best practices. These include:
 * [black](https://black.readthedocs.io/en/stable/index.html) Python code
   formatting checks.
 
-To enable these checks:
+To enable these checks locally:
 
 ```bash
 # Install pre-commit Python package as part of test requirements:
@@ -179,10 +191,9 @@ automatically run for every pull request.
 ## Releasing a new version of the service:
 
 Once a new Docker image has been published with a new semantic version tag,
-that service version can be released to a Harmony environment by updating the
-main Harmony Bamboo deployment project. Find the environment you wish to
-release the service version to and update the associated environment variable
-to update the semantic version tag at the end of the full Docker image name.
+that service version can be released to a Harmony environment by following the
+directions in the [Harmony Managing Existing Services
+Guide](https://github.com/nasa/harmony/blob/main/docs/guides/managing-existing-services.md).
 
 ## Get in touch:
 
