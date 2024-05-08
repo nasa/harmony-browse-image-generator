@@ -1,8 +1,60 @@
-# Harmony Browse Image Generator (HyBIG) backend service.
+# Harmony Browse Image Generator (HyBIG).
 
 This Harmony backend service is designed to produce browse imagery, with
 default behaviour to produce browse imagery that is compatible with the NASA
 Global Image Browse Services ([GIBS](https://www.earthdata.nasa.gov/eosdis/science-system-description/eosdis-components/gibs)).
+
+This means that defaults for images are selected to match the visualization
+generation requirements and recommendations put forth in the GIBS Interface
+Control Document (ICD).
+
+HyBIG creates paletted PNG images and associated metadata from GeoTIFF input
+images. Scientific parameter raster data as well as RGB[A] raster images can
+be converted to browse PNGs.  These browse images undergo transformation by
+reprojection, tiling and coloring to seamlessly integrate with GIBS.
+
+### Reprojection
+
+GIBS expects to recieve images in one of three Coordinate Reference System (CRS) projections.
+
+|Region     |Code      |Name                                                     |
+|---        |---       |---                                                      |
+|north polar| EPSG:3413|WGS 84 / NSIDC Sea Ice Polar Stereographic North         |
+|south polar| EPSG:3031|WGS 84 / Antarctic Polar Stereographic                   |
+|global     |EPSG:4326 |WGS 84 -- WGS84 - World Geodetic System 1984, used in GPS|
+
+HyBIG processing will attempt to choose a GIBS suitable target CRS from the
+input image information or read it from the inputs.  Reprojection is done by
+resampling via nearest neighbor. This is a reminder that these are not science
+data, but browse imagery.
+
+
+### Tiling
+
+By agreement with GIBS, large output images are tiled to a smaller,
+easier-to-handle size.  The largest untiled image HyBIG will create is 67108864
+total cells (8192 x 8192). When the output image would exceed this threshold,
+HyBIG will automatically tile the output into multiple images
+4096&nbsp;x&nbsp;4096 cells in size. The edge tiles are truncated.
+
+
+### Coloring
+
+HyBIG images are colored in a number of different ways. A palette can be
+included in the input [STAC
+Item](https://github.com/radiantearth/stac-spec/blob/master/item-spec/item-spec.md).
+If an Item's asset includes a value with a role `palette`, it is assumed to be a
+reference to a remote colortable and the colortable is fetched from the asset's
+`href`and parsed as a GDAL color table.
+
+If the STAC Item does not contain color information, then the Harmony message
+source is searched for a related URL with a "content type" of
+`VisualizationURL` and a "type" `Color Map`, and a remote color table is fetched from that location.
+
+If no remote color information is provided, the input image is searched for a colormap and that is used.
+
+Finally, if no color information can be found grayscale is used.
+
 
 ## Repository structure:
 
