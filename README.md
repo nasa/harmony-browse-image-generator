@@ -155,11 +155,11 @@ also with units of degrees.
 
 * `docs` - A directory with example usage notebooks.
 
-* `tests` - A directory containing the service unit test suite.
-
 * `harmony_browse_image_generator` - A directory containing Python source code
   for the HyBIG. `adapter.py` contains the `BrowseImageGeneratorAdapter`
   class that is invoked by calls to the service.
+
+* `tests` - A directory containing the service unit test suite.
 
 * `CHANGELOG.md` - This file contains a record of changes applied to each new
   release of a service Docker image. Any release of a new service version
@@ -167,6 +167,9 @@ also with units of degrees.
 
 * `CONTRIBUTING.md` - This file contains guidance for making contributions to
   HyBIG, including recommended git best practices.
+
+* `LICENSE` - Required for distribution under NASA open-source
+  approval. Details conditions for use, reproduction and distribution.
 
 * `README.md` - This file, containing guidance on developing the service.
 

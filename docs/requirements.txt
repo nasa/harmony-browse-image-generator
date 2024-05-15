@@ -1,2 +1,2 @@
 notebook==7.0.3
-harmony-py==0.4.10
+harmony-py~=0.4.14
