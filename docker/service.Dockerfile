@@ -19,7 +19,7 @@ WORKDIR "/home"
 # Create Conda environment:
 COPY conda_requirements.txt conda_requirements.txt
 RUN conda create --yes --name hybig --file conda_requirements.txt \
-	python=3.10 --channel conda-forge --channel defaults -q && \
+	python=3.11 --channel conda-forge --channel defaults -q && \
 	conda clean --all --force-pkgs-dirs --yes
 
 # Install additional Pip dependencies
