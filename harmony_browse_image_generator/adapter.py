@@ -65,18 +65,34 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
                 'Harmony ScaleExtents must be in order [xmin,ymin,xmax,ymax].'
             )
 
+    def asset_from_item(self, item: Item) -> Asset:
+        """Returns the correct asset from a stac Item.
+
+        Find an asset with 'visual' in any of the item's values' roles.
+        If not found return the asset that has 'data' in its item's values' roles.
+        """
+        try:
+            return next(
+                item_asset
+                for item_asset in item.assets.values()
+                if 'visual' in (item_asset.roles or [])
+            )
+        except StopIteration:
+            return next(
+                item_asset
+                for item_asset in item.assets.values()
+                if 'data' in (item_asset.roles or [])
+            )
+
     def process_item(self, item: Item, source: HarmonySource) -> Item:
         """Processes a single input STAC item."""
+
         try:
             working_directory = mkdtemp()
             results = item.clone()
             results.assets = {}
 
-            asset = next(
-                item_asset
-                for item_asset in item.assets.values()
-                if 'data' in (item_asset.roles or [])
-            )
+            asset = self.asset_from_item(item)
 
             color_palette = get_color_palette_from_item(item)
 
