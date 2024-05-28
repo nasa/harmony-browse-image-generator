@@ -1,7 +1,10 @@
+from datetime import datetime
 from unittest import TestCase
+from unittest.mock import Mock
 
 from harmony.message import Message
 from harmony.util import config
+from pystac import Asset, Item
 
 from harmony_browse_image_generator.adapter import BrowseImageGeneratorAdapter
 from harmony_browse_image_generator.exceptions import HyBIGInvalidMessageError
@@ -152,3 +155,52 @@ class TestAdapter(TestCase):
         self.assertEqual(
             output_stac_item.assets['auxiliary'].title, 'browse.png.aux.xml'
         )
+
+
+class TestAdapterAssetFromItem(TestCase):
+    """A class testing asset_from_item class."""
+
+    def setUp(self):
+        self.adapter = BrowseImageGeneratorAdapter({}, {})
+
+    def item_fixture(self, assets: dict) -> Item:
+        item = Item(Mock(), None, None, datetime.now(), {})
+        item.assets = assets
+        return item
+
+    def test_asset_from_item_with_visual_role(self):
+        visual_asset = Asset(Mock(), roles=['visual'])
+        other_asset = Asset(Mock(), roles=['data'])
+        item = self.item_fixture({'data': other_asset, 'visual': visual_asset})
+
+        expected = visual_asset
+
+        actual = self.adapter.asset_from_item(item)
+
+        self.assertEqual(expected, actual)
+
+    def test_asset_from_item_with_data_role(self):
+        data_asset = Asset(Mock(), roles=['data'])
+        other_asset = Asset(Mock(), roles=['something'])
+        item = self.item_fixture({'data': data_asset, 'other': other_asset})
+        expected = data_asset
+
+        actual = self.adapter.asset_from_item(item)
+
+        self.assertEqual(expected, actual)
+
+    def test_asset_from_item_no_roles(self):
+        asset_1 = Asset(Mock())
+        asset_2 = Asset(Mock())
+
+        item = self.item_fixture({'first': asset_1, 'second': asset_2})
+        with self.assertRaises(StopIteration):
+            self.adapter.asset_from_item(item)
+
+    def test_asset_from_item_no_matching_roles(self):
+        asset_1 = Asset(Mock(), roles=['something'])
+        asset_2 = Asset(Mock(), roles=['or another'])
+
+        item = self.item_fixture({'first': asset_1, 'second': asset_2})
+        with self.assertRaises(StopIteration):
+            self.adapter.asset_from_item(item)
