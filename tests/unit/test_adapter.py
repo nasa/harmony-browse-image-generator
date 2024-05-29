@@ -162,6 +162,10 @@ class TestAdapterAssetFromItem(TestCase):
 
     def setUp(self):
         self.adapter = BrowseImageGeneratorAdapter({}, {})
+        self.visual_asset = Asset(Mock(), roles=['visual'])
+        self.data_asset = Asset(Mock(), roles=['data'])
+        self.none_asset = Asset(Mock(), roles=[])
+        self.other_asset = Asset(Mock(), roles=['other'])
 
     def item_fixture(self, assets: dict) -> Item:
         item = Item(Mock(), None, None, datetime.now(), {})
@@ -169,38 +173,42 @@ class TestAdapterAssetFromItem(TestCase):
         return item
 
     def test_asset_from_item_with_visual_role(self):
-        visual_asset = Asset(Mock(), roles=['visual'])
-        other_asset = Asset(Mock(), roles=['data'])
-        item = self.item_fixture({'data': other_asset, 'visual': visual_asset})
+        with self.subTest('data asset first'):
+            item = self.item_fixture(
+                {'data': self.data_asset, 'visual': self.visual_asset}
+            )
+            expected = self.visual_asset
 
-        expected = visual_asset
+            actual = self.adapter.asset_from_item(item)
 
-        actual = self.adapter.asset_from_item(item)
+            self.assertEqual(expected, actual)
 
-        self.assertEqual(expected, actual)
+        with self.subTest('visual asset first'):
+            item = self.item_fixture(
+                {'visual': self.visual_asset, 'data': self.data_asset}
+            )
+            expected = self.visual_asset
+
+            actual = self.adapter.asset_from_item(item)
+
+            self.assertEqual(expected, actual)
 
     def test_asset_from_item_with_data_role(self):
-        data_asset = Asset(Mock(), roles=['data'])
-        other_asset = Asset(Mock(), roles=['something'])
-        item = self.item_fixture({'data': data_asset, 'other': other_asset})
-        expected = data_asset
+        item = self.item_fixture({'data': self.data_asset, 'other': self.other_asset})
+        expected = self.data_asset
 
         actual = self.adapter.asset_from_item(item)
 
         self.assertEqual(expected, actual)
 
     def test_asset_from_item_no_roles(self):
-        asset_1 = Asset(Mock())
-        asset_2 = Asset(Mock())
-
-        item = self.item_fixture({'first': asset_1, 'second': asset_2})
+        item = self.item_fixture({'none': self.none_asset})
         with self.assertRaises(StopIteration):
             self.adapter.asset_from_item(item)
 
     def test_asset_from_item_no_matching_roles(self):
-        asset_1 = Asset(Mock(), roles=['something'])
-        asset_2 = Asset(Mock(), roles=['or another'])
-
-        item = self.item_fixture({'first': asset_1, 'second': asset_2})
+        item = self.item_fixture(
+            {'first': self.other_asset, 'second': self.other_asset}
+        )
         with self.assertRaises(StopIteration):
             self.adapter.asset_from_item(item)
