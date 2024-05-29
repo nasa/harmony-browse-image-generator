@@ -65,7 +65,7 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
                 'Harmony ScaleExtents must be in order [xmin,ymin,xmax,ymax].'
             )
 
-    def asset_from_item(self, item: Item) -> Asset:
+    def get_asset_from_item(self, item: Item) -> Asset:
         """Returns the correct browse asset from a stac Item.
 
         This is used to select which asset is used by HyBIG to generate
@@ -97,7 +97,7 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
             results = item.clone()
             results.assets = {}
 
-            asset = self.asset_from_item(item)
+            asset = self.get_asset_from_item(item)
 
             color_palette = get_color_palette_from_item(item)
 

@@ -158,7 +158,7 @@ class TestAdapter(TestCase):
 
 
 class TestAdapterAssetFromItem(TestCase):
-    """A class testing asset_from_item class."""
+    """A class testing get_asset_from_item class."""
 
     def setUp(self):
         self.adapter = BrowseImageGeneratorAdapter({}, {})
@@ -172,14 +172,14 @@ class TestAdapterAssetFromItem(TestCase):
         item.assets = assets
         return item
 
-    def test_asset_from_item_with_visual_role(self):
+    def test_get_asset_from_item_with_visual_role(self):
         with self.subTest('data asset first'):
             item = self.item_fixture(
                 {'data': self.data_asset, 'visual': self.visual_asset}
             )
             expected = self.visual_asset
 
-            actual = self.adapter.asset_from_item(item)
+            actual = self.adapter.get_asset_from_item(item)
 
             self.assertEqual(expected, actual)
 
@@ -189,26 +189,26 @@ class TestAdapterAssetFromItem(TestCase):
             )
             expected = self.visual_asset
 
-            actual = self.adapter.asset_from_item(item)
+            actual = self.adapter.get_asset_from_item(item)
 
             self.assertEqual(expected, actual)
 
-    def test_asset_from_item_with_data_role(self):
+    def test_get_asset_from_item_with_data_role(self):
         item = self.item_fixture({'data': self.data_asset, 'other': self.other_asset})
         expected = self.data_asset
 
-        actual = self.adapter.asset_from_item(item)
+        actual = self.adapter.get_asset_from_item(item)
 
         self.assertEqual(expected, actual)
 
-    def test_asset_from_item_no_roles(self):
+    def test_get_asset_from_item_no_roles(self):
         item = self.item_fixture({'none': self.none_asset})
         with self.assertRaises(StopIteration):
-            self.adapter.asset_from_item(item)
+            self.adapter.get_asset_from_item(item)
 
-    def test_asset_from_item_no_matching_roles(self):
+    def test_get_asset_from_item_no_matching_roles(self):
         item = self.item_fixture(
             {'first': self.other_asset, 'second': self.other_asset}
         )
         with self.assertRaises(StopIteration):
-            self.adapter.asset_from_item(item)
+            self.adapter.get_asset_from_item(item)
