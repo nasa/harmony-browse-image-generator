@@ -65,18 +65,39 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
                 'Harmony ScaleExtents must be in order [xmin,ymin,xmax,ymax].'
             )
 
+    def get_asset_from_item(self, item: Item) -> Asset:
+        """Returns the correct browse asset from a stac Item.
+
+        This is used to select which asset is used by HyBIG to generate
+        the browse image following these steps:
+
+        1. If found, return the first asset with 'visual' in any of the item's values' roles.
+        2. If found, return the first asset that has 'data' in its item's values' roles.
+        3. Raise a StopIteration error.
+
+        """
+        try:
+            return next(
+                item_asset
+                for item_asset in item.assets.values()
+                if 'visual' in (item_asset.roles or [])
+            )
+        except StopIteration:
+            return next(
+                item_asset
+                for item_asset in item.assets.values()
+                if 'data' in (item_asset.roles or [])
+            )
+
     def process_item(self, item: Item, source: HarmonySource) -> Item:
         """Processes a single input STAC item."""
+
         try:
             working_directory = mkdtemp()
             results = item.clone()
             results.assets = {}
 
-            asset = next(
-                item_asset
-                for item_asset in item.assets.values()
-                if 'data' in (item_asset.roles or [])
-            )
+            asset = self.get_asset_from_item(item)
 
             color_palette = get_color_palette_from_item(item)
 

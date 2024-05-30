@@ -1,7 +1,10 @@
+from datetime import datetime
 from unittest import TestCase
+from unittest.mock import Mock
 
 from harmony.message import Message
 from harmony.util import config
+from pystac import Asset, Item
 
 from harmony_browse_image_generator.adapter import BrowseImageGeneratorAdapter
 from harmony_browse_image_generator.exceptions import HyBIGInvalidMessageError
@@ -152,3 +155,60 @@ class TestAdapter(TestCase):
         self.assertEqual(
             output_stac_item.assets['auxiliary'].title, 'browse.png.aux.xml'
         )
+
+
+class TestAdapterAssetFromItem(TestCase):
+    """A class testing get_asset_from_item function."""
+
+    def setUp(self):
+        self.adapter = BrowseImageGeneratorAdapter({}, {})
+        self.visual_asset = Asset(Mock(), roles=['visual'])
+        self.data_asset = Asset(Mock(), roles=['data'])
+        self.none_asset = Asset(Mock(), roles=[])
+        self.other_asset = Asset(Mock(), roles=['other'])
+
+    def item_fixture(self, assets: dict) -> Item:
+        item = Item(Mock(), None, None, datetime.now(), {})
+        item.assets = assets
+        return item
+
+    def test_get_asset_from_item_with_visual_role(self):
+        with self.subTest('data asset first'):
+            item = self.item_fixture(
+                {'data': self.data_asset, 'visual': self.visual_asset}
+            )
+            expected = self.visual_asset
+
+            actual = self.adapter.get_asset_from_item(item)
+
+            self.assertEqual(expected, actual)
+
+        with self.subTest('visual asset first'):
+            item = self.item_fixture(
+                {'visual': self.visual_asset, 'data': self.data_asset}
+            )
+            expected = self.visual_asset
+
+            actual = self.adapter.get_asset_from_item(item)
+
+            self.assertEqual(expected, actual)
+
+    def test_get_asset_from_item_with_data_role(self):
+        item = self.item_fixture({'data': self.data_asset, 'other': self.other_asset})
+        expected = self.data_asset
+
+        actual = self.adapter.get_asset_from_item(item)
+
+        self.assertEqual(expected, actual)
+
+    def test_get_asset_from_item_no_roles(self):
+        item = self.item_fixture({'none': self.none_asset})
+        with self.assertRaises(StopIteration):
+            self.adapter.get_asset_from_item(item)
+
+    def test_get_asset_from_item_no_matching_roles(self):
+        item = self.item_fixture(
+            {'first': self.other_asset, 'second': self.other_asset}
+        )
+        with self.assertRaises(StopIteration):
+            self.adapter.get_asset_from_item(item)
