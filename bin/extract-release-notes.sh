@@ -12,7 +12,7 @@
 ###############################################################################
 
 CHANGELOG_FILE="CHANGELOG.md"
-VERSION_PATTERN="^## v"
+VERSION_PATTERN="^## \[v"
 
 # Read the file and extract text between the first two occurrences of the
 # VERSION_PATTERN
