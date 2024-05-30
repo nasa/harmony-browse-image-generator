@@ -158,7 +158,7 @@ class TestAdapter(TestCase):
 
 
 class TestAdapterAssetFromItem(TestCase):
-    """A class testing get_asset_from_item class."""
+    """A class testing get_asset_from_item function."""
 
     def setUp(self):
         self.adapter = BrowseImageGeneratorAdapter({}, {})
