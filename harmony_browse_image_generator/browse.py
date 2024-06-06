@@ -29,6 +29,7 @@ from harmony_browse_image_generator.color_utility import (
     TRANSPARENT,
     TRANSPARENT_IDX,
     TRANSPARENT_RGBA,
+    all_black_color_map,
     get_color_palette,
     remove_alpha,
 )
@@ -286,7 +287,7 @@ def get_color_map_from_image(image: Image) -> dict:
 
     """
     color_tuples = np.array(image.getpalette(rawmode='RGBA')).reshape(-1, 4)
-    color_map = {}
+    color_map = all_black_color_map()
     for idx in range(0, color_tuples.shape[0]):
         color_map[idx] = tuple(color_tuples[idx])
     return color_map
