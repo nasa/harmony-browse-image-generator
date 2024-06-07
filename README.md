@@ -197,7 +197,7 @@ environment via conda, and then install the necessary dependencies for the
 service within that environment via conda and pip then install the pre-commit hooks.
 
 ```
-> conda create -name hybig-env python==3.11
+> conda create --name hybig-env python==3.11
 > conda install --file conda_requirements.txt
 > pip install -r pip_requirements.txt
 > pip install -r dev-requirements.txt
