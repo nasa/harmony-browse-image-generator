@@ -631,11 +631,14 @@ class TestBrowse(TestCase):
         test_image.putpalette(palette_sequence, rawmode='RGBA')
 
         expected_color_map = {
-            0: (255, 0, 0, 255),
-            1: (0, 255, 0, 255),
-            2: (0, 0, 255, 255),
-            3: (225, 100, 25, 25),
-            4: (0, 0, 0, 0),
+            **{
+                0: (255, 0, 0, 255),
+                1: (0, 255, 0, 255),
+                2: (0, 0, 255, 255),
+                3: (225, 100, 25, 25),
+                4: (0, 0, 0, 0),
+            },
+            **{idx: (0, 0, 0, 255) for idx in range(5, 256)},
         }
 
         actual_color_map = get_color_map_from_image(test_image)
