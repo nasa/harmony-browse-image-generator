@@ -125,6 +125,11 @@ def get_remote_palette_from_source(source: HarmonySource) -> dict:
         raise HyBIGNoColorInformation('No color in source') from exc
 
 
+def all_black_color_map():
+    """Return a full length rgba color map with all black values."""
+    return {idx: (0, 0, 0, 255) for idx in range(256)}
+
+
 def convert_colormap_to_palette(colormap: dict) -> ColorPalette:
     """Convert a GeoTIFF palette to GDAL ColorPalette.
 
