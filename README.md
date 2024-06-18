@@ -138,7 +138,6 @@ also with units of degrees.
 |- CONTRIBUTING.md
 |- LICENSE
 |- README.md
-|- conda_requirements.txt
 |- dev-requirements.txt
 |- legacy-CHANGELOG.md
 |- pip_requirements.txt
@@ -173,9 +172,6 @@ also with units of degrees.
 
 * `README.md` - This file, containing guidance on developing the service.
 
-* `conda_requirements.txt` - A list of service dependencies, such as GDAL, that
-  cannot be installed via Pip.
-
 * `dev-requirements.txt` - list of packages required for service development.
 
 * `legacy-CHANGELOG.md` - Notes for each version that was previously released
@@ -193,12 +189,11 @@ regarding creation of a local Harmony instance.
 
 If testing small functions locally that do not require inputs from the main
 Harmony application, it is recommended that you create a Python virtual
-environment via conda, and then install the necessary dependencies for the
+environment, and then install the necessary dependencies for the
 service within that environment via conda and pip then install the pre-commit hooks.
 
 ```
 > conda create --name hybig-env python==3.11
-> conda install --file conda_requirements.txt
 > pip install -r pip_requirements.txt
 > pip install -r dev-requirements.txt
 
