@@ -141,6 +141,7 @@ also with units of degrees.
 |- dev-requirements.txt
 |- legacy-CHANGELOG.md
 |- pip_requirements.txt
+|- pip_requirements_skip_snyk.txt
 ```
 
 * `bin` - A directory containing utility scripts to build the service and test
@@ -180,6 +181,12 @@ also with units of degrees.
 
 * `pip_requirements.txt` - A list of service Python package dependencies.
 
+* `pip_requirements_skip_snyk.txt` - A list of service Python package
+   dependencies that are not scanned by snyk for vulnerabilities.  This file
+   contains only the `GDAL` package. It is separated because snyk's scanning is
+   naive and cannot pre-install required libraries so that `pip install GDAL`
+   fails and we have no work around.
+
 
 ## Local development:
 
@@ -194,7 +201,7 @@ service within that environment via conda and pip then install the pre-commit ho
 
 ```
 > conda create --name hybig-env python==3.11
-> pip install -r pip_requirements.txt
+> pip install -r pip_requirements.txt -r pip_requirements_skip_snyk.txt
 > pip install -r dev-requirements.txt
 
 > pre-commit install

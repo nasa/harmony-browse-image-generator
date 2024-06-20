@@ -21,17 +21,17 @@ RUN apt-get update
 RUN apt-get install -y libgdal-dev
 
 # Install Pip dependencies
-COPY pip_requirements.txt pip_requirements.txt
+COPY pip_requirements*.txt /home/
+
 RUN pip install --no-input --no-cache-dir \
-	-r pip_requirements.txt
+    -r pip_requirements.txt \
+    -r pip_requirements_skip_snyk.txt
 
 # Copy service code.
 COPY ./harmony_browse_image_generator harmony_browse_image_generator
 
-
 # Set GDAL related environment variables.
-ENV CPL_ZIP_ENCODING=UTF-8 \
-    GDAL_DATA=/usr/share/gdal
+ENV CPL_ZIP_ENCODING=UTF-8
 
 # Configure a container to be executable via the `docker run` command.
 ENTRYPOINT ["python", "-m", "harmony_browse_image_generator"]
