@@ -29,9 +29,10 @@ RUN pip install --no-input --no-cache-dir \
 
 # Copy service code.
 COPY ./harmony_browse_image_generator harmony_browse_image_generator
+COPY ./harmony_service_entry harmony_service_entry
 
 # Set GDAL related environment variables.
 ENV CPL_ZIP_ENCODING=UTF-8
 
 # Configure a container to be executable via the `docker run` command.
-ENTRYPOINT ["python", "-m", "harmony_browse_image_generator"]
+ENTRYPOINT ["python", "-m", "harmony_service_entry"]

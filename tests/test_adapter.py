@@ -14,16 +14,16 @@ from rasterio.transform import array_bounds, from_bounds
 from rasterio.warp import Resampling
 from rioxarray import open_rasterio
 
-from harmony_browse_image_generator.adapter import BrowseImageGeneratorAdapter
 from harmony_browse_image_generator.browse import (
     convert_mulitband_to_raster,
     prepare_raster_for_writing,
 )
+from harmony_service_entry.adapter import BrowseImageGeneratorAdapter
 from tests.utilities import Granule, create_stac
 
 
 class TestAdapter(TestCase):
-    """A class testing the harmony_browse_image_generator.adapter module."""
+    """A class testing the harmony_service_entry.adapter module."""
 
     @classmethod
     def setUpClass(cls):
@@ -99,10 +99,10 @@ class TestAdapter(TestCase):
         )
 
     @patch('harmony_browse_image_generator.browse.reproject')
-    @patch('harmony_browse_image_generator.adapter.rmtree')
-    @patch('harmony_browse_image_generator.adapter.mkdtemp')
-    @patch('harmony_browse_image_generator.adapter.download')
-    @patch('harmony_browse_image_generator.adapter.stage')
+    @patch('harmony_service_entry.adapter.rmtree')
+    @patch('harmony_service_entry.adapter.mkdtemp')
+    @patch('harmony_service_entry.adapter.download')
+    @patch('harmony_service_entry.adapter.stage')
     def test_valid_request_jpeg(
         self, mock_stage, mock_download, mock_mkdtemp, mock_rmtree, mock_reproject
     ):
@@ -334,10 +334,10 @@ class TestAdapter(TestCase):
         mock_rmtree.assert_called_once_with(self.temp_dir)
 
     @patch('harmony_browse_image_generator.browse.reproject')
-    @patch('harmony_browse_image_generator.adapter.rmtree')
-    @patch('harmony_browse_image_generator.adapter.mkdtemp')
-    @patch('harmony_browse_image_generator.adapter.download')
-    @patch('harmony_browse_image_generator.adapter.stage')
+    @patch('harmony_service_entry.adapter.rmtree')
+    @patch('harmony_service_entry.adapter.mkdtemp')
+    @patch('harmony_service_entry.adapter.download')
+    @patch('harmony_service_entry.adapter.stage')
     def test_valid_request_png(
         self, mock_stage, mock_download, mock_mkdtemp, mock_rmtree, mock_reproject
     ):

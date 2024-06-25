@@ -133,6 +133,7 @@ also with units of degrees.
 |- 📂 docker
 |- 📂 docs
 |- 📂 harmony_browse_image_generator
+|- 📂 harmony_service_entry
 |- 📂 tests
 |- CHANGELOG.md
 |- CONTRIBUTING.md
@@ -156,8 +157,12 @@ also with units of degrees.
 * `docs` - A directory with example usage notebooks.
 
 * `harmony_browse_image_generator` - A directory containing Python source code
-  for the HyBIG. `adapter.py` contains the `BrowseImageGeneratorAdapter`
-  class that is invoked by calls to the service.
+  for the HyBIG library.  This directory contains the business logic for
+  generating GIBS compatible browse images.
+
+* `harmony_service_entry` - A directory containing the Harmony Service specific
+  python code. `adapter.py` contains the `BrowseImageGeneratorAdapter` class
+  that is invoked by calls to the service.
 
 * `tests` - A directory containing the service unit test suite.
 
