@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - name: Checkout harmony-browse-image-generator repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           lfs: true
 
@@ -30,13 +30,13 @@ jobs:
         run: ./bin/run-test
 
       - name: Archive test results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Test results
           path: test-reports/
 
       - name: Archive coverage report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Coverage report
           path: coverage/*
