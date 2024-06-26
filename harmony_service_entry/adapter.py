@@ -23,16 +23,16 @@ from harmony.message_utility import (
 from harmony.util import bbox_to_geometry, download, generate_output_filename, stage
 from pystac import Asset, Catalog, Item
 
-from harmony_browse_image_generator import (
-    create_browse_imagery,
-    get_color_palette_from_item,
-)
-from harmony_browse_image_generator.exceptions import HyBIGInvalidMessageError
 from harmony_service_entry.utilities import (
     get_asset_name,
     get_file_mime_type,
     get_tiled_file_extension,
 )
+from hybig import (
+    create_browse_imagery,
+    get_color_palette_from_item,
+)
+from hybig.exceptions import HyBIGInvalidMessageError
 
 
 class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):

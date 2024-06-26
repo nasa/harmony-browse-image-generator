@@ -6,8 +6,8 @@ from harmony.message import Message
 from harmony.util import config
 from pystac import Asset, Item
 
-from harmony_browse_image_generator.exceptions import HyBIGInvalidMessageError
 from harmony_service_entry.adapter import BrowseImageGeneratorAdapter
+from hybig.exceptions import HyBIGInvalidMessageError
 from tests.utilities import Granule, create_stac
 
 

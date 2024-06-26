@@ -28,7 +28,7 @@ RUN pip install --no-input --no-cache-dir \
     -r pip_requirements_skip_snyk.txt
 
 # Copy service code.
-COPY ./harmony_browse_image_generator harmony_browse_image_generator
+COPY ./hybig hybig
 COPY ./harmony_service_entry harmony_service_entry
 
 # Set GDAL related environment variables.

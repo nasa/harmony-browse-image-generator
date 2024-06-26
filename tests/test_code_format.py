@@ -21,10 +21,10 @@ class TestCodeFormat(TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.python_files = Path('harmony_browse_image_generator').rglob('*.py')
+        cls.python_files = Path('hybig').rglob('*.py')
 
     def test_pycodestyle_adherence(self):
-        """Ensure all code in the `harmony_browse_image_generator` directory
+        """Ensure all code in the `hybig` directory
         adheres to PEP8 defined standard.
 
         """

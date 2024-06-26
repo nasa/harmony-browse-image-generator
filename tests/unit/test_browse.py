@@ -20,7 +20,7 @@ from rasterio.transform import array_bounds
 from rasterio.warp import Resampling
 from xarray import DataArray
 
-from harmony_browse_image_generator.browse import (
+from hybig.browse import (
     convert_mulitband_to_raster,
     convert_singleband_to_raster,
     create_browse_imagery,
@@ -33,19 +33,19 @@ from harmony_browse_image_generator.browse import (
     validate_file_crs,
     validate_file_type,
 )
-from harmony_browse_image_generator.color_utility import (
+from hybig.color_utility import (
     OPAQUE,
     TRANSPARENT,
     convert_colormap_to_palette,
     get_color_palette,
     palette_from_remote_colortable,
 )
-from harmony_browse_image_generator.exceptions import HyBIGError
+from hybig.exceptions import HyBIGError
 from tests.unit.utility import rasterio_test_file
 
 
 class TestBrowse(TestCase):
-    """A class testing the harmony_browse_image_generator.browse module."""
+    """A class testing the hybig.browse module."""
 
     @classmethod
     def setUpClass(cls):
@@ -146,9 +146,9 @@ class TestBrowse(TestCase):
                     message, test_tif_filename, HarmonySource({}), None, None
                 )
 
-    @patch('harmony_browse_image_generator.browse.reproject')
+    @patch('hybig.browse.reproject')
     @patch('rasterio.open')
-    @patch('harmony_browse_image_generator.browse.open_rasterio')
+    @patch('hybig.browse.open_rasterio')
     def test_create_browse_imagery_with_mocks(
         self, rioxarray_open_mock, rasterio_open_mock, reproject_mock
     ):
@@ -548,7 +548,7 @@ class TestBrowse(TestCase):
         self.assertEqual(expected_color_map, actual_color_map)
         np.testing.assert_array_equal(expected_raster, actual_raster)
 
-    @patch('harmony_browse_image_generator.browse.palettize_raster')
+    @patch('hybig.browse.palettize_raster')
     def test_prepare_raster_for_writing_png_4band(self, palettize_mock):
         raster = self.random.integers(255, size=(4, 7, 8))
         driver = 'PNG'
@@ -557,8 +557,8 @@ class TestBrowse(TestCase):
 
         palettize_mock.assert_called_once_with(raster)
 
-    @patch('harmony_browse_image_generator.browse.Image')
-    @patch('harmony_browse_image_generator.browse.get_color_map_from_image')
+    @patch('hybig.browse.Image')
+    @patch('hybig.browse.get_color_map_from_image')
     def test_palettize_raster_no_alpha_layer(self, get_color_map_mock, image_mock):
         """Test that the quantize function is called by a correct image."""
 
@@ -580,8 +580,8 @@ class TestBrowse(TestCase):
 
         np.testing.assert_array_equal(expected_out_raster, out_raster)
 
-    @patch('harmony_browse_image_generator.browse.Image')
-    @patch('harmony_browse_image_generator.browse.get_color_map_from_image')
+    @patch('hybig.browse.Image')
+    @patch('hybig.browse.get_color_map_from_image')
     def test_palettize_raster_with_alpha_layer(self, get_color_map_mock, image_mock):
         """Test that the quantize function is called by a correct image."""
 
@@ -747,7 +747,7 @@ class TestBrowse(TestCase):
         ):
             validate_file_type(ds)
 
-    @patch('harmony_browse_image_generator.color_utility.requests.get')
+    @patch('hybig.color_utility.requests.get')
     def test_palette_from_remote_colortable(self, mock_get):
         with self.subTest('successful retrieval of colortable'):
             returned_colortable = (

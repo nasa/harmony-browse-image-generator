@@ -12,12 +12,12 @@ from harmony.message import SRS
 from rasterio.crs import CRS
 from rioxarray import open_rasterio
 
-from harmony_browse_image_generator.crs import (
+from hybig.crs import (
     PREFERRED_CRS,
     choose_best_crs_from_metadata,
     choose_target_crs,
 )
-from harmony_browse_image_generator.exceptions import HyBIGInvalidMessageError
+from hybig.exceptions import HyBIGInvalidMessageError
 from tests.unit.utility import rasterio_test_file
 
 ## Test constants
@@ -128,7 +128,7 @@ class TestCrs(TestCase):
         with self.assertRaisesRegex(HyBIGInvalidMessageError, 'Bad input SRS'):
             choose_target_crs(test_srs_is_json, None)
 
-    @patch('harmony_browse_image_generator.crs.choose_crs_from_metadata')
+    @patch('hybig.crs.choose_crs_from_metadata')
     def test_choose_target_harmony_message_has_crs_but_no_srs(self, mock_choose_fxn):
         """Explicitly show we do not support format.crs only.
 

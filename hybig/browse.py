@@ -11,23 +11,6 @@ import rasterio
 from affine import dumpsw
 from harmony.message import Message as HarmonyMessage
 from harmony.message import Source as HarmonySource
-from harmony_browse_image_generator.color_utility import (
-    NODATA_IDX,
-    NODATA_RGBA,
-    OPAQUE,
-    TRANSPARENT,
-    TRANSPARENT_IDX,
-    TRANSPARENT_RGBA,
-    all_black_color_map,
-    get_color_palette,
-    remove_alpha,
-)
-from harmony_browse_image_generator.exceptions import HyBIGError
-from harmony_browse_image_generator.sizes import (
-    GridParams,
-    create_tiled_output_parameters,
-    get_target_grid_parameters,
-)
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 from numpy import ndarray
@@ -38,6 +21,24 @@ from rasterio.plot import reshape_as_image, reshape_as_raster
 from rasterio.warp import Resampling, reproject
 from rioxarray import open_rasterio
 from xarray import DataArray
+
+from hybig.color_utility import (
+    NODATA_IDX,
+    NODATA_RGBA,
+    OPAQUE,
+    TRANSPARENT,
+    TRANSPARENT_IDX,
+    TRANSPARENT_RGBA,
+    all_black_color_map,
+    get_color_palette,
+    remove_alpha,
+)
+from hybig.exceptions import HyBIGError
+from hybig.sizes import (
+    GridParams,
+    create_tiled_output_parameters,
+    get_target_grid_parameters,
+)
 
 
 def create_browse_imagery(

@@ -1,7 +1,6 @@
 [project]
-name = "hybig"
+name = "hybig-py"
 dynamic = ["dependencies", "version"]
-
 
 authors = [
   {name="Owen Littlejohns", email="owen.m.littlejohns@nasa.gov"},
@@ -37,13 +36,14 @@ pattern= '^v?(?P<version>.*)$' #
 
 [tool.hatch.build.targets.sdist]
 include = [
-  "harmony_browse_image_generator/*.py"
+  "hybig/*.py"
 ]
 exclude = [
   ".*",
 ]
+
 [tool.hatch.build.targets.wheel]
-packages=["harmony_browse_image_generator"]
+packages=["hybig"]
 
 [tool.black]
 skip-string-normalization = 1

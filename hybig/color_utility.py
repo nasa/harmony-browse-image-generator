@@ -10,13 +10,14 @@ from typing import TYPE_CHECKING
 import numpy as np
 import requests
 from harmony.message import Source as HarmonySource
-from harmony_browse_image_generator.exceptions import (
-    HyBIGError,
-    HyBIGNoColorInformation,
-)
 from osgeo_utils.auxiliary.color_palette import ColorPalette
 from pystac import Item
 from rasterio.io import DatasetReader
+
+from hybig.exceptions import (
+    HyBIGError,
+    HyBIGNoColorInformation,
+)
 
 # Constants for output PNG images
 # Applied to transparent pixels where alpha < 255

@@ -14,11 +14,11 @@ from rasterio.transform import array_bounds, from_bounds
 from rasterio.warp import Resampling
 from rioxarray import open_rasterio
 
-from harmony_browse_image_generator.browse import (
+from harmony_service_entry.adapter import BrowseImageGeneratorAdapter
+from hybig.browse import (
     convert_mulitband_to_raster,
     prepare_raster_for_writing,
 )
-from harmony_service_entry.adapter import BrowseImageGeneratorAdapter
 from tests.utilities import Granule, create_stac
 
 
@@ -98,7 +98,7 @@ class TestAdapter(TestCase):
             },
         )
 
-    @patch('harmony_browse_image_generator.browse.reproject')
+    @patch('hybig.browse.reproject')
     @patch('harmony_service_entry.adapter.rmtree')
     @patch('harmony_service_entry.adapter.mkdtemp')
     @patch('harmony_service_entry.adapter.download')
@@ -333,7 +333,7 @@ class TestAdapter(TestCase):
         # Ensure container clean-up was requested:
         mock_rmtree.assert_called_once_with(self.temp_dir)
 
-    @patch('harmony_browse_image_generator.browse.reproject')
+    @patch('hybig.browse.reproject')
     @patch('harmony_service_entry.adapter.rmtree')
     @patch('harmony_service_entry.adapter.mkdtemp')
     @patch('harmony_service_entry.adapter.download')

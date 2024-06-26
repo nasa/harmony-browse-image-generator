@@ -9,7 +9,7 @@ from harmony_service_entry.utilities import (
 
 
 class TestUtilities(TestCase):
-    """A class testing the harmony_browse_image_generator.utilities module."""
+    """A class testing the hybig.utilities module."""
 
     def test_get_file_mime_type(self):
         """Ensure a MIME type can be retrieved from an input file path."""

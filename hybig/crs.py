@@ -11,12 +11,13 @@ Format object.
 """
 
 from harmony.message import SRS
-from harmony_browse_image_generator.exceptions import HyBIGInvalidMessageError
 from pyproj.crs import CRS as pyCRS
 
 # pylint: disable-next=no-name-in-module
 from rasterio.crs import CRS
 from xarray import DataArray
+
+from hybig.exceptions import HyBIGInvalidMessageError
 
 # These are the CRSs that GIBS will accept as input. When the user hasn't
 # directly specified an output CRS, the code will attempt to choose the best

@@ -10,9 +10,9 @@ from rasterio import Affine
 from rasterio.crs import CRS
 from rioxarray import open_rasterio
 
-from harmony_browse_image_generator.crs import PREFERRED_CRS
-from harmony_browse_image_generator.exceptions import HyBIGValueError
-from harmony_browse_image_generator.sizes import (
+from hybig.crs import PREFERRED_CRS
+from hybig.exceptions import HyBIGValueError
+from hybig.sizes import (
     METERS_PER_DEGREE,
     ScaleExtent,
     best_guess_target_dimensions,
@@ -299,8 +299,8 @@ class TestTiling(TestCase):
 
         self.assertEqual(expected_dimensions, actual_dimensions)
 
-    @patch('harmony_browse_image_generator.sizes.get_cells_per_tile')
-    @patch('harmony_browse_image_generator.sizes.needs_tiling')
+    @patch('hybig.sizes.get_cells_per_tile')
+    @patch('hybig.sizes.needs_tiling')
     def test_create_tile_output_parameters(
         self, needs_tiling_mock, cells_per_tile_mock
     ):
@@ -475,7 +475,7 @@ class TestChooseTargetDimensions(TestCase):
         actual_dimensions = choose_target_dimensions(message, None, scale_extent, None)
         self.assertDictEqual(expected_dimensions, actual_dimensions)
 
-    @patch('harmony_browse_image_generator.sizes.best_guess_target_dimensions')
+    @patch('hybig.sizes.best_guess_target_dimensions')
     def test_message_has_no_information(self, mock_best_guess_target_dimensions):
         """Test message with no information gets sent to best guess."""
         message = Message({})
@@ -489,7 +489,7 @@ class TestChooseTargetDimensions(TestCase):
             dataset, scale_extent, target_crs
         )
 
-    @patch('harmony_browse_image_generator.sizes.best_guess_target_dimensions')
+    @patch('hybig.sizes.best_guess_target_dimensions')
     def test_message_has_just_one_dimension(self, mock_best_guess_target_dimensions):
         """Message with only one dimension.
 
