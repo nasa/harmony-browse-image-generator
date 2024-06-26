@@ -1,3 +1,6 @@
+"""Ensure code formatting."""
+
+from itertools import chain
 from pathlib import Path
 from unittest import TestCase
 
@@ -19,15 +22,14 @@ class TestCodeFormat(TestCase):
                   from PEP8 for these errors.
     """
 
-    @classmethod
-    def setUpClass(cls):
-        cls.python_files = Path('hybig').rglob('*.py')
-
     def test_pycodestyle_adherence(self):
-        """Ensure all code in the `hybig` directory
-        adheres to PEP8 defined standard.
+        """Check files for PEP8 compliance."""
+        python_files = chain(
+            Path('hybig').rglob('*.py'),
+            Path('harmony_service_entry').rglob('*.py'),
+            Path('tests').rglob('*.py'),
+        )
 
-        """
         style_guide = StyleGuide(ignore=['E501', 'W503', 'E203', 'E701'])
-        results = style_guide.check_files(self.python_files)
+        results = style_guide.check_files(python_files)
         self.assertEqual(results.total_errors, 0, 'Found code style issues.')

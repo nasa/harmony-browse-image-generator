@@ -20,7 +20,7 @@ from hybig.crs import (
 from hybig.exceptions import HyBIGValueError
 from tests.unit.utility import rasterio_test_file
 
-## Test constants
+# Test constants
 WKT_EPSG_3031 = (
     'PROJCS["WGS 84 / Antarctic Polar Stereographic",'
     'GEOGCS["WGS 84",DATUM["WGS_1984",'
