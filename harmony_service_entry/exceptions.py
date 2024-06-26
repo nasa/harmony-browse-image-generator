@@ -5,7 +5,6 @@ from harmony.util import HarmonyException
 SERVICE_NAME = 'harmony-browse-image-generator'
 
 
-# TODO: rename as hybigserviceerror.
 class HyBIGServiceError(HarmonyException):
     """Base service exception."""
 

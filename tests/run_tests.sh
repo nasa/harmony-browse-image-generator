@@ -35,7 +35,7 @@ coverage html --omit="tests/*" -d tests/coverage
 # W1203 - use of f-strings in log statements. This warning is leftover from
 #         using ''.format() vs % notation. For more information, see:
 #     	  https://github.com/PyCQA/pylint/issues/2354#issuecomment-414526879
-pylint hybig --disable=W1203
+pylint hybig harmony_service_entry --disable=W1203
 RESULT=$?
 RESULT=$((3 & $RESULT))
 

@@ -5,8 +5,8 @@ from sys import argv
 
 from harmony import is_harmony_cli, run_cli, setup_cli
 
-from harmony_service_entry.adapter import BrowseImageGeneratorAdapter
-from harmony_service_entry.exception import SERVICE_NAME
+from .adapter import BrowseImageGeneratorAdapter
+from .exceptions import SERVICE_NAME
 
 
 def main(arguments: list[str]):
