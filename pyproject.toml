@@ -1,0 +1,68 @@
+[project]
+name = "browse-image-generator"
+dynamic = ["dependencies", "version"]
+
+
+authors = [
+  {name="Owen Littlejohns", email="owen.m.littlejohns@nasa.gov"},
+  {name="Matt Savoie", email="savoie@colorado.edu"},
+]
+description = "Python package designed to produce browse imagery compatible with NASA's Global Image Browse Services (GIBS)."
+
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/nasa/harmony-browse-image-generator"
+Issues = "https://github.com/nasa/harmony-browse-image-generator/issues"
+
+[build-system]
+requires = ["hatchling", "hatch-requirements-txt"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata.hooks.requirements_txt]
+files = [
+    "pip_requirements.txt",
+    "pip_requirements_skip_snyk.txt"
+]
+[tool.hatch.version]
+path = "docker/service_version.txt"
+pattern= '^v?(?P<version>.*)$' #
+
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "harmony_browse_image_generator/*.py"
+]
+exclude = [
+  ".*",
+]
+[tool.hatch.build.targets.wheel]
+packages=["harmony_browse_image_generator"]
+
+[tool.black]
+skip-string-normalization = 1
+
+[tool.isort]
+profile = "black"
+
+[tool.ruff]
+lint.select = [
+  "E",   # pycodestyle
+  "F",   # pyflakes
+  "UP",  # pyupgrade
+  "I",   # organize imports
+  "D",   # docstyle
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[[tool.mypy.overrides]]
+module = "harmony.*,matplotlib.*,rasterio.*,osgeo_utils.*,pystac.*,affine.*,pycodestyle.*,imagequant.*,PIL.*,rioxarray.*, xarray.*"
+ignore_missing_imports = true
