@@ -17,7 +17,7 @@ from hybig.crs import (
     choose_best_crs_from_metadata,
     choose_target_crs,
 )
-from hybig.exceptions import HyBIGInvalidMessageError
+from hybig.exceptions import HyBIGValueError
 from tests.unit.utility import rasterio_test_file
 
 ## Test constants
@@ -125,7 +125,7 @@ class TestCrs(TestCase):
     def test_choose_target_crs_with_invalid_SRS_from_harmony_message(self):
         """Test SRS does not have epsg, wkt or proj4 string."""
         test_srs_is_json = {'how': 'did this happen?'}
-        with self.assertRaisesRegex(HyBIGInvalidMessageError, 'Bad input SRS'):
+        with self.assertRaisesRegex(HyBIGValueError, 'Bad input SRS'):
             choose_target_crs(test_srs_is_json, None)
 
     @patch('hybig.crs.choose_crs_from_metadata')

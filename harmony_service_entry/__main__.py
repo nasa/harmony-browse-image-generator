@@ -6,7 +6,7 @@ from sys import argv
 from harmony import is_harmony_cli, run_cli, setup_cli
 
 from harmony_service_entry.adapter import BrowseImageGeneratorAdapter
-from hybig import SERVICE_NAME
+from harmony_service_entry.exception import SERVICE_NAME
 
 
 def main(arguments: list[str]):

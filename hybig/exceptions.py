@@ -1,36 +1,17 @@
-""" Module defining custom exceptions, designed to return user-friendly error
-    messaging to the end-user.
-
-"""
-
-from harmony.util import HarmonyException
-
-SERVICE_NAME = 'harmony-browse-image-generator'
+"""Module defining custom exceptions."""
 
 
-class HyBIGError(HarmonyException):
-    """Base service exception."""
+class HyBIGError(Exception):
+    """Base error class for exceptions rasied by HyBIG library."""
 
     def __init__(self, message=None):
-        super().__init__(message, SERVICE_NAME)
+        """All HyBIG errors have a message field."""
+        self.message = message
 
 
-class HyBIGNoColorInformation(HarmonyException):
+class HyBIGNoColorInformation(HyBIGError):
     """Used to describe missing color information."""
 
-    def __init__(self, message=None):
-        super().__init__(message, SERVICE_NAME)
 
-
-class HyBIGInvalidMessageError(HarmonyException):
-    """Input Harmony Message could not be used as presented."""
-
-    def __init__(self, message=None):
-        super().__init__(message, SERVICE_NAME)
-
-
-class HyBIGValueError(HarmonyException):
+class HyBIGValueError(HyBIGError):
     """Input was incorrect for the routine."""
-
-    def __init__(self, message=None):
-        super().__init__(message, SERVICE_NAME)

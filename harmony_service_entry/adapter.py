@@ -23,6 +23,7 @@ from harmony.message_utility import (
 from harmony.util import bbox_to_geometry, download, generate_output_filename, stage
 from pystac import Asset, Catalog, Item
 
+from harmony_service_entry.exceptions import HyBIGInvalidMessageError, HyBIGServiceError
 from harmony_service_entry.utilities import (
     get_asset_name,
     get_file_mime_type,
@@ -32,7 +33,6 @@ from hybig import (
     create_browse_imagery,
     get_color_palette_from_item,
 )
-from hybig.exceptions import HyBIGInvalidMessageError
 
 
 class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
@@ -142,7 +142,7 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
 
         except Exception as exception:
             self.logger.exception(exception)
-            raise exception
+            raise HyBIGServiceError from exception
         finally:
             rmtree(working_directory)
 
