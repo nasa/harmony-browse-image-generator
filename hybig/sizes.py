@@ -15,14 +15,6 @@ import numpy as np
 from affine import Affine
 from harmony.message import Message
 from harmony.message_utility import has_dimensions, has_scale_extents, has_scale_sizes
-from pyproj import Transformer
-from pyproj.crs import CRS as pyCRS
-
-# pylint: disable-next=no-name-in-module
-from rasterio.crs import CRS
-from rasterio.transform import AffineTransformer, from_bounds, from_origin
-from xarray import DataArray
-
 from harmony_browse_image_generator.crs import (
     PREFERRED_CRS,
     choose_best_crs_from_metadata,
@@ -30,6 +22,13 @@ from harmony_browse_image_generator.crs import (
     is_preferred_crs,
 )
 from harmony_browse_image_generator.exceptions import HyBIGValueError
+from pyproj import Transformer
+from pyproj.crs import CRS as pyCRS
+
+# pylint: disable-next=no-name-in-module
+from rasterio.crs import CRS
+from rasterio.transform import AffineTransformer, from_bounds, from_origin
+from xarray import DataArray
 
 
 class GridParams(TypedDict):

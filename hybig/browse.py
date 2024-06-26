@@ -11,17 +11,6 @@ import rasterio
 from affine import dumpsw
 from harmony.message import Message as HarmonyMessage
 from harmony.message import Source as HarmonySource
-from matplotlib.cm import ScalarMappable
-from matplotlib.colors import Normalize
-from numpy import ndarray
-from osgeo_utils.auxiliary.color_palette import ColorPalette
-from PIL import Image
-from rasterio.io import DatasetReader
-from rasterio.plot import reshape_as_image, reshape_as_raster
-from rasterio.warp import Resampling, reproject
-from rioxarray import open_rasterio
-from xarray import DataArray
-
 from harmony_browse_image_generator.color_utility import (
     NODATA_IDX,
     NODATA_RGBA,
@@ -39,6 +28,16 @@ from harmony_browse_image_generator.sizes import (
     create_tiled_output_parameters,
     get_target_grid_parameters,
 )
+from matplotlib.cm import ScalarMappable
+from matplotlib.colors import Normalize
+from numpy import ndarray
+from osgeo_utils.auxiliary.color_palette import ColorPalette
+from PIL import Image
+from rasterio.io import DatasetReader
+from rasterio.plot import reshape_as_image, reshape_as_raster
+from rasterio.warp import Resampling, reproject
+from rioxarray import open_rasterio
+from xarray import DataArray
 
 
 def create_browse_imagery(
