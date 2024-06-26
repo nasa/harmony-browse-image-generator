@@ -1,4 +1,4 @@
-""" Module containing utility functionality. """
+"""Module containing service utility functionality."""
 
 import re
 from mimetypes import guess_type as guess_mime_type

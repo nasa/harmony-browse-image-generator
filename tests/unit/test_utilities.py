@@ -1,7 +1,7 @@
 from pathlib import Path
 from unittest import TestCase
 
-from harmony_browse_image_generator.utilities import (
+from harmony_service_entry.utilities import (
     get_asset_name,
     get_file_mime_type,
     get_tiled_file_extension,

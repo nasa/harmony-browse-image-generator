@@ -23,10 +23,12 @@ from harmony.message_utility import (
 from harmony.util import bbox_to_geometry, download, generate_output_filename, stage
 from pystac import Asset, Catalog, Item
 
-from harmony_browse_image_generator.browse import create_browse_imagery
-from harmony_browse_image_generator.color_utility import get_color_palette_from_item
+from harmony_browse_image_generator import (
+    create_browse_imagery,
+    get_color_palette_from_item,
+)
 from harmony_browse_image_generator.exceptions import HyBIGInvalidMessageError
-from harmony_browse_image_generator.utilities import (
+from harmony_service_entry.utilities import (
     get_asset_name,
     get_file_mime_type,
     get_tiled_file_extension,
@@ -34,10 +36,7 @@ from harmony_browse_image_generator.utilities import (
 
 
 class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
-    """This class extends the BaseHarmonyAdapter class from the
-    harmony-service-lib package to implement HyBIG operations.
-
-    """
+    """HyBIG extention to the harmony-service-lib BaseHarmonyAdapter."""
 
     def invoke(self) -> Catalog:
         """Adds validation to process_item based invocations."""
@@ -91,7 +90,6 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
 
     def process_item(self, item: Item, source: HarmonySource) -> Item:
         """Processes a single input STAC item."""
-
         try:
             working_directory = mkdtemp()
             results = item.clone()
