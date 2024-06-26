@@ -240,7 +240,7 @@ def prepare_raster_for_writing(
 
 
 def palettize_raster(raster: ndarray) -> tuple[ndarray, dict]:
-    """convert an RGB or RGBA image into a 1band image and palette.
+    """Convert an RGB or RGBA image into a 1band image and palette.
 
     Converts a 3 or 4 band np raster into a PIL image.
     Quantizes the image into a 1band raster with palette
@@ -271,7 +271,8 @@ def add_alpha(
     alpha: ndarray | None, quantized_array: ndarray, color_map: dict
 ) -> tuple[ndarray, dict]:
     """If the input data had alpha values, manually set the quantized_image
-    index to the transparent index in those places."""
+    index to the transparent index in those places.
+    """
     if alpha is not None and np.any(alpha != OPAQUE):
         # Set any alpha to the transparent index value
         quantized_array = np.where(alpha != OPAQUE, TRANSPARENT_IDX, quantized_array)
@@ -294,7 +295,7 @@ def get_color_map_from_image(image: Image) -> dict:
 
 
 def get_aux_xml_filename(image_filename: Path) -> Path:
-    """get aux.xml filenames."""
+    """Get aux.xml filenames."""
     return image_filename.with_suffix(image_filename.suffix + '.aux.xml')
 
 

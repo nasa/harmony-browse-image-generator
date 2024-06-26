@@ -26,8 +26,7 @@ class TestUtilities(TestCase):
             self.assertIsNone(get_file_mime_type('file.xyzzyx'))
 
     def test_get_tiled_file_extension(self):
-        """ensure correct extensions are extracted"""
-
+        """Ensure correct extensions are extracted"""
         test_params = [
             (Path('/tmp/tmp4w/14316c44a.r00c02.png.aux.xml'), '.r00c02.png.aux.xml'),
             (Path('/tmp/tmp4w/14316c44a.png.aux.xml'), '.png.aux.xml'),
@@ -45,8 +44,7 @@ class TestUtilities(TestCase):
             self.assertEqual(expected_extension, actual_extension)
 
     def test_get_asset_name(self):
-        """ensure correct asset names are generated"""
-
+        """Ensure correct asset names are generated"""
         test_params = [
             (
                 ('name', 'https://tmp_bucket/tmp4w/14316c44a.r00c02.png.aux.xml'),

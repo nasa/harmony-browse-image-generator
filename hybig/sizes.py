@@ -15,8 +15,6 @@ import numpy as np
 from affine import Affine
 from harmony.message import Message
 from harmony.message_utility import has_dimensions, has_scale_extents, has_scale_sizes
-from pyproj import Transformer
-from pyproj.crs import CRS as pyCRS
 
 # pylint: disable-next=no-name-in-module
 from rasterio.crs import CRS
@@ -24,12 +22,8 @@ from rasterio.transform import AffineTransformer, from_bounds, from_origin
 from xarray import DataArray
 
 from hybig.crs import (
-    PREFERRED_CRS,
-    choose_best_crs_from_metadata,
     choose_target_crs,
-    is_preferred_crs,
 )
-from hybig.exceptions import HyBIGValueError
 
 
 class GridParams(TypedDict):
@@ -281,7 +275,7 @@ def create_tiled_output_parameters(
 
 
 def compute_tile_dimensions(origins: list[int]) -> list[int]:
-    """return a list of tile dimensions.
+    """Return a list of tile dimensions.
 
     From a list of origin locations, return the dimension for each tile.
 
@@ -290,7 +284,7 @@ def compute_tile_dimensions(origins: list[int]) -> list[int]:
 
 
 def compute_tile_boundaries(target_size: int, full_size: int) -> list[int]:
-    """returns a list of boundary cells.
+    """Returns a list of boundary cells.
 
     The returned boundary cells are the column [or row] values for each of the
     output tiles. They should always start at 0, and end at the full_size
@@ -308,7 +302,7 @@ def compute_tile_boundaries(target_size: int, full_size: int) -> list[int]:
 
 
 def get_cells_per_tile() -> int:
-    """optimum cells per tile.
+    """Optimum cells per tile.
 
     From discussions this is chosen to be 4096, so that any image that is tiled
     will end up with 4096x4096 gridcell tiles.

@@ -5,8 +5,6 @@ that are used to generate browse images.
 
 """
 
-from typing import TYPE_CHECKING
-
 import numpy as np
 import requests
 from harmony.message import Source as HarmonySource
@@ -32,7 +30,7 @@ NODATA_IDX = 255
 
 
 def remove_alpha(raster: np.ndarray) -> tuple[np.ndarray, np.ndarray, None]:
-    """remove alpha layer when it exists."""
+    """Remove alpha layer when it exists."""
     if raster.shape[0] == 4:
         return raster[0:3, :, :], raster[3, :, :]
     return raster, None

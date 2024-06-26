@@ -11,7 +11,6 @@ from rasterio.crs import CRS
 from rioxarray import open_rasterio
 
 from hybig.crs import PREFERRED_CRS
-from hybig.exceptions import HyBIGValueError
 from hybig.sizes import (
     METERS_PER_DEGREE,
     ScaleExtent,
@@ -120,7 +119,7 @@ class TestGetTargetGridParameters(TestCase):
         self.assertDictEqual(expected_parameters, actual_parameters)
 
     def test_grid_parameters_from_harmony_no_message_information(self):
-        """input granule is in preferred_crs on a 25km grid"""
+        """Input granule is in preferred_crs on a 25km grid"""
         crs = CRS.from_epsg(sp_seaice_grid['epsg'])
         height = sp_seaice_grid['height']
         width = sp_seaice_grid['width']
@@ -255,14 +254,14 @@ class TestTiling(TestCase):
             self.assertFalse(needs_tiling(grid_parameters))
 
     def test_get_cells_per_tile(self):
-        """test how tiles sizes are generated."""
+        """Test how tiles sizes are generated."""
         expected_cells_per_tile = self.CELLS_PER_TILE
         actual_cells_per_tile = get_cells_per_tile()
         self.assertEqual(expected_cells_per_tile, actual_cells_per_tile)
         self.assertIsInstance(actual_cells_per_tile, int)
 
     def test_compute_tile_boundaries_exact(self):
-        """tests subdivision of output image."""
+        """Tests subdivision of output image."""
         cells_per_tile = 10
         full_width = 10 * 4
         expected_origins = [0.0, 10.0, 20.0, 30.0, 40.0]
@@ -272,7 +271,7 @@ class TestTiling(TestCase):
         self.assertEqual(expected_origins, actual_origins)
 
     def test_compute_tile_boundaries_with_leftovers(self):
-        """tests subdivision of output image."""
+        """Tests subdivision of output image."""
         cells_per_tile = 10
         full_width = 10 * 4 + 3
         expected_origins = [0.0, 10.0, 20.0, 30.0, 40.0, 43.0]
@@ -282,7 +281,7 @@ class TestTiling(TestCase):
         self.assertEqual(expected_origins, actual_origins)
 
     def test_compute_tile_dimensions_uniform(self):
-        """test tile dimensions."""
+        """Test tile dimensions."""
         tile_origins = [0.0, 10.0, 20.0, 30.0, 40.0, 43.0]
         expected_dimensions = [10.0, 10.0, 10.0, 10.0, 3.0, 0.0]
 
@@ -291,7 +290,7 @@ class TestTiling(TestCase):
         self.assertEqual(expected_dimensions, actual_dimensions)
 
     def test_compute_tile_dimensions_nonuniform(self):
-        """test tile dimensions."""
+        """Test tile dimensions."""
         tile_origins = [0.0, 20.0, 35.0, 40.0, 43.0]
         expected_dimensions = [20.0, 15.0, 5.0, 3.0, 0.0]
 
@@ -425,7 +424,6 @@ class TestChooseScaleExtent(TestCase):
 
     def test_scale_extent_from_input_image_and_no_crs_transformation(self):
         """Ensure no change of output extent when src_crs == target_crs"""
-
         with open_rasterio(
             self.fixtures / 'RGB.byte.small.tif', mode='r', mask_and_scale=True
         ) as in_array:

@@ -34,7 +34,6 @@ def get_asset_name(name: str, url: str) -> str:
     dictionary.
 
     """
-
     tiled_pattern = r"\.(r\d+c\d+)\."
     tile_id = re.search(tiled_pattern, url)
     if tile_id is not None:

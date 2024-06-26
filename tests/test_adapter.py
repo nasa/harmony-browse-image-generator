@@ -1,4 +1,4 @@
-""" End-to-end tests of the Harmony Browse Image Generator (HyBIG). """
+"""End-to-end tests of the Harmony Browse Image Generator (HyBIG)."""
 
 from pathlib import Path
 from shutil import copy, rmtree
@@ -137,7 +137,7 @@ class TestAdapter(TestCase):
         mock_mkdtemp.return_value = self.temp_dir
 
         def move_tif(*args, **kwargs):
-            """copy fixture tiff to download location."""
+            """Copy fixture tiff to download location."""
             copy(self.red_tif_fixture, expected_downloaded_file)
             return expected_downloaded_file
 
@@ -372,7 +372,7 @@ class TestAdapter(TestCase):
         mock_mkdtemp.return_value = self.temp_dir
 
         def move_tif(*args, **kwargs):
-            """copy fixture tiff to download location."""
+            """Copy fixture tiff to download location."""
             copy(self.red_tif_fixture, expected_downloaded_file)
             return expected_downloaded_file
 

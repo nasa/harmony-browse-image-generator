@@ -1,4 +1,4 @@
-""" Unit tests for browse module. """
+"""Unit tests for browse module."""
 
 import shutil
 import tempfile
@@ -304,7 +304,6 @@ class TestBrowse(TestCase):
 
     def test_convert_singleband_to_raster_without_colortable(self):
         """Tests convert_gray_1band_to_raster."""
-
         return_data = np.copy(self.data).astype('float64')
         return_data[0][1] = np.nan
         ds = DataArray(return_data).expand_dims('band')
@@ -561,7 +560,6 @@ class TestBrowse(TestCase):
     @patch('hybig.browse.get_color_map_from_image')
     def test_palettize_raster_no_alpha_layer(self, get_color_map_mock, image_mock):
         """Test that the quantize function is called by a correct image."""
-
         raster = self.random.integers(255, dtype='uint8', size=(3, 10, 11))
 
         quantized_output = Image.fromarray(
@@ -584,7 +582,6 @@ class TestBrowse(TestCase):
     @patch('hybig.browse.get_color_map_from_image')
     def test_palettize_raster_with_alpha_layer(self, get_color_map_mock, image_mock):
         """Test that the quantize function is called by a correct image."""
-
         raster = self.random.integers(255, dtype='uint8', size=(4, 10, 11))
         # No transparent pixels
         raster[3, :, :] = 255
@@ -714,7 +711,7 @@ class TestBrowse(TestCase):
             self.assertEqual(expected_filename, actual_filename)
 
     def test_validate_file_crs_valid(self):
-        """valid file should return None."""
+        """Valid file should return None."""
         da = Mock(DataArray)
         da.rio.crs = CRS.from_epsg(4326)
         try:
@@ -723,14 +720,14 @@ class TestBrowse(TestCase):
             self.fail('Valid file threw unexpected exception.')
 
     def test_validate_file_crs_missing(self):
-        """invalid file should raise exception."""
+        """Invalid file should raise exception."""
         da = Mock(DataArray)
         da.rio.crs = None
         with self.assertRaisesRegex(HyBIGError, 'Input geotiff must have defined CRS.'):
             validate_file_crs(da)
 
     def test_validate_file_type_valid(self):
-        """validation should not raise exception."""
+        """Validation should not raise exception."""
         ds = Mock(DatasetReader)
         ds.driver = 'GTiff'
         try:

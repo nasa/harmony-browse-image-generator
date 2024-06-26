@@ -1,9 +1,9 @@
-""" `HarmonyAdapter` for Harmony Browse Image Generator (HyBIG).
+"""`HarmonyAdapter` for Harmony Browse Image Generator (HyBIG).
 
-    The class in this file is the top level of abstraction for a service that
-    will accept a GeoTIFF input and create a browse image (PNG/JPEG) and
-    accompanying ESRI world file. By default, this service will aim to create
-    Global Imagery Browse Services (GIBS) compatible browse imagery.
+The class in this file is the top level of abstraction for a service that
+will accept a GeoTIFF input and create a browse image (PNG/JPEG) and
+accompanying ESRI world file. By default, this service will aim to create
+Global Imagery Browse Services (GIBS) compatible browse imagery.
 
 """
 
@@ -153,7 +153,6 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
         message.
 
         """
-
         ext = get_tiled_file_extension(transformed_file)
         output_file_name = generate_output_filename(input_file, ext=ext)
 
