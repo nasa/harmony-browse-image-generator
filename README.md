@@ -1,8 +1,9 @@
 # Harmony Browse Image Generator (HyBIG).
 
-This Harmony backend service is designed to produce browse imagery, with
-default behaviour to produce browse imagery that is compatible with the NASA
-Global Image Browse Services ([GIBS](https://www.earthdata.nasa.gov/eosdis/science-system-description/eosdis-components/gibs)).
+This library is designed to produce browse imagery, with default behaviours to
+produce browse imagery that is compatible with the NASA Global Image Browse
+Services
+([GIBS](https://www.earthdata.nasa.gov/eosdis/science-system-description/eosdis-components/gibs)).
 
 This means that defaults for images are selected to match the visualization
 generation requirements and recommendations put forth in the GIBS Interface
@@ -143,22 +144,25 @@ also with units of degrees.
 |- legacy-CHANGELOG.md
 |- pip_requirements.txt
 |- pip_requirements_skip_snyk.txt
+|- pyproject.toml
+
 ```
 
 * `bin` - A directory containing utility scripts to build the service and test
-  images. A script to extract the release notes for the most recent service
-  version, as contained in `CHANGELOG.md` is also in this directory.
+  images. A script to extract the release notes for the most recent version, as
+  contained in `CHANGELOG.md` is also in this directory.
 
 * `docker` - A directory containing the Dockerfiles for the service and test
   images. It also contains `service_version.txt`, which contains the semantic
-  version number of the service image. Any time an update is made that should
-  have an accompanying service image release, this file should be updated.
+  version number of the library and service image. Any time an update is made
+  that should have an accompanying library and service image release, this file
+  should be updated.
 
 * `docs` - A directory with example usage notebooks.
 
-* `hybig` - A directory containing Python source code
-  for the HyBIG library.  This directory contains the business logic for
-  generating GIBS compatible browse images.
+* `hybig` - A directory containing Python source code for the HyBIG library.
+  This directory contains the business logic for generating GIBS compatible
+  browse images.
 
 * `harmony_service_entry` - A directory containing the Harmony Service specific
   python code. `adapter.py` contains the `BrowseImageGeneratorAdapter` class
@@ -167,8 +171,8 @@ also with units of degrees.
 * `tests` - A directory containing the service unit test suite.
 
 * `CHANGELOG.md` - This file contains a record of changes applied to each new
-  release of a service Docker image. Any release of a new service version
-  should have a record of what was changed in this file.
+  release of HyBIG. Any release of a new service version should have a record
+  of what was changed in this file.
 
 * `CONTRIBUTING.md` - This file contains guidance for making contributions to
   HyBIG, including recommended git best practices.
@@ -176,9 +180,11 @@ also with units of degrees.
 * `LICENSE` - Required for distribution under NASA open-source
   approval. Details conditions for use, reproduction and distribution.
 
-* `README.md` - This file, containing guidance on developing the service.
+* `README.md` - This file, containing guidance on developing the library and
+  service.
 
-* `dev-requirements.txt` - list of packages required for service development.
+* `dev-requirements.txt` - list of packages required for library and service
+  development.
 
 * `legacy-CHANGELOG.md` - Notes for each version that was previously released
   internally to EOSDIS, prior to open-source publication of the code and Docker
@@ -192,17 +198,22 @@ also with units of degrees.
    naive and cannot pre-install required libraries so that `pip install GDAL`
    fails and we have no work around.
 
+* `pyproject.toml` - Configuration file used by packaging tools, as well as
+  other tools such as linters, type checkers, etc.
+
 
 ## Local development:
 
-Local testing of service functionality is best achieved via a local instance of
+Local testing of service functionality is achieved via a local instance of
 [Harmony](https://github.com/nasa/harmony). Please see instructions there
 regarding creation of a local Harmony instance.
 
-If testing small functions locally that do not require inputs from the main
-Harmony application, it is recommended that you create a Python virtual
-environment, and then install the necessary dependencies for the
-service within that environment via conda and pip then install the pre-commit hooks.
+If developing changes to the library, or testing small functions locally that
+do not require inputs from the main Harmony application, it is recommended that
+you create a Python virtual environment, and then install the necessary
+dependencies for the service within that environment via conda and pip then
+install the pre-commit hooks.  Note that you will need the gdal libraries
+available to your virtual environment to install the `gdal` package with pip.
 
 ```
 > conda create --name hybig-env python==3.11
@@ -232,22 +243,21 @@ Currently, the `unittest` suite is run automatically within a GitHub workflow
 as part of a CI/CD pipeline. These tests are run for all changes made in a PR
 against the `main` branch. The tests must pass in order to merge the PR.
 
-The unit tests are also run prior to publication of a new Docker image, when
-commits including changes to `docker/service_version.txt` are merged into the
-`main` branch. If these unit tests fail, the new version of the Docker image
-will not be published.
+The unit tests are also run prior to publication of new library packages and
+Docker image, when commits including changes to `docker/service_version.txt`
+are merged into the `main` branch. If these unit tests fail, the new version of
+the Docker image and library package will not be published.
 
 ## Versioning:
 
-Service Docker images for HyBIG adhere to semantic version numbers:
-major.minor.patch.
+Service Docker images and the package library for HyBIG adhere to semantic
+version numbers: major.minor.patch.
 
 * Major increments: These are non-backwards compatible API changes.
 * Minor increments: These are backwards compatible API changes.
 * Patch increments: These updates do not affect the API to the service.
 
-When publishing a new Docker image for the service, two files need to be
-updated:
+When publishing, two files need to be updated:
 
 * `CHANGELOG.md` - Notes should be added to capture the changes to the service.
 * `docker/service_version.txt` - The semantic version number should be updated.
@@ -266,14 +276,20 @@ The CI/CD for HyBIG is contained in GitHub workflows in the
 * `publish_docker_image.yml` - Triggered either manually or for commits to the
   `main` branch that contain changes to the `docker/service_version.txt` file.
 
-The `publish_docker_image.yml` workflow will:
+* `publish_to_pypi.yml` - Triggered either manually or for commits to the
+  `main` branch that contain changes to the `docker/service_version.txt`file.
+
+The `publish_release.yml` workflow will:
 
 * Run the full unit test suite, to prevent publication of broken code.
 * Extract the semantic version number from `docker/service_version.txt`.
 * Extract the released notes for the most recent version from `CHANGELOG.md`.
-* Create a GitHub release that will also tag the related git commit with the
-  semantic version number.
 * Build and deploy a this service's docker image to `ghcr.io`.
+* Build the library package to be published to PyPI.
+* Publish the package to PyPI.
+* Publish a GitHub release under the semantic version number, with associated
+  git tag.
+
 
 Before triggering a release, ensure both the `docker/service_version.txt` and
 `CHANGELOG.md` files are updated. The `CHANGELOG.md` file requires a specific
@@ -281,7 +297,13 @@ format for a new release, as it looks for the following string to define the
 newest release of the code (starting at the top of the file).
 
 ```
-## vX.Y.Z - YYYY-MM-DD
+## [vX.Y.Z] - YYYY-MM-DD
+```
+
+Where the markdown reference needs to be updated at the bottom of the file following the existing pattern.
+```
+[unreleased]:https://github.com/nasa/harmony-browse-image-generator/compare/X.Y.Z..HEAD
+[vX.Y.Z]:https://github.com/nasa/harmony-browse-image-generator/compare/X.Y.Y..X.Y.Z
 ```
 
 ### pre-commit hooks:
