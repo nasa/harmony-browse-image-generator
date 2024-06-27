@@ -2,8 +2,7 @@
 
 This library is designed to produce browse imagery, with default behaviours to
 produce browse imagery that is compatible with the NASA Global Image Browse
-Services
-([GIBS](https://www.earthdata.nasa.gov/eosdis/science-system-description/eosdis-components/gibs)).
+Services ([GIBS](https://www.earthdata.nasa.gov/eosdis/science-system-description/eosdis-components/gibs)).
 
 This means that defaults for images are selected to match the visualization
 generation requirements and recommendations put forth in the GIBS Interface
@@ -171,7 +170,7 @@ also with units of degrees.
 * `tests` - A directory containing the service unit test suite.
 
 * `CHANGELOG.md` - This file contains a record of changes applied to each new
-  release of HyBIG. Any release of a new service version should have a record
+  release of HyBIG. Any release of a new version should have a record
   of what was changed in this file.
 
 * `CONTRIBUTING.md` - This file contains guidance for making contributions to
@@ -204,7 +203,7 @@ also with units of degrees.
 
 ## Local development:
 
-Local testing of service functionality is achieved via a local instance of
+Local testing of service functionality can be achieved via a local instance of
 [Harmony](https://github.com/nasa/harmony). Please see instructions there
 regarding creation of a local Harmony instance.
 
@@ -257,7 +256,7 @@ version numbers: major.minor.patch.
 * Minor increments: These are backwards compatible API changes.
 * Patch increments: These updates do not affect the API to the service.
 
-When publishing, two files need to be updated:
+When publishing a new release, two files must be updated:
 
 * `CHANGELOG.md` - Notes should be added to capture the changes to the service.
 * `docker/service_version.txt` - The semantic version number should be updated.

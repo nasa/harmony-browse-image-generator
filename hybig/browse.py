@@ -41,6 +41,17 @@ from hybig.sizes import (
 )
 
 
+def create_browse():
+    """Create browse image from geotiff.
+
+    Exposed library function to allow users to create browse images from the
+    hybig library. This function parses the input params and builds out the
+    correct Harmony input structures [Message and Source] to call the service's
+    entry point create_browse_imagery.
+    """
+    pass
+
+
 def create_browse_imagery(
     message: HarmonyMessage,
     input_file_path: str,
