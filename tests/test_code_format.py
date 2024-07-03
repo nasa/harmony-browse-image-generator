@@ -26,7 +26,7 @@ class TestCodeFormat(TestCase):
         """Check files for PEP8 compliance."""
         python_files = chain(
             Path('hybig').rglob('*.py'),
-            Path('harmony_service_entry').rglob('*.py'),
+            Path('harmony_service').rglob('*.py'),
             Path('tests').rglob('*.py'),
         )
 

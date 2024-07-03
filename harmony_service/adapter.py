@@ -23,8 +23,8 @@ from harmony.message_utility import (
 from harmony.util import bbox_to_geometry, download, generate_output_filename, stage
 from pystac import Asset, Catalog, Item
 
-from harmony_service_entry.exceptions import HyBIGInvalidMessageError, HyBIGServiceError
-from harmony_service_entry.utilities import (
+from harmony_service.exceptions import HyBIGInvalidMessageError, HyBIGServiceError
+from harmony_service.utilities import (
     get_asset_name,
     get_file_mime_type,
     get_tiled_file_extension,

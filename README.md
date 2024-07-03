@@ -133,7 +133,7 @@ also with units of degrees.
 |- 📂 docker
 |- 📂 docs
 |- 📂 hybig
-|- 📂 harmony_service_entry
+|- 📂 harmony_service
 |- 📂 tests
 |- CHANGELOG.md
 |- CONTRIBUTING.md
@@ -163,9 +163,9 @@ also with units of degrees.
   This directory contains the business logic for generating GIBS compatible
   browse images.
 
-* `harmony_service_entry` - A directory containing the Harmony Service specific
+* `harmony_service` - A directory containing the Harmony Service specific
   python code. `adapter.py` contains the `BrowseImageGeneratorAdapter` class
-  that is invoked by calls to the service.
+  that is invoked by calls to the Harmony service.
 
 * `tests` - A directory containing the service unit test suite.
 

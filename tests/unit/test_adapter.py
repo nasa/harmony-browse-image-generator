@@ -6,13 +6,13 @@ from harmony.message import Message
 from harmony.util import config
 from pystac import Asset, Item
 
-from harmony_service_entry.adapter import BrowseImageGeneratorAdapter
-from harmony_service_entry.exceptions import HyBIGInvalidMessageError
+from harmony_service.adapter import BrowseImageGeneratorAdapter
+from harmony_service.exceptions import HyBIGInvalidMessageError
 from tests.utilities import Granule, create_stac
 
 
 class TestAdapter(TestCase):
-    """A class testing the harmony_service_entry.adapter module."""
+    """A class testing the harmony_service.adapter module."""
 
     @classmethod
     def setUpClass(cls):

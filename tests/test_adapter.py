@@ -14,7 +14,7 @@ from rasterio.transform import array_bounds, from_bounds
 from rasterio.warp import Resampling
 from rioxarray import open_rasterio
 
-from harmony_service_entry.adapter import BrowseImageGeneratorAdapter
+from harmony_service.adapter import BrowseImageGeneratorAdapter
 from hybig.browse import (
     convert_mulitband_to_raster,
     prepare_raster_for_writing,
@@ -23,7 +23,7 @@ from tests.utilities import Granule, create_stac
 
 
 class TestAdapter(TestCase):
-    """A class testing the harmony_service_entry.adapter module."""
+    """A class testing the harmony_service.adapter module."""
 
     @classmethod
     def setUpClass(cls):
@@ -99,10 +99,10 @@ class TestAdapter(TestCase):
         )
 
     @patch('hybig.browse.reproject')
-    @patch('harmony_service_entry.adapter.rmtree')
-    @patch('harmony_service_entry.adapter.mkdtemp')
-    @patch('harmony_service_entry.adapter.download')
-    @patch('harmony_service_entry.adapter.stage')
+    @patch('harmony_service.adapter.rmtree')
+    @patch('harmony_service.adapter.mkdtemp')
+    @patch('harmony_service.adapter.download')
+    @patch('harmony_service.adapter.stage')
     def test_valid_request_jpeg(
         self, mock_stage, mock_download, mock_mkdtemp, mock_rmtree, mock_reproject
     ):
@@ -334,10 +334,10 @@ class TestAdapter(TestCase):
         mock_rmtree.assert_called_once_with(self.temp_dir)
 
     @patch('hybig.browse.reproject')
-    @patch('harmony_service_entry.adapter.rmtree')
-    @patch('harmony_service_entry.adapter.mkdtemp')
-    @patch('harmony_service_entry.adapter.download')
-    @patch('harmony_service_entry.adapter.stage')
+    @patch('harmony_service.adapter.rmtree')
+    @patch('harmony_service.adapter.mkdtemp')
+    @patch('harmony_service.adapter.download')
+    @patch('harmony_service.adapter.stage')
     def test_valid_request_png(
         self, mock_stage, mock_download, mock_mkdtemp, mock_rmtree, mock_reproject
     ):

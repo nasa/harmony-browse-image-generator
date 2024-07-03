@@ -3,9 +3,15 @@ name = "hybig-py"
 dynamic = ["dependencies", "version"]
 
 authors = [
-  {name="Owen Littlejohns", email="owen.m.littlejohns@nasa.gov"},
   {name="Matt Savoie", email="savoie@colorado.edu"},
+  {name="Owen Littlejohns", email="owen.m.littlejohns@nasa.gov"},
 ]
+
+maintainers = [
+  {name="Matt Savoie", email="savoie@colorado.edu"},
+  {name="Owen Littlejohns", email="owen.m.littlejohns@nasa.gov"},
+]
+
 description = "Python package designed to produce browse imagery compatible with NASA's Global Image Browse Services (GIBS)."
 
 readme = "README.md"

@@ -29,10 +29,10 @@ RUN pip install --no-input --no-cache-dir \
 
 # Copy service code.
 COPY ./hybig hybig
-COPY ./harmony_service_entry harmony_service_entry
+COPY ./harmony_service harmony_service
 
 # Set GDAL related environment variables.
 ENV CPL_ZIP_ENCODING=UTF-8
 
 # Configure a container to be executable via the `docker run` command.
-ENTRYPOINT ["python", "-m", "harmony_service_entry"]
+ENTRYPOINT ["python", "-m", "harmony_service"]
