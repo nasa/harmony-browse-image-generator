@@ -2,7 +2,7 @@
 
 import re
 from itertools import zip_longest
-from logging import Logger
+from logging import Logger, getLogger
 from pathlib import Path
 
 import matplotlib
@@ -31,6 +31,7 @@ from hybig.color_utility import (
     TRANSPARENT_RGBA,
     all_black_color_map,
     get_color_palette,
+    palette_from_remote_colortable,
     remove_alpha,
 )
 from hybig.exceptions import HyBIGError
@@ -41,15 +42,122 @@ from hybig.sizes import (
 )
 
 
-def create_browse():
-    """Create browse image from geotiff.
+def create_browse(
+    source_tiff: str,
+    params: dict = {},
+    palette: str | ColorPalette | None = None,
+    logger: Logger = None,
+) -> list[tuple[Path, Path, Path]]:
+    """Create browse imagery from an input geotiff.
 
-    Exposed library function to allow users to create browse images from the
-    hybig library. This function parses the input params and builds out the
-    correct Harmony input structures [Message and Source] to call the service's
+    This is the exposed library function to allow users to create browse images
+    from the hybig library. It parses the input params and constructs the
+    correct Harmony input structure [Message.Format] to call the service's
     entry point create_browse_imagery.
+
+    Output images are created and deposited into the input GeoTIFF's directory.
+
+    Args:
+        source_tiff: str, location of the input geotiff to process.
+
+        params: Optional[dict], A dictionary with the following keys:
+
+            mime: [str], MIME type of the output image (default: 'image/png').
+                  any string that contains 'jpeg' will return a jpeg image,
+                  otherwise create a png.
+
+            crs: Optional[dict], Target image's Coordinate Reference System.
+                 A dictionary with 'epsg', 'proj4' or 'wkt' key.
+
+            scale_extent: Optional[dict], Scale Extents for the image. The dictionary
+                contains "x" and "y" keys each with value which is dictionary
+                of "min", "max" values in the same units as the crs.
+                e.g.: { "x": { "min": 0.5, "max": 125 },
+                        "y": { "min": 52, "max": 75.22 } }
+
+            scale_size: Optional[dict], Scale sizes for the image.  The dictionary
+                contains "x" and "y" keys with the horizontal and veritcal
+                resolution in the same units as the crs.
+                e.g.: { "x": 10, "y": 5 }
+
+            height: Optional[int], height of the output image in gridcells.
+
+            width: Optional[int], width of the output image in gridcells.
+
+        palette: Optional[str | ColorPalette], either a URL to a remote color palette
+             that is fetched and loaded or a ColorPalette object used to color
+             the output browse image. If not provided, a grayscale image is
+             generated.
+
+        logger: Optional[Logger], a configured Logger object. If None a default
+             logger will be used.
+
+    Note:
+      if supplied, scale_size, scale_extent, height and width must be
+      internally consistent.  To define a valid output grid:
+            * Specify scale_extent and 1 of:
+              * height and width
+              * scale_sizes (in the x and y horizontal spatial dimensions)
+            * Specify all three of the above, but ensure values must be consistent
+              with one another.
+
+    Returns:
+        List of 3-element tuples. These are the file paths of:
+        - The output browse image
+        - Its associated ESRI world file (containing georeferencing information)
+        - The auxiliary XML file (containing duplicative georeferencing information)
+
+
+    Example Usage:
+        results = create_browse(
+            "/path/to/geotiff",
+            {
+                "mime": "image/png",
+                "crs": {"epsg": "EPSG:4326"},
+                "scale_extent": {
+                    "x": {"min": -180, "max": 180},
+                    "y": {"min": -90, "max": 90},
+                },
+                "scale_size": {"x": 10, "y": 10},
+            },
+            "https://remote-colortable",
+            logger,
+        )
+
     """
-    pass
+
+    mime = params.get('mime', 'image/png')
+    crs = params.get('crs', None)
+    scale_extent = params.get('scale_extent', None)
+    scale_size = params.get('scale_size', None)
+    height = params.get('height', None)
+    width = params.get('width', None)
+
+    harmony_message = HarmonyMessage(
+        {
+            "format": {
+                "mime": mime,
+                "crs": crs,
+                "srs": crs,
+                "scaleExtent": scale_extent,
+                "scaleSize": scale_size,
+                "height": height,
+                "width": width,
+            },
+        }
+    )
+
+    if logger is None:
+        logger = getLogger('hybig-py')
+
+    if isinstance(palette, str):
+        color_palette = palette_from_remote_colortable(palette)
+    else:
+        color_palette = palette
+
+    return create_browse_imagery(
+        harmony_message, source_tiff, HarmonySource({}), color_palette, logger
+    )
 
 
 def create_browse_imagery(
@@ -61,8 +169,9 @@ def create_browse_imagery(
 ) -> list[tuple[Path, Path, Path]]:
     """Create browse image from input geotiff.
 
-    Take input browse image and return a 2-element tuple for the file paths
-    of the output browse image and its associated ESRI world file.
+    Take input browse image and return a 3-element tuple for the file paths of
+    the output browse image, its associated ESRI world file and the auxilary
+    xml file.
 
     """
     output_driver = image_driver(message.format.mime)

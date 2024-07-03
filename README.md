@@ -1,12 +1,12 @@
 # Harmony Browse Image Generator (HyBIG).
 
-This library is designed to produce browse imagery, with default behaviours to
-produce browse imagery that is compatible with the NASA Global Image Browse
+This repository contains code designed to produce browse imagery. Its default behaviour
+produces images compatible with the NASA Global Image Browse
 Services ([GIBS](https://www.earthdata.nasa.gov/eosdis/science-system-description/eosdis-components/gibs)).
 
-This means that defaults for images are selected to match the visualization
-generation requirements and recommendations put forth in the GIBS Interface
-Control Document (ICD), which can be found on [Earthdata
+This means that default parameters for images are selected to match the
+visualization generation requirements and recommendations put forth in the GIBS
+Interface Control Document (ICD), which can be found on [Earthdata
 Wiki](https://wiki.earthdata.nasa.gov/display/GITC/Ingest+Delivery+Methods)
 along with [additional GIBS
 documentation](https://nasa-gibs.github.io/gibs-api-docs/).
@@ -15,6 +15,102 @@ HyBIG creates paletted PNG images and associated metadata from GeoTIFF input
 images. Scientific parameter raster data as well as RGB[A] raster images can
 be converted to browse PNGs.  These browse images undergo transformation by
 reprojection, tiling and coloring to seamlessly integrate with GIBS.
+
+The repository contains code and infrastructure to support both the HyBIG
+Service as well as `hybig-py`.  The HyBIG Service is packaged as a Docker
+container that is deployed to [NASA's
+Harmony](https://harmony.earthdata.nasa.gov/) system.  The business logic is
+contained in the [`hybig-py` library](https://pypi.org/project/hybig-py/) which
+exposes functions to generate browse images in python scripts.
+
+### hybig-py
+
+The browse image generation logic is packaged in the hybig-py
+library. Currently, a single function, `create_browse` is exposed to the user.
+
+``` python
+def create_browse(
+    source_tiff: str,
+    params: dict = {},
+    palette: str | ColorPalette | None = None,
+    logger: Logger = None,
+) -> list[tuple[Path, Path, Path]]:
+    """Create browse imagery from an input geotiff.
+
+    This is the exposed library function to allow users to create browse images
+    from the hybig library. It parses the input params and constructs the
+    correct Harmony input structure [Message.Format] to call the service's
+    entry point create_browse_imagery.
+
+    Output images are created and deposited into the input GeoTIFF's directory.
+
+    Args:
+        source_tiff: str, location of the input geotiff to process.
+
+        params: Optional[dict], A dictionary with the following keys:
+
+            mime: Optional[str], MIME type of the output image (default: 'image/png').
+                  any string that contains 'jpeg' will return a jpeg image,
+                  otherwise create a png.
+
+            crs: Optional[dict], Target image's Coordinate Reference System.
+                 A dictionary with 'epsg', 'proj4' or 'wkt' key.
+
+            scale_extent: Optional[dict], Scale Extents for the image. The dictionary
+                contains "x" and "y" keys each with value which is dictionary
+                of "min", "max" values in the same units as the crs.
+                e.g.: { "x": { "min": 0.5, "max": 125 },
+                        "y": { "min": 52, "max": 75.22 } }
+
+            scale_size: Optional[dict], Scale sizes for the image.  The dictionary
+                contains "x" and "y" keys with the horizontal and veritcal
+                resolution in the same units as the crs.
+                e.g.: { "x": 10, "y": 5 }
+
+            height: Optional[int], height of the output image in gridcells.
+
+            width: Optional[int], width of the output image in gridcells.
+
+        palette: Optional[str | ColorPalette], either a URL to a remote color palette
+             that is fetched and loaded or a ColorPalette object used to color
+             the output browse image. If not provided, a grayscale image is
+             generated.
+
+        logger: Optional[Logger], a configured Logger object. If None a default
+             logger will be used.
+
+    Note:
+      if supplied, scale_size, scale_extent, height and width must be
+      internally consistent.  To define a valid output grid:
+            * Specify scale_extent and 1 of:
+              * height and width
+              * scale_sizes (in the x and y horizontal spatial dimensions)
+            * Specify all three of the above, but ensure values must be consistent
+              with one another.
+
+    Returns:
+        List of 3-element tuples. These are the file paths of:
+        - The output browse image
+        - Its associated ESRI world file (containing georeferencing information)
+        - The auxiliary XML file (containing duplicative georeferencing information)
+
+
+    Example Usage:
+        results = create_browse(
+            "/path/to/geotiff",
+            {
+                "mime": "image/png",
+                "crs": {"epsg": "EPSG:4326"},
+                "scale_extent": {
+                    "x": {"min": -180, "max": 180},
+                    "y": {"min": -90, "max": 90},
+                },
+                "scale_size": {"x": 10, "y": 10},
+            },
+            "https://remote-colortable",
+            logger,
+        )
+```
 
 ### Reprojection
 
