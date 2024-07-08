@@ -29,6 +29,7 @@ The browse image generation logic is packaged in the hybig-py
 library. Currently, a single function, `create_browse` is exposed to the user.
 
 ``` python
+
 def create_browse(
     source_tiff: str,
     params: dict = {},
@@ -49,15 +50,15 @@ def create_browse(
 
         params: Optional[dict], A dictionary with the following keys:
 
-            mime: Optional[str], MIME type of the output image (default: 'image/png').
+            mime: [str], MIME type of the output image (default: 'image/png').
                   any string that contains 'jpeg' will return a jpeg image,
                   otherwise create a png.
 
             crs: Optional[dict], Target image's Coordinate Reference System.
                  A dictionary with 'epsg', 'proj4' or 'wkt' key.
 
-            scale_extent: Optional[dict], Scale Extents for the image. The dictionary
-                contains "x" and "y" keys each with value which is dictionary
+            scale_extent: Optional[dict], Scale Extents for the image. This dictionary
+                contains "x" and "y" keys each whose value which is a dictionary
                 of "min", "max" values in the same units as the crs.
                 e.g.: { "x": { "min": 0.5, "max": 125 },
                         "y": { "min": 52, "max": 75.22 } }
@@ -65,7 +66,7 @@ def create_browse(
             scale_size: Optional[dict], Scale sizes for the image.  The dictionary
                 contains "x" and "y" keys with the horizontal and veritcal
                 resolution in the same units as the crs.
-                e.g.: { "x": 10, "y": 5 }
+                e.g.: { "x": 10, "y": 10 }
 
             height: Optional[int], height of the output image in gridcells.
 
@@ -85,7 +86,7 @@ def create_browse(
             * Specify scale_extent and 1 of:
               * height and width
               * scale_sizes (in the x and y horizontal spatial dimensions)
-            * Specify all three of the above, but ensure values must be consistent
+            * Specify all three of the above, but ensure values are consistent
               with one another.
 
     Returns:
@@ -110,6 +111,7 @@ def create_browse(
             "https://remote-colortable",
             logger,
         )
+
 ```
 
 ### Reprojection
