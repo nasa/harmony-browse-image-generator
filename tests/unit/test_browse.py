@@ -2,12 +2,13 @@
 
 import shutil
 import tempfile
-from logging import getLogger
+from logging import Logger, getLogger
 from pathlib import Path
 from unittest import TestCase
 from unittest.mock import MagicMock, Mock, call, patch
 
 import numpy as np
+from harmony.message import SRS
 from harmony.message import Message as HarmonyMessage
 from harmony.message import Source as HarmonySource
 from numpy.testing import assert_array_equal
@@ -23,6 +24,7 @@ from xarray import DataArray
 from hybig.browse import (
     convert_mulitband_to_raster,
     convert_singleband_to_raster,
+    create_browse,
     create_browse_imagery,
     get_color_map_from_image,
     get_tiled_filename,
@@ -781,3 +783,54 @@ class TestBrowse(TestCase):
                     ' http://this-domain-does-not-exist.com/bad-url'
                 ),
             )
+
+
+class TestCreateBrowse(TestCase):
+    """A class testing the create_browse function call.
+
+    Ensure library calls the `create_browse_imagery` function the same as the
+    service.
+
+    """
+
+    @patch('hybig.browse.create_browse_imagery')
+    def test_one(self, mock_create_browse_imagery):
+        source_tiff = '/Path/to/source.tiff'
+        params = {
+            'mime': 'image/png',
+            'crs': {'epsg': 'EPSG:4326'},
+            'scale_extent': {
+                'x': {'min': -180, 'max': 180},
+                'y': {'min': -90, 'max': 90},
+            },
+            'scale_size': {'x': 10, 'y': 10},
+        }
+        mock_logger = MagicMock(spec=Logger)
+        mock_palette = MagicMock(spec=ColorPalette)
+
+        results = create_browse(source_tiff, params, mock_palette, mock_logger)
+
+        call_args = mock_create_browse_imagery.call_args
+        self.assertIsInstance(call_args[0][0], HarmonyMessage)
+        self.assertEqual(call_args[0][1], source_tiff)
+        self.assertIsInstance(call_args[0][2], HarmonySource)
+        self.assertEqual(call_args[0][3], mock_palette)
+        self.assertEqual(call_args[0][4], mock_logger)
+
+        # verify message params.
+        harmony_message = call_args[0][0]
+        harmony_format = harmony_message.format
+
+        self.assertEqual(harmony_format.mime, "image/png")
+        self.assertEqual(harmony_format['crs'], {"epsg": "EPSG:4326"})
+        self.assertEqual(harmony_format['srs'], {"epsg": "EPSG:4326"})
+        self.assertEqual(
+            harmony_format['scaleExtent'],
+            {
+                "x": {"min": -180, "max": 180},
+                "y": {"min": -90, "max": 90},
+            },
+        )
+        self.assertEqual(harmony_format['scaleSize'], {"x": 10, "y": 10})
+        self.assertIsNone(harmony_message['format']['height'])
+        self.assertIsNone(harmony_message['format']['width'])
