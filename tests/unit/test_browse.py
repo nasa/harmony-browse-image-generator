@@ -794,7 +794,8 @@ class TestCreateBrowse(TestCase):
     """
 
     @patch('hybig.browse.create_browse_imagery')
-    def test_one(self, mock_create_browse_imagery):
+    def test_calls_create_browse_with_correct_params(self, mock_create_browse_imagery):
+        """Ensure correct harmony message is created from inputs."""
         source_tiff = '/Path/to/source.tiff'
         params = {
             'mime': 'image/png',
@@ -808,19 +809,22 @@ class TestCreateBrowse(TestCase):
         mock_logger = MagicMock(spec=Logger)
         mock_palette = MagicMock(spec=ColorPalette)
 
-        results = create_browse(source_tiff, params, mock_palette, mock_logger)
+        create_browse(source_tiff, params, mock_palette, mock_logger)
 
-        call_args = mock_create_browse_imagery.call_args
-        self.assertIsInstance(call_args[0][0], HarmonyMessage)
-        self.assertEqual(call_args[0][1], source_tiff)
-        self.assertIsInstance(call_args[0][2], HarmonySource)
-        self.assertEqual(call_args[0][3], mock_palette)
-        self.assertEqual(call_args[0][4], mock_logger)
+        mock_create_browse_imagery.assert_called_once()
+        call_args = mock_create_browse_imagery.call_args[0]
+        self.assertIsInstance(call_args[0], HarmonyMessage)
+        self.assertEqual(call_args[1], source_tiff)
+        self.assertIsInstance(call_args[2], HarmonySource)
+        self.assertEqual(call_args[3], mock_palette)
+        self.assertEqual(call_args[4], mock_logger)
 
         # verify message params.
-        harmony_message = call_args[0][0]
+        harmony_message = call_args[0]
         harmony_format = harmony_message.format
 
+        # HarmonyMessage.Format does not have a json representation to compare
+        # to so compare the pieces individually.
         self.assertEqual(harmony_format.mime, "image/png")
         self.assertEqual(harmony_format['crs'], {"epsg": "EPSG:4326"})
         self.assertEqual(harmony_format['srs'], {"epsg": "EPSG:4326"})
@@ -834,3 +838,39 @@ class TestCreateBrowse(TestCase):
         self.assertEqual(harmony_format['scaleSize'], {"x": 10, "y": 10})
         self.assertIsNone(harmony_message['format']['height'])
         self.assertIsNone(harmony_message['format']['width'])
+
+    @patch('hybig.browse.palette_from_remote_colortable')
+    @patch('hybig.browse.create_browse_imagery')
+    def test_calls_create_browse_with_remote_palette(
+        self, mock_create_browse_imagery, mock_palette_from_remote_color_table
+    ):
+        """Ensure remote palette is used."""
+        mock_palette = MagicMock(sepc=ColorPalette)
+        mock_palette_from_remote_color_table.return_value = mock_palette
+        remote_color_url = 'https://path/to/colormap.txt'
+        source_tiff = '/Path/to/source.tiff'
+        mock_logger = MagicMock(spec=Logger)
+
+        # Act
+        create_browse(source_tiff, {}, remote_color_url, mock_logger)
+
+        # Assert a remote colortable was fetched.
+        mock_palette_from_remote_color_table.assert_called_once_with(remote_color_url)
+
+        mock_create_browse_imagery.assert_called_once()
+        (
+            call_harmony_message,
+            call_source_tiff,
+            call_harmony_source,
+            call_color_palette,
+            call_logger,
+        ) = mock_create_browse_imagery.call_args[0]
+
+        # create_browse_imagery called with the color palette returned from
+        # palette_from_remote_colortable
+        self.assertEqual(call_color_palette, mock_palette)
+
+        self.assertIsInstance(call_harmony_message, HarmonyMessage)
+        self.assertIsInstance(call_harmony_source, HarmonySource)
+        self.assertEqual(call_source_tiff, source_tiff)
+        self.assertEqual(call_logger, mock_logger)
