@@ -44,7 +44,7 @@ from hybig.sizes import (
 
 def create_browse(
     source_tiff: str,
-    params: dict = {},
+    params: dict = None,
     palette: str | ColorPalette | None = None,
     logger: Logger = None,
 ) -> list[tuple[Path, Path, Path]]:
@@ -60,36 +60,36 @@ def create_browse(
     Args:
         source_tiff: str, location of the input geotiff to process.
 
-        params: Optional[dict], A dictionary with the following keys:
+        params: [dict | None], A dictionary with the following keys:
 
             mime: [str], MIME type of the output image (default: 'image/png').
                   any string that contains 'jpeg' will return a jpeg image,
                   otherwise create a png.
 
-            crs: Optional[dict], Target image's Coordinate Reference System.
+            crs: [dict | None], Target image's Coordinate Reference System.
                  A dictionary with 'epsg', 'proj4' or 'wkt' key.
 
-            scale_extent: Optional[dict], Scale Extents for the image. This dictionary
+            scale_extent: [dict | None], Scale Extents for the image. This dictionary
                 contains "x" and "y" keys each whose value which is a dictionary
                 of "min", "max" values in the same units as the crs.
                 e.g.: { "x": { "min": 0.5, "max": 125 },
                         "y": { "min": 52, "max": 75.22 } }
 
-            scale_size: Optional[dict], Scale sizes for the image.  The dictionary
+            scale_size: [dict | None], Scale sizes for the image.  The dictionary
                 contains "x" and "y" keys with the horizontal and veritcal
                 resolution in the same units as the crs.
                 e.g.: { "x": 10, "y": 10 }
 
-            height: Optional[int], height of the output image in gridcells.
+            height: [int | None], height of the output image in gridcells.
 
-            width: Optional[int], width of the output image in gridcells.
+            width: [int | none], width of the output image in gridcells.
 
-        palette: Optional[str | ColorPalette], either a URL to a remote color palette
+        palette: [str | ColorPalette | none], either a URL to a remote color palette
              that is fetched and loaded or a ColorPalette object used to color
              the output browse image. If not provided, a grayscale image is
              generated.
 
-        logger: Optional[Logger], a configured Logger object. If None a default
+        logger: [Logger | None], a configured Logger object. If None a default
              logger will be used.
 
     Note:
@@ -125,7 +125,8 @@ def create_browse(
         )
 
     """
-
+    if params is None:
+        params = {}
     mime = params.get('mime', 'image/png')
     crs = params.get('crs', None)
     scale_extent = params.get('scale_extent', None)
