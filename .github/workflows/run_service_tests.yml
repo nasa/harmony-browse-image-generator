@@ -3,13 +3,13 @@
 # test results and code coverage as artefacts. It will be called by the
 # workflow that run tests against new PRs and as a first step in the workflow
 # that publishes new Docker images.
-name: Run Python unit tests
+name: Run Python tests
 
 on:
   workflow_call
 
 jobs:
-  build_and_test:
+  build_and_test_service:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

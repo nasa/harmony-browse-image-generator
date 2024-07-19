@@ -364,15 +364,16 @@ When publishing a new release, two files must be updated:
 The CI/CD for HyBIG is contained in GitHub workflows in the
 `.github/workflows` directory:
 
-* `run_tests.yml` - A reusable workflow that builds the service and test Docker
-  images, then runs the Python unit test suite in an instance of the test
-  Docker container.
+* `run_lib_tests.yml` - A reusable workflow that tests the library functions
+  against the supported python versions.
+* `run_service_tests.yml` - A reusable workflow that builds the service and
+  test Docker images, then runs the Python unit test suite in an instance of
+  the test Docker container.
 * `run_tests_on_pull_requests.yml` - Triggered for all PRs against the `main`
-  branch. It runs the workflow in `run_tests.yml` to ensure all tests pass for
-  the new code.
+  branch. It runs the workflow in `run_service_tests.yml` and
+  `run_lib_tests.yml` to ensure all tests pass for the new code.
 * `publish_docker_image.yml` - Triggered either manually or for commits to the
   `main` branch that contain changes to the `docker/service_version.txt` file.
-
 * `publish_to_pypi.yml` - Triggered either manually or for commits to the
   `main` branch that contain changes to the `docker/service_version.txt`file.
 

@@ -1,7 +1,7 @@
 # This workflow will run when changes are detected in the `main` branch, which
 # must include an update to the `docker/service_version.txt` file. The workflow
 # can also be manually triggered by a repository maintainer. This workflow will
-# first trigger the reusable workflow in `.github/workflows/run_tests.yml`,
+# first trigger the reusable workflow in `.github/workflows/run_service_tests.yml`,
 # which runs the `unittest` suite. If that workflow is successful, the latest
 # version of the service Docker image is pushed to ghcr.io, a library package
 # is built and published to PyPI, a tag is added to the latest git commit, and
@@ -20,11 +20,14 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  run_tests:
-    uses: ./.github/workflows/run_tests.yml
+  run_service_tests:
+    uses: ./.github/workflows/run_service_tests.yml
+
+  run_lib_tests:
+    uses: ./.github/workflows/run_lib_tests.yml
 
   build_and_publish:
-    needs: run_tests
+    needs: [run_service_tests, run_lib_tests]
     runs-on: ubuntu-latest
     environment: release
     permissions:
