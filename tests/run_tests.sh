@@ -17,7 +17,7 @@ STATUS=0
 export HDF5_DISABLE_VERSION_CHECK=1
 
 # Run the standard set of unit tests, producing JUnit compatible output
-coverage run -m xmlrunner discover tests -o tests/reports
+coverage run -m pytest tests --junitxml=tests/reports/test-results-"$(date +'%Y%m%d%H%M%S')".xml
 RESULT=$?
 
 if [ "$RESULT" -ne "0" ]; then

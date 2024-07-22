@@ -32,7 +32,7 @@ class TestAdapter(TestCase):
         cls.granule_url = 'https://www.example.com/input.tiff'
         cls.input_stac = create_stac(Granule(cls.granule_url, 'image/tiff', ['data']))
         cls.staging_location = 's3://example-bucket'
-        cls.fixtures = Path(__file__).resolve().parent / 'fixtures'
+        cls.fixtures = Path(__file__).resolve().parent.parent / 'fixtures'
         cls.red_tif_fixture = cls.fixtures / 'red.tif'
         cls.user = 'blightyear'
 
