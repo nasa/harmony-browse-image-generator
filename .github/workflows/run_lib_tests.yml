@@ -34,7 +34,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest
           pip install -r pip_requirements.txt
-          # Use the gdal version that was installed
+          # Use the gdal version that was installed in the previous step.  This
+          # is not the same GDAL as installed in the docker images but in the
+          # end we're only using osgeo's ColorPalette
           pip install GDAL==$(gdal-config --version)
           pip install -r tests/pip_test_requirements.txt
 
