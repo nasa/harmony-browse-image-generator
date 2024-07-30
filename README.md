@@ -340,10 +340,10 @@ Currently, the `unittest` suite is run automatically within a GitHub workflow
 as part of a CI/CD pipeline. These tests are run for all changes made in a PR
 against the `main` branch. The tests must pass in order to merge the PR.
 
-The unit tests are also run prior to publication of new library packages and
-Docker image, when commits including changes to `docker/service_version.txt`
-are merged into the `main` branch. If these unit tests fail, the new version of
-the Docker image and library package will not be published.
+Unit tests are executed automatically before publishing new library packages
+and Docker images. This occurs when commits containing changes to
+`docker/service_version.txt` are merged into the `main` branch. Failed unit
+tests prevent the publication of new Docker images and library packages.
 
 ## Versioning:
 
