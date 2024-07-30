@@ -29,10 +29,8 @@ from harmony_service.utilities import (
     get_file_mime_type,
     get_tiled_file_extension,
 )
-from hybig import (
-    create_browse_imagery,
-    get_color_palette_from_item,
-)
+from hybig.browse import create_browse_imagery
+from hybig.color_utility import get_color_palette_from_item
 
 
 class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
