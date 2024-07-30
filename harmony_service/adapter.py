@@ -36,7 +36,7 @@ from hybig import (
 
 
 class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
-    """HyBIG extention to the harmony-service-lib BaseHarmonyAdapter."""
+    """HyBIG extension to the harmony-service-lib BaseHarmonyAdapter."""
 
     def invoke(self) -> Catalog:
         """Adds validation to process_item based invocations."""

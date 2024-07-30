@@ -15,9 +15,9 @@ KNOWN_MIME_TYPES = {
 
 
 def get_tiled_file_extension(file_name: Path) -> str:
-    """Return the correct extention to add to a staged file.
+    """Return the correct extension to add to a staged file.
 
-    Harmony's generate output filename can drop an extention incorrectly, so we
+    Harmony's generate output filename can drop an extension incorrectly, so we
     generate the correct one to pass in.
 
     """
