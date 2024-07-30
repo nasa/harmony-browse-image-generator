@@ -8,6 +8,10 @@
 # 2020-05-07: Adapted from SwotRepr project.
 # 2022-01-03: Removed safety checks, as these are now run in Snyk.
 # 2023-04-04: Updated for use with the Harmony Browse Image Generator (HyBIG).
+# 2024-07-30: Changes coverage to use pytest and output a unified
+# result. xmlrunner was unable to handle finding the tests in the separate
+# locations. Also use a relative path to the html output so that coverages can be
+# run outside of docker.
 #
 ###############################################################################
 
