@@ -22,6 +22,7 @@ from rasterio.warp import Resampling, reproject
 from rioxarray import open_rasterio
 from xarray import DataArray
 
+from hybig.browse_utility import get_harmony_message_from_params
 from hybig.color_utility import (
     NODATA_IDX,
     NODATA_RGBA,
@@ -127,28 +128,7 @@ def create_browse(
         )
 
     """
-    if params is None:
-        params = {}
-    mime = params.get('mime', 'image/png')
-    crs = params.get('crs', None)
-    scale_extent = params.get('scale_extent', None)
-    scale_size = params.get('scale_size', None)
-    height = params.get('height', None)
-    width = params.get('width', None)
-
-    harmony_message = HarmonyMessage(
-        {
-            "format": {
-                "mime": mime,
-                "crs": crs,
-                "srs": crs,
-                "scaleExtent": scale_extent,
-                "scaleSize": scale_size,
-                "height": height,
-                "width": width,
-            },
-        }
-    )
+    harmony_message = get_harmony_message_from_params(params)
 
     if logger is None:
         logger = getLogger('hybig-py')
