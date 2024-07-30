@@ -249,9 +249,8 @@ also with units of degrees.
 
 * `docker` - A directory containing the Dockerfiles for the service and test
   images. It also contains `service_version.txt`, which contains the semantic
-  version number of the library and service image. Any time an update is made
-  that should have an accompanying library and service image release, this file
-  should be updated.
+  version number of the library and service image. Update this file with a new
+  version to trigger a release.
 
 * `docs` - A directory with example usage notebooks.
 
@@ -340,28 +339,21 @@ Currently, the `unittest` suite is run automatically within a GitHub workflow
 as part of a CI/CD pipeline. These tests are run for all changes made in a PR
 against the `main` branch. The tests must pass in order to merge the PR.
 
-Unit tests are executed automatically before publishing new library packages
-and Docker images. This occurs when commits containing changes to
-`docker/service_version.txt` are merged into the `main` branch. Failed unit
-tests prevent the publication of new Docker images and library packages.
+Unit tests are executed automatically by github actions on each Pull Request.
+
 
 ## Versioning:
 
-Service Docker images and the package library for HyBIG adhere to semantic
+Docker service images and the hybig-py package library adhere to semantic
 version numbers: major.minor.patch.
 
 * Major increments: These are non-backwards compatible API changes.
 * Minor increments: These are backwards compatible API changes.
 * Patch increments: These updates do not affect the API to the service.
 
-When publishing a new release, two files must be updated:
-
-* `CHANGELOG.md` - Notes should be added to capture the changes to the service.
-* `docker/service_version.txt` - The semantic version number should be updated.
-
 ## CI/CD:
 
-The CI/CD for HyBIG is contained in GitHub workflows in the
+The CI/CD for HyBIG is run on github actions with the workflows in the
 `.github/workflows` directory:
 
 * `run_lib_tests.yml` - A reusable workflow that tests the library functions
@@ -376,23 +368,34 @@ The CI/CD for HyBIG is contained in GitHub workflows in the
   `main` branch that contain changes to the `docker/service_version.txt` file.
 * `publish_to_pypi.yml` - Triggered either manually or for commits to the
   `main` branch that contain changes to the `docker/service_version.txt`file.
+* `publish_release.yml`<a name="release-workflow"></a> - workflow runs automatically when there is a change to
+   the `docker/service_version.txt` file on the main branch.  This workflow will:
+    * Run the full unit test suite, to prevent publication of broken code.
+    * Extract the semantic version number from `docker/service_version.txt`.
+    * Extract the released notes for the most recent version from `CHANGELOG.md`.
+    * Build and deploy a this service's docker image to `ghcr.io`.
+    * Build the library package to be published to PyPI.
+    * Publish the package to PyPI.
+    * Publish a GitHub release under the semantic version number, with associated
+      git tag.
 
-The `publish_release.yml` workflow will:
 
-* Run the full unit test suite, to prevent publication of broken code.
-* Extract the semantic version number from `docker/service_version.txt`.
-* Extract the released notes for the most recent version from `CHANGELOG.md`.
-* Build and deploy a this service's docker image to `ghcr.io`.
-* Build the library package to be published to PyPI.
-* Publish the package to PyPI.
-* Publish a GitHub release under the semantic version number, with associated
-  git tag.
+## Releasing
 
+A release consists of a new version hybig-py library published to PyPI and a
+new Docker service image published to github's container repository.
 
-Before triggering a release, ensure both the `docker/service_version.txt` and
-`CHANGELOG.md` files are updated. The `CHANGELOG.md` file requires a specific
-format for a new release, as it looks for the following string to define the
-newest release of the code (starting at the top of the file).
+A release is made automatically when a commit to the main branch contains a
+changes in the `docker/service_version.txt` file, see the [publish_release](#release-workflow) workflow in the CI/CD section above.
+
+Before merging a PR that will trigger a release, ensure these two files are updated:
+
+* `CHANGELOG.md` - Notes should be added to capture the changes to the service.
+* `docker/service_version.txt` - The semantic version number should be updated.
+
+The `CHANGELOG.md` file requires a specific format for a new release, as it
+looks for the following string to define the newest release of the code
+(starting at the top of the file).
 
 ```
 ## [vX.Y.Z] - YYYY-MM-DD
