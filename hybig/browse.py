@@ -99,7 +99,9 @@ def create_browse(
               * height and width
               * scale_sizes (in the x and y horizontal spatial dimensions)
             * Specify all three of the above, but ensure values are consistent
-              with one another.
+              with one another, noting that:
+              scale_size.x = (scale_extent.x.max - scale_extent.x.min) / width
+              scale_size.y = (scale_extent.y.max - scale_extent.y.min) / height
 
     Returns:
         List of 3-element tuples. These are the file paths of:
