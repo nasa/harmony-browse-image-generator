@@ -303,12 +303,14 @@ Local testing of service functionality can be achieved via a local instance of
 [Harmony](https://github.com/nasa/harmony). Please see instructions there
 regarding creation of a local Harmony instance.
 
-If developing changes to the library, or testing small functions locally that
-do not require inputs from the main Harmony application, it is recommended that
-you create a Python virtual environment, and then install the necessary
-dependencies for the service within that environment via conda and pip then
-install the pre-commit hooks.  Note that you will need the gdal libraries
-available to your virtual environment to install the `gdal` package with pip.
+For local development and testing of library modifications or small functions
+independent of the main Harmony application:
+
+1. Create a Python virtual environment
+1. Ensure GDAL libraries are accessable in the virtual environment.
+1. Install the dependencies in `pip_requirements.txt`,  `pip_requirements_skip_snyk.txt` and `dev-requirements.txt`
+1. Install the pre-commit hooks.
+
 
 ```
 > conda create --name hybig-env python==3.11
