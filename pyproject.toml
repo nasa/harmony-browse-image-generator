@@ -50,25 +50,3 @@ exclude = [
 
 [tool.hatch.build.targets.wheel]
 packages=["hybig"]
-
-[tool.black]
-skip-string-normalization = 1
-
-[tool.isort]
-profile = "black"
-
-[tool.ruff]
-lint.select = [
-  "E",   # pycodestyle
-  "F",   # pyflakes
-  "UP",  # pyupgrade
-  "I",   # organize imports
-  "D",   # docstyle
-]
-
-[tool.ruff.lint.pydocstyle]
-convention = "google"
-
-[[tool.mypy.overrides]]
-module = "harmony.*,matplotlib.*,rasterio.*,osgeo_utils.*,pystac.*,affine.*,pycodestyle.*,imagequant.*,PIL.*,rioxarray.*, xarray.*"
-ignore_missing_imports = true
