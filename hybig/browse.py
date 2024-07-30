@@ -51,7 +51,7 @@ def create_browse(
     """Create browse imagery from an input geotiff.
 
     This is the exposed library function to allow users to create browse images
-    from the hybig library. It parses the input params and constructs the
+    from the hybig-py library. It parses the input params and constructs the
     correct Harmony input structure [Message.Format] to call the service's
     entry point create_browse_imagery.
 
