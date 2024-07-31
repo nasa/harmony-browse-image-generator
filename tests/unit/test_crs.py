@@ -12,15 +12,15 @@ from harmony.message import SRS
 from rasterio.crs import CRS
 from rioxarray import open_rasterio
 
-from harmony_browse_image_generator.crs import (
+from hybig.crs import (
     PREFERRED_CRS,
     choose_best_crs_from_metadata,
     choose_target_crs,
 )
-from harmony_browse_image_generator.exceptions import HyBIGInvalidMessageError
+from hybig.exceptions import HyBIGValueError
 from tests.unit.utility import rasterio_test_file
 
-## Test constants
+# Test constants
 WKT_EPSG_3031 = (
     'PROJCS["WGS 84 / Antarctic Polar Stereographic",'
     'GEOGCS["WGS 84",DATUM["WGS_1984",'
@@ -125,10 +125,10 @@ class TestCrs(TestCase):
     def test_choose_target_crs_with_invalid_SRS_from_harmony_message(self):
         """Test SRS does not have epsg, wkt or proj4 string."""
         test_srs_is_json = {'how': 'did this happen?'}
-        with self.assertRaisesRegex(HyBIGInvalidMessageError, 'Bad input SRS'):
+        with self.assertRaisesRegex(HyBIGValueError, 'Bad input SRS'):
             choose_target_crs(test_srs_is_json, None)
 
-    @patch('harmony_browse_image_generator.crs.choose_crs_from_metadata')
+    @patch('hybig.crs.choose_crs_from_metadata')
     def test_choose_target_harmony_message_has_crs_but_no_srs(self, mock_choose_fxn):
         """Explicitly show we do not support format.crs only.
 

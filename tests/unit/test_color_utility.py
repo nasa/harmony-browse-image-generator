@@ -8,13 +8,13 @@ from pystac import Asset, Item
 from rasterio import DatasetReader
 from requests import Response
 
-from harmony_browse_image_generator.color_utility import (
+from hybig.color_utility import (
     convert_colormap_to_palette,
     get_color_palette,
     get_color_palette_from_item,
     get_remote_palette_from_source,
 )
-from harmony_browse_image_generator.exceptions import (
+from hybig.exceptions import (
     HyBIGError,
     HyBIGNoColorInformation,
 )
@@ -44,9 +44,7 @@ class TestColorUtility(TestCase):
         props = {}
         self.item = Item('id', geometry, bbox, date, props)
 
-    @patch(
-        'harmony_browse_image_generator.color_utility.palette_from_remote_colortable'
-    )
+    @patch('hybig.color_utility.palette_from_remote_colortable')
     def test_get_color_palette_from_item_with_no_assets(
         self, palette_from_remote_colortable_mock
     ):
@@ -54,9 +52,7 @@ class TestColorUtility(TestCase):
         self.assertIsNone(actual)
         palette_from_remote_colortable_mock.assert_not_called()
 
-    @patch(
-        'harmony_browse_image_generator.color_utility.palette_from_remote_colortable'
-    )
+    @patch('hybig.color_utility.palette_from_remote_colortable')
     def test_get_color_palette_from_item_no_palette_asset(
         self, palette_from_remote_colortable_mock
     ):
@@ -67,9 +63,7 @@ class TestColorUtility(TestCase):
         self.assertIsNone(actual)
         palette_from_remote_colortable_mock.assert_not_called()
 
-    @patch(
-        'harmony_browse_image_generator.color_utility.palette_from_remote_colortable'
-    )
+    @patch('hybig.color_utility.palette_from_remote_colortable')
     def test_get_color_palette_from_item_palette_asset(self, palette_from_remote_mock):
         asset = Asset('data href', roles=['data'])
         palette_asset = Asset('palette href', roles=['palette'])
@@ -85,7 +79,7 @@ class TestColorUtility(TestCase):
         palette_from_remote_mock.assert_called_once_with('palette href')
         self.assertEqual(expected_palette, actual)
 
-    @patch('harmony_browse_image_generator.color_utility.requests.get')
+    @patch('hybig.color_utility.requests.get')
     def test_get_color_palette_from_item_palette_asset_fails(self, get_mock):
         """Raise exception if there is a colortable, but it cannot be retrieved."""
         asset = Asset('data href', roles=['data'])
@@ -104,9 +98,7 @@ class TestColorUtility(TestCase):
         ):
             get_color_palette_from_item(self.item)
 
-    @patch(
-        'harmony_browse_image_generator.color_utility.palette_from_remote_colortable'
-    )
+    @patch('hybig.color_utility.palette_from_remote_colortable')
     def test_get_remote_palette_from_source(self, palette_from_remote_mock):
         with self.subTest('No variables in source'):
             test_source = HarmonySource({})
@@ -212,9 +204,7 @@ class TestColorUtility(TestCase):
                 get_remote_palette_from_source(test_source)
             palette_from_remote_mock.reset_mock()
 
-    @patch(
-        'harmony_browse_image_generator.color_utility.get_remote_palette_from_source'
-    )
+    @patch('hybig.color_utility.get_remote_palette_from_source')
     def test_get_color_palette_with_item_palette(
         self, get_remote_palette_from_source_mock
     ):
@@ -228,7 +218,7 @@ class TestColorUtility(TestCase):
         get_remote_palette_from_source_mock.assert_not_called()
         ds.colormap.assert_not_called()
 
-    @patch('harmony_browse_image_generator.color_utility.requests.get')
+    @patch('hybig.color_utility.requests.get')
     def test_get_color_palette_request_fails(self, get_mock):
         failed_response = Mock(Response)
         failed_response.ok = False
@@ -258,9 +248,7 @@ class TestColorUtility(TestCase):
             get_color_palette(ds, source, None)
         ds.colormap.assert_not_called()
 
-    @patch(
-        'harmony_browse_image_generator.color_utility.palette_from_remote_colortable'
-    )
+    @patch('hybig.color_utility.palette_from_remote_colortable')
     def test_get_color_palette_finds_no_url(self, palette_from_remote_mock):
         palette_from_remote_mock.side_effect = HyBIGError('mocked exception')
         ds = Mock(DatasetReader)
@@ -287,9 +275,7 @@ class TestColorUtility(TestCase):
             get_color_palette(ds, source, None)
         palette_from_remote_mock.assert_called_once_with('url:of:colortable')
 
-    @patch(
-        'harmony_browse_image_generator.color_utility.palette_from_remote_colortable'
-    )
+    @patch('hybig.color_utility.palette_from_remote_colortable')
     def test_get_color_palette_source_remote_exists(self, palette_from_remote_mock):
         ds = Mock(DatasetReader)
         ds.colormap.return_value = self.colormap

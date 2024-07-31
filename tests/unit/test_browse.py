@@ -1,13 +1,14 @@
-""" Unit tests for browse module. """
+"""Unit tests for browse module."""
 
 import shutil
 import tempfile
-from logging import getLogger
+from logging import Logger, getLogger
 from pathlib import Path
 from unittest import TestCase
 from unittest.mock import MagicMock, Mock, call, patch
 
 import numpy as np
+from harmony.message import SRS
 from harmony.message import Message as HarmonyMessage
 from harmony.message import Source as HarmonySource
 from numpy.testing import assert_array_equal
@@ -20,9 +21,10 @@ from rasterio.transform import array_bounds
 from rasterio.warp import Resampling
 from xarray import DataArray
 
-from harmony_browse_image_generator.browse import (
+from hybig.browse import (
     convert_mulitband_to_raster,
     convert_singleband_to_raster,
+    create_browse,
     create_browse_imagery,
     get_color_map_from_image,
     get_tiled_filename,
@@ -33,19 +35,19 @@ from harmony_browse_image_generator.browse import (
     validate_file_crs,
     validate_file_type,
 )
-from harmony_browse_image_generator.color_utility import (
+from hybig.color_utility import (
     OPAQUE,
     TRANSPARENT,
     convert_colormap_to_palette,
     get_color_palette,
     palette_from_remote_colortable,
 )
-from harmony_browse_image_generator.exceptions import HyBIGError
+from hybig.exceptions import HyBIGError
 from tests.unit.utility import rasterio_test_file
 
 
 class TestBrowse(TestCase):
-    """A class testing the harmony_browse_image_generator.browse module."""
+    """A class testing the hybig.browse module."""
 
     @classmethod
     def setUpClass(cls):
@@ -146,9 +148,9 @@ class TestBrowse(TestCase):
                     message, test_tif_filename, HarmonySource({}), None, None
                 )
 
-    @patch('harmony_browse_image_generator.browse.reproject')
+    @patch('hybig.browse.reproject')
     @patch('rasterio.open')
-    @patch('harmony_browse_image_generator.browse.open_rasterio')
+    @patch('hybig.browse.open_rasterio')
     def test_create_browse_imagery_with_mocks(
         self, rioxarray_open_mock, rasterio_open_mock, reproject_mock
     ):
@@ -304,7 +306,6 @@ class TestBrowse(TestCase):
 
     def test_convert_singleband_to_raster_without_colortable(self):
         """Tests convert_gray_1band_to_raster."""
-
         return_data = np.copy(self.data).astype('float64')
         return_data[0][1] = np.nan
         ds = DataArray(return_data).expand_dims('band')
@@ -548,7 +549,7 @@ class TestBrowse(TestCase):
         self.assertEqual(expected_color_map, actual_color_map)
         np.testing.assert_array_equal(expected_raster, actual_raster)
 
-    @patch('harmony_browse_image_generator.browse.palettize_raster')
+    @patch('hybig.browse.palettize_raster')
     def test_prepare_raster_for_writing_png_4band(self, palettize_mock):
         raster = self.random.integers(255, size=(4, 7, 8))
         driver = 'PNG'
@@ -557,11 +558,10 @@ class TestBrowse(TestCase):
 
         palettize_mock.assert_called_once_with(raster)
 
-    @patch('harmony_browse_image_generator.browse.Image')
-    @patch('harmony_browse_image_generator.browse.get_color_map_from_image')
+    @patch('hybig.browse.Image')
+    @patch('hybig.browse.get_color_map_from_image')
     def test_palettize_raster_no_alpha_layer(self, get_color_map_mock, image_mock):
         """Test that the quantize function is called by a correct image."""
-
         raster = self.random.integers(255, dtype='uint8', size=(3, 10, 11))
 
         quantized_output = Image.fromarray(
@@ -580,11 +580,10 @@ class TestBrowse(TestCase):
 
         np.testing.assert_array_equal(expected_out_raster, out_raster)
 
-    @patch('harmony_browse_image_generator.browse.Image')
-    @patch('harmony_browse_image_generator.browse.get_color_map_from_image')
+    @patch('hybig.browse.Image')
+    @patch('hybig.browse.get_color_map_from_image')
     def test_palettize_raster_with_alpha_layer(self, get_color_map_mock, image_mock):
         """Test that the quantize function is called by a correct image."""
-
         raster = self.random.integers(255, dtype='uint8', size=(4, 10, 11))
         # No transparent pixels
         raster[3, :, :] = 255
@@ -714,7 +713,7 @@ class TestBrowse(TestCase):
             self.assertEqual(expected_filename, actual_filename)
 
     def test_validate_file_crs_valid(self):
-        """valid file should return None."""
+        """Valid file should return None."""
         da = Mock(DataArray)
         da.rio.crs = CRS.from_epsg(4326)
         try:
@@ -723,14 +722,14 @@ class TestBrowse(TestCase):
             self.fail('Valid file threw unexpected exception.')
 
     def test_validate_file_crs_missing(self):
-        """invalid file should raise exception."""
+        """Invalid file should raise exception."""
         da = Mock(DataArray)
         da.rio.crs = None
         with self.assertRaisesRegex(HyBIGError, 'Input geotiff must have defined CRS.'):
             validate_file_crs(da)
 
     def test_validate_file_type_valid(self):
-        """validation should not raise exception."""
+        """Validation should not raise exception."""
         ds = Mock(DatasetReader)
         ds.driver = 'GTiff'
         try:
@@ -747,7 +746,7 @@ class TestBrowse(TestCase):
         ):
             validate_file_type(ds)
 
-    @patch('harmony_browse_image_generator.color_utility.requests.get')
+    @patch('hybig.color_utility.requests.get')
     def test_palette_from_remote_colortable(self, mock_get):
         with self.subTest('successful retrieval of colortable'):
             returned_colortable = (
@@ -784,3 +783,94 @@ class TestBrowse(TestCase):
                     ' http://this-domain-does-not-exist.com/bad-url'
                 ),
             )
+
+
+class TestCreateBrowse(TestCase):
+    """A class testing the create_browse function call.
+
+    Ensure library calls the `create_browse_imagery` function the same as the
+    service.
+
+    """
+
+    @patch('hybig.browse.create_browse_imagery')
+    def test_calls_create_browse_with_correct_params(self, mock_create_browse_imagery):
+        """Ensure correct harmony message is created from inputs."""
+        source_tiff = '/Path/to/source.tiff'
+        params = {
+            'mime': 'image/png',
+            'crs': {'epsg': 'EPSG:4326'},
+            'scale_extent': {
+                'x': {'min': -180, 'max': 180},
+                'y': {'min': -90, 'max': 90},
+            },
+            'scale_size': {'x': 10, 'y': 10},
+        }
+        mock_logger = MagicMock(spec=Logger)
+        mock_palette = MagicMock(spec=ColorPalette)
+
+        create_browse(source_tiff, params, mock_palette, mock_logger)
+
+        mock_create_browse_imagery.assert_called_once()
+        call_args = mock_create_browse_imagery.call_args[0]
+        self.assertIsInstance(call_args[0], HarmonyMessage)
+        self.assertEqual(call_args[1], source_tiff)
+        self.assertIsInstance(call_args[2], HarmonySource)
+        self.assertEqual(call_args[3], mock_palette)
+        self.assertEqual(call_args[4], mock_logger)
+
+        # verify message params.
+        harmony_message = call_args[0]
+        harmony_format = harmony_message.format
+
+        # HarmonyMessage.Format does not have a json representation to compare
+        # to so compare the pieces individually.
+        self.assertEqual(harmony_format.mime, "image/png")
+        self.assertEqual(harmony_format['crs'], {"epsg": "EPSG:4326"})
+        self.assertEqual(harmony_format['srs'], {"epsg": "EPSG:4326"})
+        self.assertEqual(
+            harmony_format['scaleExtent'],
+            {
+                "x": {"min": -180, "max": 180},
+                "y": {"min": -90, "max": 90},
+            },
+        )
+        self.assertEqual(harmony_format['scaleSize'], {"x": 10, "y": 10})
+        self.assertIsNone(harmony_message['format']['height'])
+        self.assertIsNone(harmony_message['format']['width'])
+
+    @patch('hybig.browse.palette_from_remote_colortable')
+    @patch('hybig.browse.create_browse_imagery')
+    def test_calls_create_browse_with_remote_palette(
+        self, mock_create_browse_imagery, mock_palette_from_remote_color_table
+    ):
+        """Ensure remote palette is used."""
+        mock_palette = MagicMock(sepc=ColorPalette)
+        mock_palette_from_remote_color_table.return_value = mock_palette
+        remote_color_url = 'https://path/to/colormap.txt'
+        source_tiff = '/Path/to/source.tiff'
+        mock_logger = MagicMock(spec=Logger)
+
+        # Act
+        create_browse(source_tiff, {}, remote_color_url, mock_logger)
+
+        # Assert a remote colortable was fetched.
+        mock_palette_from_remote_color_table.assert_called_once_with(remote_color_url)
+
+        mock_create_browse_imagery.assert_called_once()
+        (
+            call_harmony_message,
+            call_source_tiff,
+            call_harmony_source,
+            call_color_palette,
+            call_logger,
+        ) = mock_create_browse_imagery.call_args[0]
+
+        # create_browse_imagery called with the color palette returned from
+        # palette_from_remote_colortable
+        self.assertEqual(call_color_palette, mock_palette)
+
+        self.assertIsInstance(call_harmony_message, HarmonyMessage)
+        self.assertIsInstance(call_harmony_source, HarmonySource)
+        self.assertEqual(call_source_tiff, source_tiff)
+        self.assertEqual(call_logger, mock_logger)

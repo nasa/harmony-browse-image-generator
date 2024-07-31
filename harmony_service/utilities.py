@@ -1,4 +1,4 @@
-""" Module containing utility functionality. """
+"""Module containing service utility functionality."""
 
 import re
 from mimetypes import guess_type as guess_mime_type
@@ -15,9 +15,9 @@ KNOWN_MIME_TYPES = {
 
 
 def get_tiled_file_extension(file_name: Path) -> str:
-    """Return the correct extention to add to a staged file.
+    """Return the correct extension to add to a staged file.
 
-    Harmony's generate output filename can drop an extention incorrectly, so we
+    Harmony's generate output filename can drop an extension incorrectly, so we
     generate the correct one to pass in.
 
     """
@@ -34,7 +34,6 @@ def get_asset_name(name: str, url: str) -> str:
     dictionary.
 
     """
-
     tiled_pattern = r"\.(r\d+c\d+)\."
     tile_id = re.search(tiled_pattern, url)
     if tile_id is not None:

@@ -2,7 +2,7 @@
 
 import re
 from itertools import zip_longest
-from logging import Logger
+from logging import Logger, getLogger
 from pathlib import Path
 
 import matplotlib
@@ -22,7 +22,8 @@ from rasterio.warp import Resampling, reproject
 from rioxarray import open_rasterio
 from xarray import DataArray
 
-from harmony_browse_image_generator.color_utility import (
+from hybig.browse_utility import get_harmony_message_from_params
+from hybig.color_utility import (
     NODATA_IDX,
     NODATA_RGBA,
     OPAQUE,
@@ -31,14 +32,115 @@ from harmony_browse_image_generator.color_utility import (
     TRANSPARENT_RGBA,
     all_black_color_map,
     get_color_palette,
+    palette_from_remote_colortable,
     remove_alpha,
 )
-from harmony_browse_image_generator.exceptions import HyBIGError
-from harmony_browse_image_generator.sizes import (
+from hybig.exceptions import HyBIGError
+from hybig.sizes import (
     GridParams,
     create_tiled_output_parameters,
     get_target_grid_parameters,
 )
+
+
+def create_browse(
+    source_tiff: str,
+    params: dict = None,
+    palette: str | ColorPalette | None = None,
+    logger: Logger = None,
+) -> list[tuple[Path, Path, Path]]:
+    """Create browse imagery from an input geotiff.
+
+    This is the exposed library function to allow users to create browse images
+    from the hybig-py library. It parses the input params and constructs the
+    correct Harmony input structure [Message.Format] to call the service's
+    entry point create_browse_imagery.
+
+    Output images are created and deposited into the input GeoTIFF's directory.
+
+    Args:
+        source_tiff: str, location of the input geotiff to process.
+
+        params: [dict | None], A dictionary with the following keys:
+
+            mime: [str], MIME type of the output image (default: 'image/png').
+                  any string that contains 'jpeg' will return a jpeg image,
+                  otherwise create a png.
+
+            crs: [dict | None], Target image's Coordinate Reference System.
+                 A dictionary with 'epsg', 'proj4' or 'wkt' key.
+
+            scale_extent: [dict | None], Scale Extents for the image. This dictionary
+                contains "x" and "y" keys each whose value which is a dictionary
+                of "min", "max" values in the same units as the crs.
+                e.g.: { "x": { "min": 0.5, "max": 125 },
+                        "y": { "min": 52, "max": 75.22 } }
+
+            scale_size: [dict | None], Scale sizes for the image.  The dictionary
+                contains "x" and "y" keys with the horizontal and veritcal
+                resolution in the same units as the crs.
+                e.g.: { "x": 10, "y": 10 }
+
+            height: [int | None], height of the output image in gridcells.
+
+            width: [int | none], width of the output image in gridcells.
+
+        palette: [str | ColorPalette | none], either a URL to a remote color palette
+             that is fetched and loaded or a ColorPalette object used to color
+             the output browse image. If not provided, a grayscale image is
+             generated.
+
+        logger: [Logger | None], a configured Logger object. If None a default
+             logger will be used.
+
+    Note:
+      if supplied, scale_size, scale_extent, height and width must be
+      internally consistent.  To define a valid output grid:
+            * Specify scale_extent and 1 of:
+              * height and width
+              * scale_sizes (in the x and y horizontal spatial dimensions)
+            * Specify all three of the above, but ensure values are consistent
+              with one another, noting that:
+              scale_size.x = (scale_extent.x.max - scale_extent.x.min) / width
+              scale_size.y = (scale_extent.y.max - scale_extent.y.min) / height
+
+    Returns:
+        List of 3-element tuples. These are the file paths of:
+        - The output browse image
+        - Its associated ESRI world file (containing georeferencing information)
+        - The auxiliary XML file (containing duplicative georeferencing information)
+
+
+    Example Usage:
+        results = create_browse(
+            "/path/to/geotiff",
+            {
+                "mime": "image/png",
+                "crs": {"epsg": "EPSG:4326"},
+                "scale_extent": {
+                    "x": {"min": -180, "max": 180},
+                    "y": {"min": -90, "max": 90},
+                },
+                "scale_size": {"x": 10, "y": 10},
+            },
+            "https://remote-colortable",
+            logger,
+        )
+
+    """
+    harmony_message = get_harmony_message_from_params(params)
+
+    if logger is None:
+        logger = getLogger('hybig-py')
+
+    if isinstance(palette, str):
+        color_palette = palette_from_remote_colortable(palette)
+    else:
+        color_palette = palette
+
+    return create_browse_imagery(
+        harmony_message, source_tiff, HarmonySource({}), color_palette, logger
+    )
 
 
 def create_browse_imagery(
@@ -50,8 +152,9 @@ def create_browse_imagery(
 ) -> list[tuple[Path, Path, Path]]:
     """Create browse image from input geotiff.
 
-    Take input browse image and return a 2-element tuple for the file paths
-    of the output browse image and its associated ESRI world file.
+    Take input browse image and return a 3-element tuple for the file paths of
+    the output browse image, its associated ESRI world file and the auxilary
+    xml file.
 
     """
     output_driver = image_driver(message.format.mime)
@@ -240,7 +343,7 @@ def prepare_raster_for_writing(
 
 
 def palettize_raster(raster: ndarray) -> tuple[ndarray, dict]:
-    """convert an RGB or RGBA image into a 1band image and palette.
+    """Convert an RGB or RGBA image into a 1band image and palette.
 
     Converts a 3 or 4 band np raster into a PIL image.
     Quantizes the image into a 1band raster with palette
@@ -271,7 +374,8 @@ def add_alpha(
     alpha: ndarray | None, quantized_array: ndarray, color_map: dict
 ) -> tuple[ndarray, dict]:
     """If the input data had alpha values, manually set the quantized_image
-    index to the transparent index in those places."""
+    index to the transparent index in those places.
+    """
     if alpha is not None and np.any(alpha != OPAQUE):
         # Set any alpha to the transparent index value
         quantized_array = np.where(alpha != OPAQUE, TRANSPARENT_IDX, quantized_array)
@@ -294,7 +398,7 @@ def get_color_map_from_image(image: Image) -> dict:
 
 
 def get_aux_xml_filename(image_filename: Path) -> Path:
-    """get aux.xml filenames."""
+    """Get aux.xml filenames."""
     return image_filename.with_suffix(image_filename.suffix + '.aux.xml')
 
 

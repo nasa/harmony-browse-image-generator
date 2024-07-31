@@ -3,20 +3,20 @@
 # test results and code coverage as artefacts. It will be called by the
 # workflow that run tests against new PRs and as a first step in the workflow
 # that publishes new Docker images.
-name: Run Python unit tests
+name: Run Python tests
 
 on:
   workflow_call
 
 jobs:
-  build_and_test:
+  build_and_test_service:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
 
     steps:
       - name: Checkout harmony-browse-image-generator repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           lfs: true
 
@@ -30,13 +30,13 @@ jobs:
         run: ./bin/run-test
 
       - name: Archive test results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Test results
           path: test-reports/
 
       - name: Archive coverage report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Coverage report
           path: coverage/*

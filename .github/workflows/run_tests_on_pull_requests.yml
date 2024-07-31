@@ -1,5 +1,5 @@
 # This workflow will run when a PR is opened against the `main` branch. It will
-# trigger the reusable workflow in `.github/workflows/run_tests.yml`, which
+# trigger the reusable workflow in `.github/workflows/run_service_tests.yml`, which
 # builds the service and test Docker images, and runs the `unittest` suite in a
 # Docker container built from the test image.
 name: Run Python unit tests for pull requests against main
@@ -9,5 +9,8 @@ on:
     branches: [ main ]
 
 jobs:
-  build_and_test:
-    uses: ./.github/workflows/run_tests.yml
+  build_and_test_service:
+    uses: ./.github/workflows/run_service_tests.yml
+
+  run_lib_tests:
+    uses: ./.github/workflows/run_lib_tests.yml

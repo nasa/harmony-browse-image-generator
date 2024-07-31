@@ -1,9 +1,9 @@
-""" `HarmonyAdapter` for Harmony Browse Image Generator (HyBIG).
+"""`HarmonyAdapter` for Harmony Browse Image Generator (HyBIG).
 
-    The class in this file is the top level of abstraction for a service that
-    will accept a GeoTIFF input and create a browse image (PNG/JPEG) and
-    accompanying ESRI world file. By default, this service will aim to create
-    Global Imagery Browse Services (GIBS) compatible browse imagery.
+The class in this file is the top level of abstraction for a service that
+will accept a GeoTIFF input and create a browse image (PNG/JPEG) and
+accompanying ESRI world file. By default, this service will aim to create
+Global Imagery Browse Services (GIBS) compatible browse imagery.
 
 """
 
@@ -23,21 +23,18 @@ from harmony.message_utility import (
 from harmony.util import bbox_to_geometry, download, generate_output_filename, stage
 from pystac import Asset, Catalog, Item
 
-from harmony_browse_image_generator.browse import create_browse_imagery
-from harmony_browse_image_generator.color_utility import get_color_palette_from_item
-from harmony_browse_image_generator.exceptions import HyBIGInvalidMessageError
-from harmony_browse_image_generator.utilities import (
+from harmony_service.exceptions import HyBIGInvalidMessageError, HyBIGServiceError
+from harmony_service.utilities import (
     get_asset_name,
     get_file_mime_type,
     get_tiled_file_extension,
 )
+from hybig.browse import create_browse_imagery
+from hybig.color_utility import get_color_palette_from_item
 
 
 class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
-    """This class extends the BaseHarmonyAdapter class from the
-    harmony-service-lib package to implement HyBIG operations.
-
-    """
+    """HyBIG extension to the harmony-service-lib BaseHarmonyAdapter."""
 
     def invoke(self) -> Catalog:
         """Adds validation to process_item based invocations."""
@@ -91,7 +88,6 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
 
     def process_item(self, item: Item, source: HarmonySource) -> Item:
         """Processes a single input STAC item."""
-
         try:
             working_directory = mkdtemp()
             results = item.clone()
@@ -144,7 +140,7 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
 
         except Exception as exception:
             self.logger.exception(exception)
-            raise exception
+            raise HyBIGServiceError from exception
         finally:
             rmtree(working_directory)
 
@@ -155,7 +151,6 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
         message.
 
         """
-
         ext = get_tiled_file_extension(transformed_file)
         output_file_name = generate_output_filename(input_file, ext=ext)
 

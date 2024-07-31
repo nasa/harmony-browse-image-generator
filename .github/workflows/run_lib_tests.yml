@@ -1,0 +1,45 @@
+# This workflow will run the appropriate library tests across a python matrix of versions.
+name: Run Python library tests
+
+on:
+  workflow_call
+
+jobs:
+  build_and_test_lib:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11']
+
+    steps:
+      - name: Checkout harmony-browse-image-generator repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install GDAL
+        run: |
+          # Install packaged version of GDAL.
+          sudo apt-get update
+          sudo apt-get install -y libgdal-dev
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          pip install -r pip_requirements.txt
+          # Use the gdal version that was installed in the previous step.  This
+          # is not the same GDAL as installed in the docker images but in the
+          # end we're only using osgeo's ColorPalette
+          pip install GDAL==$(gdal-config --version)
+          pip install -r tests/pip_test_requirements.txt
+
+      - name: Run science tests while excluding the service tests.
+        run: |
+          pytest tests --ignore tests/test_service

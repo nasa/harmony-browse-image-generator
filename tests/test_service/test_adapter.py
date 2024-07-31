@@ -1,4 +1,4 @@
-""" End-to-end tests of the Harmony Browse Image Generator (HyBIG). """
+"""End-to-end tests of the Harmony Browse Image Generator (HyBIG)."""
 
 from pathlib import Path
 from shutil import copy, rmtree
@@ -14,8 +14,8 @@ from rasterio.transform import array_bounds, from_bounds
 from rasterio.warp import Resampling
 from rioxarray import open_rasterio
 
-from harmony_browse_image_generator.adapter import BrowseImageGeneratorAdapter
-from harmony_browse_image_generator.browse import (
+from harmony_service.adapter import BrowseImageGeneratorAdapter
+from hybig.browse import (
     convert_mulitband_to_raster,
     prepare_raster_for_writing,
 )
@@ -23,7 +23,7 @@ from tests.utilities import Granule, create_stac
 
 
 class TestAdapter(TestCase):
-    """A class testing the harmony_browse_image_generator.adapter module."""
+    """A class testing the harmony_service.adapter module."""
 
     @classmethod
     def setUpClass(cls):
@@ -32,7 +32,7 @@ class TestAdapter(TestCase):
         cls.granule_url = 'https://www.example.com/input.tiff'
         cls.input_stac = create_stac(Granule(cls.granule_url, 'image/tiff', ['data']))
         cls.staging_location = 's3://example-bucket'
-        cls.fixtures = Path(__file__).resolve().parent / 'fixtures'
+        cls.fixtures = Path(__file__).resolve().parent.parent / 'fixtures'
         cls.red_tif_fixture = cls.fixtures / 'red.tif'
         cls.user = 'blightyear'
 
@@ -98,11 +98,11 @@ class TestAdapter(TestCase):
             },
         )
 
-    @patch('harmony_browse_image_generator.browse.reproject')
-    @patch('harmony_browse_image_generator.adapter.rmtree')
-    @patch('harmony_browse_image_generator.adapter.mkdtemp')
-    @patch('harmony_browse_image_generator.adapter.download')
-    @patch('harmony_browse_image_generator.adapter.stage')
+    @patch('hybig.browse.reproject')
+    @patch('harmony_service.adapter.rmtree')
+    @patch('harmony_service.adapter.mkdtemp')
+    @patch('harmony_service.adapter.download')
+    @patch('harmony_service.adapter.stage')
     def test_valid_request_jpeg(
         self, mock_stage, mock_download, mock_mkdtemp, mock_rmtree, mock_reproject
     ):
@@ -137,7 +137,7 @@ class TestAdapter(TestCase):
         mock_mkdtemp.return_value = self.temp_dir
 
         def move_tif(*args, **kwargs):
-            """copy fixture tiff to download location."""
+            """Copy fixture tiff to download location."""
             copy(self.red_tif_fixture, expected_downloaded_file)
             return expected_downloaded_file
 
@@ -333,11 +333,11 @@ class TestAdapter(TestCase):
         # Ensure container clean-up was requested:
         mock_rmtree.assert_called_once_with(self.temp_dir)
 
-    @patch('harmony_browse_image_generator.browse.reproject')
-    @patch('harmony_browse_image_generator.adapter.rmtree')
-    @patch('harmony_browse_image_generator.adapter.mkdtemp')
-    @patch('harmony_browse_image_generator.adapter.download')
-    @patch('harmony_browse_image_generator.adapter.stage')
+    @patch('hybig.browse.reproject')
+    @patch('harmony_service.adapter.rmtree')
+    @patch('harmony_service.adapter.mkdtemp')
+    @patch('harmony_service.adapter.download')
+    @patch('harmony_service.adapter.stage')
     def test_valid_request_png(
         self, mock_stage, mock_download, mock_mkdtemp, mock_rmtree, mock_reproject
     ):
@@ -372,7 +372,7 @@ class TestAdapter(TestCase):
         mock_mkdtemp.return_value = self.temp_dir
 
         def move_tif(*args, **kwargs):
-            """copy fixture tiff to download location."""
+            """Copy fixture tiff to download location."""
             copy(self.red_tif_fixture, expected_downloaded_file)
             return expected_downloaded_file
 

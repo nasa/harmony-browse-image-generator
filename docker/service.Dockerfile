@@ -11,6 +11,8 @@
 # 2023-04-04: Updated for HyBIG.
 # 2023-04-23: Updated conda clean and pip install to keep Docker image slim.
 # 2024-06-18: Updates to remove conda dependency.
+# 2024-07-30: Updates to handle separate service an science code directories
+# and updates the entrypoint of the new service container
 #
 ###############################################################################
 FROM python:3.11
@@ -28,10 +30,11 @@ RUN pip install --no-input --no-cache-dir \
     -r pip_requirements_skip_snyk.txt
 
 # Copy service code.
-COPY ./harmony_browse_image_generator harmony_browse_image_generator
+COPY ./harmony_service harmony_service
+COPY ./hybig hybig
 
 # Set GDAL related environment variables.
 ENV CPL_ZIP_ENCODING=UTF-8
 
 # Configure a container to be executable via the `docker run` command.
-ENTRYPOINT ["python", "-m", "harmony_browse_image_generator"]
+ENTRYPOINT ["python", "-m", "harmony_service"]

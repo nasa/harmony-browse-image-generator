@@ -1,0 +1,52 @@
+[project]
+name = "hybig-py"
+dynamic = ["dependencies", "version"]
+
+authors = [
+  {name="Matt Savoie", email="savoie@colorado.edu"},
+  {name="Owen Littlejohns", email="owen.m.littlejohns@nasa.gov"},
+]
+
+maintainers = [
+  {name="Matt Savoie", email="savoie@colorado.edu"},
+  {name="Owen Littlejohns", email="owen.m.littlejohns@nasa.gov"},
+]
+
+description = "Python package designed to produce browse imagery compatible with NASA's Global Image Browse Services (GIBS)."
+
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/nasa/harmony-browse-image-generator"
+Issues = "https://github.com/nasa/harmony-browse-image-generator/issues"
+
+[build-system]
+requires = ["hatchling", "hatch-requirements-txt"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata.hooks.requirements_txt]
+files = [
+    "pip_requirements.txt",
+    "pip_requirements_skip_snyk.txt"
+]
+[tool.hatch.version]
+path = "docker/service_version.txt"
+pattern= '^v?(?P<version>.*)$'
+
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "hybig/*.py"
+]
+exclude = [
+  ".*",
+]
+
+[tool.hatch.build.targets.wheel]
+packages=["hybig"]

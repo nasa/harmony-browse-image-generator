@@ -1,12 +1,13 @@
 # This workflow will run when changes are detected in the `main` branch, which
 # must include an update to the `docker/service_version.txt` file. The workflow
 # can also be manually triggered by a repository maintainer. This workflow will
-# first trigger the reusable workflow in `.github/workflows/run_tests.yml`,
+# first trigger the reusable workflow in `.github/workflows/run_service_tests.yml`,
 # which runs the `unittest` suite. If that workflow is successful, the latest
-# version of the service Docker image is pushed to ghcr.io, a tag is added to
-# the latest git commit, and a GitHub release is created with the release notes
-# from the latest version of HyBIG.
-name: Publish Harmony Browse Image Generator (HyBIG) Docker image
+# version of the service Docker image is pushed to ghcr.io, a library package
+# is built and published to PyPI, a tag is added to the latest git commit, and
+# a GitHub release is created with the release notes from the latest version of
+# HyBIG.
+name: Publish Harmony Browse Image Generator (HyBIG)
 
 on:
   push:
@@ -19,11 +20,14 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  run_tests:
-    uses: ./.github/workflows/run_tests.yml
+  run_service_tests:
+    uses: ./.github/workflows/run_service_tests.yml
 
-  build_and_publish_image:
-    needs: run_tests
+  run_lib_tests:
+    uses: ./.github/workflows/run_lib_tests.yml
+
+  build_and_publish:
+    needs: [run_service_tests, run_lib_tests]
     runs-on: ubuntu-latest
     environment: release
     permissions:
@@ -36,7 +40,7 @@ jobs:
 
     steps:
       - name: Checkout harmony-browse-image-generator repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           lfs: true
 
@@ -73,6 +77,17 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Build hybig-py package
+        run: python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
 
       - name: Publish GitHub release
         uses: ncipollo/release-action@v1

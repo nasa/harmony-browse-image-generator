@@ -5,8 +5,6 @@ that are used to generate browse images.
 
 """
 
-from typing import TYPE_CHECKING
-
 import numpy as np
 import requests
 from harmony.message import Source as HarmonySource
@@ -14,7 +12,7 @@ from osgeo_utils.auxiliary.color_palette import ColorPalette
 from pystac import Item
 from rasterio.io import DatasetReader
 
-from harmony_browse_image_generator.exceptions import (
+from hybig.exceptions import (
     HyBIGError,
     HyBIGNoColorInformation,
 )
@@ -32,7 +30,7 @@ NODATA_IDX = 255
 
 
 def remove_alpha(raster: np.ndarray) -> tuple[np.ndarray, np.ndarray, None]:
-    """remove alpha layer when it exists."""
+    """Remove alpha layer when it exists."""
     if raster.shape[0] == 4:
         return raster[0:3, :, :], raster[3, :, :]
     return raster, None
