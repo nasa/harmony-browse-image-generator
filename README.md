@@ -116,6 +116,25 @@ def create_browse(
     """
 ```
 
+### library installation
+
+The hybig-py library can be installed from PyPI but has a prerequisite
+dependency requirement on the GDAL libraries. Ensure you have an environment with the libraries available. You can check on Linux/macOS:
+```bash
+gdal-config --version
+```
+on windows (if GDAL is in your PATH):
+```bash
+gdalinfo --version
+```
+
+Once verified, you can simply install the libary:
+
+```bash
+pip install hybig-py
+```
+
+
 ### Reprojection
 
 GIBS expects to receive images in one of three Coordinate Reference System (CRS) projections.
