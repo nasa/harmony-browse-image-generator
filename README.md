@@ -119,7 +119,8 @@ def create_browse(
 ### library installation
 
 The hybig-py library can be installed from PyPI but has a prerequisite
-dependency requirement on the GDAL libraries. Ensure you have an environment with the libraries available. You can check on Linux/macOS:
+dependency requirement on the GDAL libraries. Ensure you have an environment
+with the libraries available. You can check on Linux/macOS:
 ```bash
 gdal-config --version
 ```
