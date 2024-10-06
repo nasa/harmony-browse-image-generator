@@ -4,6 +4,14 @@ HyBIG follows semantic versioning. All notable changes to this project will be
 documented in this file. The format is based on [Keep a
 Changelog](http://keepachangelog.com/en/1.0.0/).
 
+## [v2.0.1] - 2024-10-06
+
+### Changed
+
+* Updates service image to be built on AMD64.
+* Updates internal libraries
+
+
 ## [v2.0.0] - 2024-07-19
 
 **DAS-2180** - Adds pip installable library.
