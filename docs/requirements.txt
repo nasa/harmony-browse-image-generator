@@ -1,2 +1,2 @@
-notebook==7.0.3
+notebook==7.2.2
 harmony-py~=0.4.14
