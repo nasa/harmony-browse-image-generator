@@ -10,7 +10,7 @@ Format object.
 
 """
 
-from harmony.message import SRS
+from harmony_service_lib.message import SRS
 from pyproj.crs import CRS as pyCRS
 
 # pylint: disable-next=no-name-in-module

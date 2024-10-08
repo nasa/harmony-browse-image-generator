@@ -2,7 +2,7 @@ from datetime import datetime
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
-from harmony.message import Source as HarmonySource
+from harmony_service_lib.message import Source as HarmonySource
 from osgeo_utils.auxiliary.color_palette import ColorPalette
 from pystac import Asset, Item
 from rasterio import DatasetReader

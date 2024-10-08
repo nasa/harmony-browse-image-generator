@@ -5,7 +5,7 @@ from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
 import rasterio
-from harmony.message import Message
+from harmony_service_lib.message import Message
 from rasterio import Affine
 from rasterio.crs import CRS
 from rioxarray import open_rasterio

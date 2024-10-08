@@ -8,7 +8,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from affine import Affine
-from harmony.message import SRS
+from harmony_service_lib.message import SRS
 from rasterio.crs import CRS
 from rioxarray import open_rasterio
 

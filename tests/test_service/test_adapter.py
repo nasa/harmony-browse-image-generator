@@ -7,8 +7,8 @@ from unittest import TestCase
 from unittest.mock import call, patch
 
 import numpy as np
-from harmony.message import Message
-from harmony.util import config
+from harmony_service_lib.message import Message
+from harmony_service_lib.util import config
 from pystac import Catalog
 from rasterio.transform import array_bounds, from_bounds
 from rasterio.warp import Resampling

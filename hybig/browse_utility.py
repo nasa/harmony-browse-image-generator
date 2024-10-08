@@ -1,6 +1,6 @@
 """Module containing utility functionality for browse generation."""
 
-from harmony.message import Message as HarmonyMessage
+from harmony_service_lib.message import Message as HarmonyMessage
 
 
 def get_harmony_message_from_params(params: dict | None) -> HarmonyMessage:

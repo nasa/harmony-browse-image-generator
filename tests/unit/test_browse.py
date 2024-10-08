@@ -8,9 +8,9 @@ from unittest import TestCase
 from unittest.mock import MagicMock, Mock, call, patch
 
 import numpy as np
-from harmony.message import SRS
-from harmony.message import Message as HarmonyMessage
-from harmony.message import Source as HarmonySource
+from harmony_service_lib.message import SRS
+from harmony_service_lib.message import Message as HarmonyMessage
+from harmony_service_lib.message import Source as HarmonySource
 from numpy.testing import assert_array_equal
 from osgeo_utils.auxiliary.color_palette import ColorPalette
 from PIL import Image
