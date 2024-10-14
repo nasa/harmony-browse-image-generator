@@ -422,7 +422,7 @@ def find_closest_resolution(
 
     """
     best_info = None
-    smallest_diff = np.Infinity
+    smallest_diff = np.inf
     for res in resolutions:
         for info in resolution_info:
             resolution_diff = np.abs(res - info.pixel_size)
