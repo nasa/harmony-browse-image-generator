@@ -4,6 +4,18 @@ HyBIG follows semantic versioning. All notable changes to this project will be
 documented in this file. The format is based on [Keep a
 Changelog](http://keepachangelog.com/en/1.0.0/).
 
+## [v2.0.1] - 2024-10-15
+
+### Fixed
+
+**DAS-2259** - Corrects bug with RGBA input tifs.
+
+### Changed
+
+**DAS-2259**
+- Updates harmony-service-lib to v2
+- Updates numpy to v2
+
 ## [v2.0.1] - 2024-10-06
 
 ### Changed
