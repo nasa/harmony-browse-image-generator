@@ -514,6 +514,59 @@ class TestBrowse(TestCase):
         actual_raster = convert_mulitband_to_raster(ds)
         assert_array_equal(expected_raster, actual_raster.data)
 
+    def test_convert_4_multiband_masked_to_raster(self):
+        """Input data is selected from a subset of a real OPERA RTC input data
+        file that has masked the alpha layer and as a result as a datatype of
+        float32.
+
+        """
+        ds = Mock(DataArray)
+        ds.rio.count = 4
+        nan = np.nan
+        input_array = np.array(
+            [
+                [
+                    [nan, nan, nan, 234.0],
+                    [nan, nan, nan, 225.0],
+                    [nan, nan, 255.0, 215.0],
+                    [nan, nan, 217.0, 255.0],
+                ],
+                [
+                    [nan, nan, nan, 255.0],
+                    [nan, nan, nan, 255.0],
+                    [nan, nan, 255.0, 255.0],
+                    [nan, nan, 255.0, 255.0],
+                ],
+                [
+                    [nan, nan, nan, 234.0],
+                    [nan, nan, nan, 225.0],
+                    [nan, nan, 255.0, 215.0],
+                    [nan, nan, 217.0, 255.0],
+                ],
+                [
+                    [0.0, 0.0, 0.0, 255.0],
+                    [0.0, 0.0, 0.0, 255.0],
+                    [0.0, 0.0, 255.0, 255.0],
+                    [0.0, 0.0, 255.0, 255.0],
+                ],
+            ],
+            dtype=np.float32,
+        )
+        ds.to_numpy.return_value = input_array
+
+        expected_raster = np.ma.array(
+            data=[
+                [[0, 0, 0, 121], [0, 0, 0, 64], [0, 0, 255, 0], [0, 0, 13, 255]],
+                [[0, 0, 0, 255], [0, 0, 0, 255], [0, 0, 255, 255], [0, 0, 255, 255]],
+                [[0, 0, 0, 121], [0, 0, 0, 64], [0, 0, 255, 0], [0, 0, 13, 255]],
+                [[0, 0, 0, 255], [0, 0, 0, 255], [0, 0, 255, 255], [0, 0, 255, 255]],
+            ],
+            dtype=np.uint8,
+        )
+
+        actual_raster = convert_mulitband_to_raster(ds)
+        assert_array_equal(expected_raster.data, actual_raster.data)
+
     def test_convert_5_multiband_to_raster(self):
         ds = Mock(DataArray)
         ds.rio.count = 5
