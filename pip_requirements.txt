@@ -1,6 +1,6 @@
 harmony-service-lib~=2.0.0
 matplotlib==3.9.0
-numpy==2.1.2
+numpy==1.26.4
 pillow==10.4.0
 pyproj==3.6.1
 pystac~=1.0.1
