@@ -13,8 +13,12 @@ from typing import TypedDict
 
 import numpy as np
 from affine import Affine
-from harmony.message import Message
-from harmony.message_utility import has_dimensions, has_scale_extents, has_scale_sizes
+from harmony_service_lib.message import Message
+from harmony_service_lib.message_utility import (
+    has_dimensions,
+    has_scale_extents,
+    has_scale_sizes,
+)
 
 # pylint: disable-next=no-name-in-module
 from rasterio.crs import CRS

@@ -3,7 +3,7 @@
 from collections import namedtuple
 from datetime import datetime
 
-from harmony.util import bbox_to_geometry
+from harmony_service_lib.util import bbox_to_geometry
 from pystac import Asset, Catalog, Item
 
 Granule = namedtuple('Granule', ['url', 'media_type', 'roles'])
