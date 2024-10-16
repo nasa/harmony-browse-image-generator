@@ -1,6 +1,6 @@
 """Module defining harmony service errors raised by HyBIG service."""
 
-from harmony.util import HarmonyException
+from harmony_service_lib.util import HarmonyException
 
 SERVICE_NAME = 'harmony-browse-image-generator'
 

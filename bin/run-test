@@ -8,6 +8,7 @@
 # 2021-01-05: Updated for JUnit output.
 # 2023-04-04: Updated for the Harmony Browse Image Generator (HyBIG).
 # 2024-01-23: Updated to use new GitHub-related images.
+# 2024-10-06: Updated to support amd64.
 #
 ###############################################################################
 
@@ -24,7 +25,7 @@ mkdir -p coverage
 
 # Run the tests in a Docker container with mounted volumes for XML report
 # output and test coverage reporting
-docker run --rm \
+docker run --platform linux/amd64 --rm \
 	-v $(pwd)/test-reports:/home/tests/reports \
 	-v $(pwd)/coverage:/home/tests/coverage \
 	ghcr.io/nasa/harmony-browse-image-generator-test "$@"

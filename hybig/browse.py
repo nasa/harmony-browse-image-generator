@@ -9,8 +9,8 @@ import matplotlib
 import numpy as np
 import rasterio
 from affine import dumpsw
-from harmony.message import Message as HarmonyMessage
-from harmony.message import Source as HarmonySource
+from harmony_service_lib.message import Message as HarmonyMessage
+from harmony_service_lib.message import Source as HarmonySource
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 from numpy import ndarray

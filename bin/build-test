@@ -12,6 +12,7 @@
 # 2022-01-03: Updated Dockerfile path.
 # 2023-04-04: Updated for the Harmony Browse Image Generator (HyBIG).
 # 2024-01-22: Updated image name to: ghcr.io/nasa/harony-browse-image-generator-test.
+# 2024-10-06: Updated to support amd64.
 #
 ###############################################################################
 
@@ -26,4 +27,4 @@ if [ ! -z "$old" ] && [ "$2" != "--no-delete" ]; then
 fi
 
 # Build the image
-docker build -t ${image}:${tag} -f docker/tests.Dockerfile .
+docker build --platform linux/amd64 -t ${image}:${tag} -f docker/tests.Dockerfile .

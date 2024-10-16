@@ -13,7 +13,7 @@ repos:
     rev: v0.6.9
     hooks:
       - id: ruff
-        args: ["--fix", "--show-fixes", "--select", "I"]
+        args: ["--fix", "--show-fixes", "--extend-select", "I"]
   - repo: https://github.com/psf/black-pre-commit-mirror
     rev: 24.10.0
     hooks:

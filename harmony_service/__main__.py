@@ -3,7 +3,7 @@
 from argparse import ArgumentParser
 from sys import argv
 
-from harmony import is_harmony_cli, run_cli, setup_cli
+from harmony_service_lib import is_harmony_cli, run_cli, setup_cli
 
 from .adapter import BrowseImageGeneratorAdapter
 from .exceptions import SERVICE_NAME

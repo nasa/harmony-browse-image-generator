@@ -7,6 +7,7 @@
 # 2022-01-03: Updated Dockerfile path and added comments for tags.
 # 2023-04-04: Updated for the Harmony Browse Image Generator (HyBIG).
 # 2024-01-22: Updated image name to: ghcr.io/nasa/harmony-browse-image-generator.
+# 2024-10-06: Updated to support amd64.
 #
 ###############################################################################
 
@@ -29,4 +30,4 @@ tag=${1:-latest}
 #   version number from `docker/service_version.txt`.
 # - "latest", so the test Dockerfile can use the service image as a base image.
 #
-docker build -t ${image}:${tag} -t ${image}:latest -f docker/service.Dockerfile .
+docker build --platform linux/amd64 -t ${image}:${tag} -t ${image}:latest -f docker/service.Dockerfile .

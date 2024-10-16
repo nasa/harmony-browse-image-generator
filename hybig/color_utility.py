@@ -7,7 +7,7 @@ that are used to generate browse images.
 
 import numpy as np
 import requests
-from harmony.message import Source as HarmonySource
+from harmony_service_lib.message import Source as HarmonySource
 from osgeo_utils.auxiliary.color_palette import ColorPalette
 from pystac import Item
 from rasterio.io import DatasetReader

@@ -2,8 +2,8 @@ from datetime import datetime
 from unittest import TestCase
 from unittest.mock import Mock
 
-from harmony.message import Message
-from harmony.util import config
+from harmony_service_lib.message import Message
+from harmony_service_lib.util import config
 from pystac import Asset, Item
 
 from harmony_service.adapter import BrowseImageGeneratorAdapter
