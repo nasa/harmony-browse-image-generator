@@ -246,9 +246,9 @@ def convert_mulitband_to_raster(data_array: DataArray) -> ndarray:
     )
 
     if image_alpha is not None:
-        # merge nan alpha with the image alpha prefering transparency to
-        # opaqueness.
-        alpha = np.minimum(nan_alpha, image_alpha)
+        # merge missing alpha with the image alpha band prefering transparency
+        # to opaqueness.
+        alpha = np.minimum(nan_alpha, image_alpha).astype(np.uint8)
     else:
         alpha = nan_alpha
 
