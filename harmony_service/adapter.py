@@ -7,7 +7,6 @@ Global Imagery Browse Services (GIBS) compatible browse imagery.
 
 """
 
-from os.path import basename
 from pathlib import Path
 from shutil import rmtree
 from tempfile import mkdtemp
@@ -174,7 +173,7 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
         """Create an output STAC item used to access the browse imagery and
             ESRI world file as staged in S3.
 
-        asset_items are an array of tuples where the tuples should be: (name,
+        item_assets is an array of tuples where the tuples should be: (name,
         url, role)
 
         """
@@ -191,7 +190,7 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
 
             output_stac_item.assets[asset_name] = Asset(
                 url,
-                title=basename(url),
+                title=Path(url).name,
                 media_type=get_file_mime_type(url),
                 roles=[role],
             )
