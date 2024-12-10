@@ -50,3 +50,17 @@ exclude = [
 
 [tool.hatch.build.targets.wheel]
 packages=["hybig"]
+
+[tool.ruff]
+lint.select = [
+  "E",   # pycodestyle
+  "F",   # pyflakes
+  "UP",  # pyupgrade
+  "I",   # organize imports
+]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"

@@ -10,13 +10,10 @@ repos:
       - id: check-yaml
       - id: check-added-large-files
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.7.1
+    rev: v0.8.1
     hooks:
       - id: ruff
-        args: ["--fix", "--show-fixes", "--extend-select", "I"]
-  - repo: https://github.com/psf/black-pre-commit-mirror
-    rev: 24.10.0
-    hooks:
-      - id: black-jupyter
-        args: ["--skip-string-normalization"]
-        language_version: python3.11
+        args: ["--fix", "--show-fixes"]
+        types_or: [python, jupyter]
+      - id: ruff-format
+        types_or: [python, jupyter]
