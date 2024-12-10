@@ -7,6 +7,7 @@ from unittest import TestCase
 from unittest.mock import call, patch
 
 import numpy as np
+from harmony_service_lib.exceptions import ForbiddenException
 from harmony_service_lib.message import Message
 from harmony_service_lib.util import config
 from pystac import Catalog
@@ -15,6 +16,7 @@ from rasterio.warp import Resampling
 from rioxarray import open_rasterio
 
 from harmony_service.adapter import BrowseImageGeneratorAdapter
+from harmony_service.exceptions import HyBIGServiceError
 from hybig.browse import (
     convert_mulitband_to_raster,
     prepare_raster_for_writing,
@@ -552,3 +554,27 @@ class TestAdapter(TestCase):
 
         # Ensure container clean-up was requested:
         mock_rmtree.assert_called_once_with(self.temp_dir)
+
+    @patch('harmony_service.adapter.download')
+    def test_forbidden_download(self, mock_download):
+        mock_download.side_effect = ForbiddenException('You are forbidden to download.')
+        message = Message(
+            {
+                'accessToken': self.access_token,
+                'callback': 'https://example.com/',
+                'sources': [{'collection': 'C1234-EEDTEST', 'shortName': 'test'}],
+                'stagingLocation': self.staging_location,
+                'user': self.user,
+                'format': {'mime': 'image/png'},
+            }
+        )
+
+        hybig = BrowseImageGeneratorAdapter(
+            message, config=self.config, catalog=self.input_stac
+        )
+
+        with self.assertRaisesRegex(
+            HyBIGServiceError,
+            ('You are forbidden to download.'),
+        ):
+            hybig.invoke()
