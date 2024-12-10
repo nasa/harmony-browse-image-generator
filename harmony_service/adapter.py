@@ -145,7 +145,7 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
 
         except Exception as exception:
             self.logger.exception(exception)
-            raise HyBIGServiceError from exception
+            raise HyBIGServiceError(str(exception)) from exception
         finally:
             rmtree(working_directory)
 
