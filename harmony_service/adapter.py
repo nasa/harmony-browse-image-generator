@@ -72,7 +72,8 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
         This is used to select which asset is used by HyBIG to generate
         the browse image following these steps:
 
-        1. If found, return the first asset with 'visual' in any of the item's values' roles.
+        1. If found, return the first asset with 'visual' in any of the item's
+           values' roles.
         2. If found, return the first asset that has 'data' in its item's values' roles.
         3. Raise a StopIteration error.
 

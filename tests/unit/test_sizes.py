@@ -442,7 +442,6 @@ class TestChooseScaleExtent(TestCase):
         with open_rasterio(
             self.fixtures / 'RGB.byte.small.tif', mode='r', mask_and_scale=True
         ) as in_array:
-
             left, bottom, right, top = (
                 -78.95864996539397,
                 23.568866283727235,
