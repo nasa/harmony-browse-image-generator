@@ -54,7 +54,7 @@ WKT_EPSG_3411 = (
 )
 
 WKT_EPSG_6050 = dedent(
-    '''
+    """
     PROJCS["GR96 / EPSG Arctic zone 1-25",
         GEOGCS["GR96",
             DATUM["Greenland_1996",
@@ -77,7 +77,7 @@ WKT_EPSG_6050 = dedent(
         AXIS["Easting",EAST],
         AXIS["Northing",NORTH],
         AUTHORITY["EPSG","6050"]]
-    '''
+    """
 )
 
 

@@ -15,7 +15,7 @@
 # and updates the entrypoint of the new service container
 #
 ###############################################################################
-FROM python:3.11
+FROM python:3.12
 
 WORKDIR "/home"
 

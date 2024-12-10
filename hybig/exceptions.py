@@ -2,7 +2,7 @@
 
 
 class HyBIGError(Exception):
-    """Base error class for exceptions rasied by HyBIG library."""
+    """Base error class for exceptions raised by HyBIG library."""
 
     def __init__(self, message=None):
         """All HyBIG errors have a message field."""

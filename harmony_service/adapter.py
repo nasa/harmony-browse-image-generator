@@ -7,7 +7,6 @@ Global Imagery Browse Services (GIBS) compatible browse imagery.
 
 """
 
-from os.path import basename
 from pathlib import Path
 from shutil import rmtree
 from tempfile import mkdtemp
@@ -73,7 +72,8 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
         This is used to select which asset is used by HyBIG to generate
         the browse image following these steps:
 
-        1. If found, return the first asset with 'visual' in any of the item's values' roles.
+        1. If found, return the first asset with 'visual' in any of the item's
+           values' roles.
         2. If found, return the first asset that has 'data' in its item's values' roles.
         3. Raise a StopIteration error.
 
@@ -145,7 +145,7 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
 
         except Exception as exception:
             self.logger.exception(exception)
-            raise HyBIGServiceError from exception
+            raise HyBIGServiceError(str(exception)) from exception
         finally:
             rmtree(working_directory)
 
@@ -174,7 +174,7 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
         """Create an output STAC item used to access the browse imagery and
             ESRI world file as staged in S3.
 
-        asset_items are an array of tuples where the tuples should be: (name,
+        item_assets is an array of tuples where the tuples should be: (name,
         url, role)
 
         """
@@ -191,7 +191,7 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
 
             output_stac_item.assets[asset_name] = Asset(
                 url,
-                title=basename(url),
+                title=Path(url).name,
                 media_type=get_file_mime_type(url),
                 roles=[role],
             )

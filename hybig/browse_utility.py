@@ -21,14 +21,14 @@ def get_harmony_message_from_params(params: dict | None) -> HarmonyMessage:
 
     return HarmonyMessage(
         {
-            "format": {
-                "mime": mime,
-                "crs": crs,
-                "srs": crs,
-                "scaleExtent": scale_extent,
-                "scaleSize": scale_size,
-                "height": height,
-                "width": width,
+            'format': {
+                'mime': mime,
+                'crs': crs,
+                'srs': crs,
+                'scaleExtent': scale_extent,
+                'scaleSize': scale_size,
+                'height': height,
+                'width': width,
             },
         }
     )

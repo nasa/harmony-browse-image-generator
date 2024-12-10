@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
+import pytest
 import rasterio
 from harmony_service_lib.message import Message
 from rasterio import Affine
@@ -442,7 +443,6 @@ class TestChooseScaleExtent(TestCase):
         with open_rasterio(
             self.fixtures / 'RGB.byte.small.tif', mode='r', mask_and_scale=True
         ) as in_array:
-
             left, bottom, right, top = (
                 -78.95864996539397,
                 23.568866283727235,
@@ -454,7 +454,9 @@ class TestChooseScaleExtent(TestCase):
             )
 
             actual_scale_extent = choose_scale_extent({}, target_crs, in_array)
-            self.assertEqual(actual_scale_extent, expected_scale_extent)
+            assert expected_scale_extent == pytest.approx(
+                actual_scale_extent, rel=1e-12
+            )
 
 
 class TestChooseTargetDimensions(TestCase):

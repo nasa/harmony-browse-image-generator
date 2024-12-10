@@ -79,14 +79,14 @@ ResolutionInfo = namedtuple(
 
 # This is Table 4.1.8-1 WGS84 (EPSG: 4326 Resolutions)
 epsg_4326_resolutions = [
-    ResolutionInfo("2km", 0.017578125, 10240, 20480, 6, 2),
-    ResolutionInfo("1km", 0.0087890625, 20480, 40960, 7, 2),
-    ResolutionInfo("500m", 0.00439453125, 40960, 81920, 8, 2),
-    ResolutionInfo("250m", 0.002197265625, 81920, 163840, 9, 2),
-    ResolutionInfo("125m", 0.0010986328125, 163840, 327680, 10, 2),
-    ResolutionInfo("62.5m", 0.00054931640625, 327680, 655360, 11, 2),
-    ResolutionInfo("31.25m", 0.000274658203125, 655360, 1310720, 12, 2),
-    ResolutionInfo("15.625m", 0.0001373291015625, 1310720, 2521440, 13, 2),
+    ResolutionInfo('2km', 0.017578125, 10240, 20480, 6, 2),
+    ResolutionInfo('1km', 0.0087890625, 20480, 40960, 7, 2),
+    ResolutionInfo('500m', 0.00439453125, 40960, 81920, 8, 2),
+    ResolutionInfo('250m', 0.002197265625, 81920, 163840, 9, 2),
+    ResolutionInfo('125m', 0.0010986328125, 163840, 327680, 10, 2),
+    ResolutionInfo('62.5m', 0.00054931640625, 327680, 655360, 11, 2),
+    ResolutionInfo('31.25m', 0.000274658203125, 655360, 1310720, 12, 2),
+    ResolutionInfo('15.625m', 0.0001373291015625, 1310720, 2521440, 13, 2),
 ]
 
 # Conversion used above: resolution / pixel_size
@@ -94,14 +94,14 @@ METERS_PER_DEGREE = 113777.77777777778
 
 # This is Table 4.1.8-2 NSIDC Sea Ice Polar Stereographic Extent (EPSG:3413) Resolutions
 epsg_3413_resolutions = [
-    ResolutionInfo("2km", 2048, 4096, 4096, 3, 2),
-    ResolutionInfo("1km", 1024, 8192, 8192, 4, 2),
-    ResolutionInfo("500m", 512, 16384, 16384, 5, 2),
-    ResolutionInfo("250m", 256, 32768, 32768, 6, 2),
-    ResolutionInfo("125m", 128, 65536, 65536, 7, 2),
-    ResolutionInfo("62.5m", 64, 131072, 131072, 8, 2),
-    ResolutionInfo("31.25m", 32, 252144, 252144, 9, 2),
-    ResolutionInfo("15.625m", 16, 524288, 524288, 10, 2),
+    ResolutionInfo('2km', 2048, 4096, 4096, 3, 2),
+    ResolutionInfo('1km', 1024, 8192, 8192, 4, 2),
+    ResolutionInfo('500m', 512, 16384, 16384, 5, 2),
+    ResolutionInfo('250m', 256, 32768, 32768, 6, 2),
+    ResolutionInfo('125m', 128, 65536, 65536, 7, 2),
+    ResolutionInfo('62.5m', 64, 131072, 131072, 8, 2),
+    ResolutionInfo('31.25m', 32, 252144, 252144, 9, 2),
+    ResolutionInfo('15.625m', 16, 524288, 524288, 10, 2),
 ]
 
 # The Antarctic resolutions match the northern resolutions precisely.
