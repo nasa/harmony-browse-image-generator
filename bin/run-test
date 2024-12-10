@@ -18,14 +18,14 @@ set -ex
 find . | grep -E "(__pycache__|\.pyc|\.pyo$)" | xargs rm -rf
 
 # Make the directory into which XML format test reports will be saved
-mkdir -p test-reports
+mkdir -p reports/test-reports
 
 # Make the directory into which coverage reports will be saved
-mkdir -p coverage
+mkdir -p reports/coverage
 
 # Run the tests in a Docker container with mounted volumes for XML report
 # output and test coverage reporting
 docker run --platform linux/amd64 --rm \
-	-v $(pwd)/test-reports:/home/tests/reports \
-	-v $(pwd)/coverage:/home/tests/coverage \
+	-v $(pwd)/reports/test-reports:/home/reports/test-reports \
+	-v $(pwd)/reports/coverage:/home/reports/coverage \
 	ghcr.io/nasa/harmony-browse-image-generator-test "$@"
