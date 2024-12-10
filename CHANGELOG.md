@@ -9,6 +9,12 @@ Changelog](http://keepachangelog.com/en/1.0.0/).
 ### Changed
 
 * Changed pre-commit configuration to remove `black-jupyter` dependency [#38](https://github.com/nasa/harmony-browse-image-generator/pull/38)
+* Updates service image's python to 3.12 [#38](https://github.com/nasa/harmony-browse-image-generator/pull/38)
+* Simplifies test scripts to run with pytest and pytest plugins [#38](https://github.com/nasa/harmony-browse-image-generator/pull/38)
+
+### Removed
+
+* Removes `test_code_format.py` in favor of `ruff` pre-commit configuration [#38](https://github.com/nasa/harmony-browse-image-generator/pull/38)
 
 
 ## [v2.0.2] - 2024-10-15
