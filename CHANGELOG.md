@@ -4,6 +4,13 @@ HyBIG follows semantic versioning. All notable changes to this project will be
 documented in this file. The format is based on [Keep a
 Changelog](http://keepachangelog.com/en/1.0.0/).
 
+## [unreleased] - 2024-12-10
+
+### Changed
+
+* Changed pre-commit configuration to remove `black-jupyter` dependency [#38](https://github.com/nasa/harmony-browse-image-generator/pull/38)
+
+
 ## [v2.0.2] - 2024-10-15
 
 ### Fixed
