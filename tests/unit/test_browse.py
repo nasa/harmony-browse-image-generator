@@ -421,7 +421,8 @@ class TestBrowse(TestCase):
         actual_raster = convert_singleband_to_raster(ds, image_palette)
         assert_array_equal(expected_raster, actual_raster)
 
-    def test_convert_3_multiband_to_raster(self):
+    def test_convert_uint16_3_multiband_to_raster(self):
+        """Test that not uint8 input scales the output."""
         bad_data = np.copy(self.data).astype('float64')
         bad_data[1][1] = np.nan
         bad_data[1][2] = np.nan
@@ -429,6 +430,7 @@ class TestBrowse(TestCase):
             np.stack([self.data, bad_data, self.data]),
             dims=('band', 'y', 'x'),
         )
+        ds.encoding = {'dtype': 'uint16'}
 
         expected_raster = np.array(
             [
@@ -450,6 +452,40 @@ class TestBrowse(TestCase):
                     [0, 85, 170, 255],
                     [0, 85, 170, 255],
                 ],
+                [
+                    [OPAQUE, OPAQUE, OPAQUE, OPAQUE],
+                    [OPAQUE, TRANSPARENT, TRANSPARENT, OPAQUE],
+                    [OPAQUE, OPAQUE, OPAQUE, OPAQUE],
+                    [OPAQUE, OPAQUE, OPAQUE, OPAQUE],
+                ],
+            ],
+            dtype='uint8',
+        )
+
+        actual_raster = convert_mulitband_to_raster(ds)
+        assert_array_equal(expected_raster, actual_raster.data)
+
+    def test_convert_uint8_3_multiband_to_raster(self):
+        """Ensure valid data is unchange when input is uint8."""
+        scale_data = np.copy(self.data / 10).astype('float32')
+
+        scale_data[1][1] = np.nan
+        scale_data[1][2] = np.nan
+        ds = DataArray(
+            np.stack([scale_data, scale_data, scale_data]),
+            dims=('band', 'y', 'x'),
+        )
+        ds.encoding = {'dtype': 'uint8'}
+
+        expected_data = scale_data.astype('uint8')
+        expected_data[1][1] = 0
+        expected_data[1][2] = 0
+
+        expected_raster = np.array(
+            [
+                expected_data,
+                expected_data,
+                expected_data,
                 [
                     [OPAQUE, OPAQUE, OPAQUE, OPAQUE],
                     [OPAQUE, TRANSPARENT, TRANSPARENT, OPAQUE],

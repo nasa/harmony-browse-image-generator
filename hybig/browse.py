@@ -220,9 +220,11 @@ def create_browse_imagery(
 def convert_mulitband_to_raster(data_array: DataArray) -> ndarray:
     """Convert multiband to a raster image.
 
-    Reads the three or four bands from the file, then normalizes them to the range
-    0 to 255. This assumes the input image is already in RGB or RGBA format and
-    just ensures that the output is 8bit.
+    Return a raster of a 4-band data set, the existing alpha layer is presumed to be the
+    missing data mask.
+
+    Convert 3-band data into a 4-band raster by generating an alpha layer from
+    any missing data in the RGB bands.
 
     """
     if data_array.rio.count not in [3, 4]:
@@ -233,26 +235,42 @@ def convert_mulitband_to_raster(data_array: DataArray) -> ndarray:
 
     bands = data_array.to_numpy()
 
-    # Create an alpha layer where input NaN values are transparent.
+    if data_array.rio.count == 4:
+        return bands
+
+    # Create a nan-based alpha layer where input NaN values are transparent.
     nan_mask = np.isnan(bands).any(axis=0)
     nan_alpha = np.where(nan_mask, TRANSPARENT, OPAQUE)
 
-    # grab any existing alpha layer
-    bands, image_alpha = remove_alpha(bands)
+    raster = convert_to_uint8(bands, data_array)
 
-    norm = Normalize(vmin=np.nanmin(bands), vmax=np.nanmax(bands))
-    raster = np.nan_to_num(np.around(norm(bands) * 255.0), copy=False, nan=0.0).astype(
-        'uint8'
+    return np.concatenate((raster, nan_alpha[None, ...]), axis=0)
+
+
+def convert_to_uint8(bands: ndarray, data_array: DataArray) -> ndarray:
+    """Convert 3-band data with NaNs as missing values into uint8 data cube.
+
+    99.9% of the time this will simply pass through the data coercing it back
+    into unsigned int and setting the missing values to 0 that will be masked
+    as transparent in the output png.
+
+    There is a non-zero, but very close to zero, chance that the input RGB
+    image was 16 bit and if any of the values exceed 255, we will normalize all
+    of input data to the range 0-255.
+
+    """
+    original_datatype = data_array.encoding.get('dtype') or data_array.encoding.get(
+        'rasterio_dtype'
     )
 
-    if image_alpha is not None:
-        # merge missing alpha with the image alpha band prefering transparency
-        # to opaqueness.
-        alpha = np.minimum(nan_alpha, image_alpha).astype(np.uint8)
+    if original_datatype != 'uint8' and np.nanmax(bands) > 255:
+        norm = Normalize(vmin=np.nanmin(bands), vmax=np.nanmax(bands))
+        scaled = np.around(norm(bands) * 255.0)
+        raster = scaled.filled(0).astype('uint8')
     else:
-        alpha = nan_alpha
+        raster = np.nan_to_num(bands).astype('uint8')
 
-    return np.concatenate((raster, alpha[None, ...]), axis=0)
+    return raster
 
 
 def convert_singleband_to_raster(
