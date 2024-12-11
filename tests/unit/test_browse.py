@@ -499,61 +499,70 @@ class TestBrowse(TestCase):
         actual_raster = convert_mulitband_to_raster(ds)
         assert_array_equal(expected_raster, actual_raster.data)
 
-    def test_convert_4_multiband_to_raster(self):
-        """Input data has NaN _fillValue match in the red layer at [1,1]
-        and alpha channel also exists with a single transparent value at [0,0]
-
-        See that the expected output has transformed the missing data [nan]
-        into fully transparent at [1,1] and retained the transparent value of 1
-        at [0,0]
-
-        """
+    def test_convert_4_multiband_uint8_to_raster(self):
+        """4-band 'uint8' images are returned unchanged."""
         ds = Mock(DataArray)
-        bad_data = np.copy(self.data).astype('float64')
-        bad_data[1, 1] = np.nan
-
-        alpha = np.ones_like(self.data) * 255
-        alpha[0, 0] = 1
         ds.rio.count = 4
-        ds.to_numpy.return_value = np.stack([bad_data, self.data, self.data, alpha])
-        expected_raster = np.array(
+
+        r_data = np.array(
             [
-                [
-                    [0, 85, 170, 255],
-                    [0, 0, 170, 255],
-                    [0, 85, 170, 255],
-                    [0, 85, 170, 255],
-                ],
-                [
-                    [0, 85, 170, 255],
-                    [0, 85, 170, 255],
-                    [0, 85, 170, 255],
-                    [0, 85, 170, 255],
-                ],
-                [
-                    [0, 85, 170, 255],
-                    [0, 85, 170, 255],
-                    [0, 85, 170, 255],
-                    [0, 85, 170, 255],
-                ],
-                [
-                    [1, 255, 255, 255],
-                    [255, 0, 255, 255],
-                    [255, 255, 255, 255],
-                    [255, 255, 255, 255],
-                ],
-            ],
-            dtype='uint8',
-        )
+                [10, 200, 30, 40],
+                [10, 200, 30, 40],
+                [10, 200, 30, 40],
+                [10, 200, 30, 40],
+            ]
+        ).astype('uint8')
+
+        g_data = r_data.copy()
+        b_data = r_data.copy()
+
+        a_data = np.ones_like(self.data) * 255
+        a_data[0, 0] = 0
+
+        to_numpy_result = np.stack([r_data, g_data, b_data, a_data])
+
+        ds.to_numpy.return_value = to_numpy_result
+
+        expected_raster = to_numpy_result
+
+        actual_raster = convert_mulitband_to_raster(ds)
+        assert_array_equal(expected_raster, actual_raster.data)
+
+    def test_convert_4_multiband_uint16_to_raster(self):
+        """4-band 'uint16' images are scaled if the range exceeds 255."""
+        ds = Mock(DataArray)
+        ds.rio.count = 4
+
+        r_data = np.array(
+            [
+                [10, 200, 300, 400],
+                [10, 200, 300, 400],
+                [10, 200, 300, 400],
+                [10, 200, 300, 400],
+            ]
+        ).astype('uint16')
+        g_data = r_data.copy()
+        b_data = r_data.copy()
+
+        a_data = np.ones_like(self.data) * 255
+        a_data[0, 0] = 0
+
+        to_numpy_result = np.stack([r_data, g_data, b_data, a_data])
+
+        ds.to_numpy.return_value = to_numpy_result
+
+        # expect the input data to have 0 to 400 to be scaled into 0 to 255
+        expected_raster = np.around(
+            np.interp(to_numpy_result, (0, 400), (0.0, 1.0)) * 255.0
+        ).astype('uint8')
 
         actual_raster = convert_mulitband_to_raster(ds)
         assert_array_equal(expected_raster, actual_raster.data)
 
     def test_convert_4_multiband_masked_to_raster(self):
-        """Input data is selected from a subset of a real OPERA RTC input data
-        file that has masked the alpha layer and as a result as a datatype of
-        float32.
+        """4-band images are returned as uint8s**
 
+        **Even if they are masked, but also nans are converted to 0s.
         """
         ds = Mock(DataArray)
         ds.rio.count = 4
@@ -589,12 +598,32 @@ class TestBrowse(TestCase):
         )
         ds.to_numpy.return_value = input_array
 
-        expected_raster = np.ma.array(
-            data=[
-                [[0, 0, 0, 121], [0, 0, 0, 64], [0, 0, 255, 0], [0, 0, 13, 255]],
-                [[0, 0, 0, 255], [0, 0, 0, 255], [0, 0, 255, 255], [0, 0, 255, 255]],
-                [[0, 0, 0, 121], [0, 0, 0, 64], [0, 0, 255, 0], [0, 0, 13, 255]],
-                [[0, 0, 0, 255], [0, 0, 0, 255], [0, 0, 255, 255], [0, 0, 255, 255]],
+        expected_raster = np.array(
+            [
+                [
+                    [0, 0, 0, 234],
+                    [0, 0, 0, 225],
+                    [0, 0, 255, 215],
+                    [0, 0, 217, 255],
+                ],
+                [
+                    [0, 0, 0, 255],
+                    [0, 0, 0, 255],
+                    [0, 0, 255, 255],
+                    [0, 0, 255, 255],
+                ],
+                [
+                    [0, 0, 0, 234],
+                    [0, 0, 0, 225],
+                    [0, 0, 255, 215],
+                    [0, 0, 217, 255],
+                ],
+                [
+                    [0, 0, 0, 255],
+                    [0, 0, 0, 255],
+                    [0, 0, 255, 255],
+                    [0, 0, 255, 255],
+                ],
             ],
             dtype=np.uint8,
         )

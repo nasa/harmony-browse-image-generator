@@ -13,7 +13,7 @@ from harmony_service_lib.message import Message as HarmonyMessage
 from harmony_service_lib.message import Source as HarmonySource
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
-from numpy import ndarray
+from numpy import ndarray, uint8
 from osgeo_utils.auxiliary.color_palette import ColorPalette
 from PIL import Image
 from rasterio.io import DatasetReader
@@ -217,7 +217,7 @@ def create_browse_imagery(
     return processed_files
 
 
-def convert_mulitband_to_raster(data_array: DataArray) -> ndarray:
+def convert_mulitband_to_raster(data_array: DataArray) -> ndarray[uint8]:
     """Convert multiband to a raster image.
 
     Return a raster of a 4-band data set, the existing alpha layer is presumed to be the
@@ -236,19 +236,19 @@ def convert_mulitband_to_raster(data_array: DataArray) -> ndarray:
     bands = data_array.to_numpy()
 
     if data_array.rio.count == 4:
-        return bands
+        return convert_to_uint8(bands, original_dtype(data_array))
 
     # Create a nan-based alpha layer where input NaN values are transparent.
     nan_mask = np.isnan(bands).any(axis=0)
     nan_alpha = np.where(nan_mask, TRANSPARENT, OPAQUE)
 
-    raster = convert_to_uint8(bands, data_array)
+    raster = convert_to_uint8(bands, original_dtype(data_array))
 
     return np.concatenate((raster, nan_alpha[None, ...]), axis=0)
 
 
-def convert_to_uint8(bands: ndarray, data_array: DataArray) -> ndarray:
-    """Convert 3-band data with NaNs as missing values into uint8 data cube.
+def convert_to_uint8(bands: ndarray, dtype: str | None) -> ndarray:
+    """Convert banded data with NaNs as missing values into uint8 data cube.
 
     99.9% of the time this will simply pass through the data coercing it back
     into unsigned int and setting the missing values to 0 that will be masked
@@ -259,11 +259,8 @@ def convert_to_uint8(bands: ndarray, data_array: DataArray) -> ndarray:
     of input data to the range 0-255.
 
     """
-    original_datatype = data_array.encoding.get('dtype') or data_array.encoding.get(
-        'rasterio_dtype'
-    )
 
-    if original_datatype != 'uint8' and np.nanmax(bands) > 255:
+    if dtype != 'uint8' and np.nanmax(bands) > 255:
         norm = Normalize(vmin=np.nanmin(bands), vmax=np.nanmax(bands))
         scaled = np.around(norm(bands) * 255.0)
         raster = scaled.filled(0).astype('uint8')
@@ -271,6 +268,16 @@ def convert_to_uint8(bands: ndarray, data_array: DataArray) -> ndarray:
         raster = np.nan_to_num(bands).astype('uint8')
 
     return raster
+
+
+def original_dtype(data_array: DataArray) -> str | None:
+    """Helper to return the original input data type.
+
+    The input dtype is retained in the encoding dictionary and is used to know
+    what kind of casting is safe.
+
+    """
+    return data_array.encoding.get('dtype') or data_array.encoding.get('rasterio_dtype')
 
 
 def convert_singleband_to_raster(
