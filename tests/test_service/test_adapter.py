@@ -270,10 +270,14 @@ class TestAdapter(TestCase):
             mock_reproject.call_args_list, expected_reproject_calls
         ):
             np.testing.assert_array_equal(
-                actual_call.kwargs['source'], expected_call.kwargs['source']
+                actual_call.kwargs['source'],
+                expected_call.kwargs['source'],
+                strict=True,
             )
             np.testing.assert_array_equal(
-                actual_call.kwargs['destination'], expected_call.kwargs['destination']
+                actual_call.kwargs['destination'],
+                expected_call.kwargs['destination'],
+                strict=True,
             )
             self.assertEqual(
                 actual_call.kwargs['src_transform'],
@@ -482,10 +486,14 @@ class TestAdapter(TestCase):
             mock_reproject.call_args_list, expected_reproject_calls
         ):
             np.testing.assert_array_equal(
-                actual_call.kwargs['source'], expected_call.kwargs['source']
+                actual_call.kwargs['source'],
+                expected_call.kwargs['source'],
+                strict=True,
             )
             np.testing.assert_array_equal(
-                actual_call.kwargs['destination'], expected_call.kwargs['destination']
+                actual_call.kwargs['destination'],
+                expected_call.kwargs['destination'],
+                strict=True,
             )
             self.assertEqual(
                 actual_call.kwargs['src_transform'],
