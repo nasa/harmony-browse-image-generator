@@ -20,10 +20,6 @@ STATUS=0
 
 export HDF5_DISABLE_VERSION_CHECK=1
 
-
-# Exit status used to report back to caller
-STATUS=0
-
 # Run the standard set of unit tests, producing JUnit compatible output
 pytest --cov=hybig --cov=harmony_service \
        --cov-report=html:reports/coverage \
