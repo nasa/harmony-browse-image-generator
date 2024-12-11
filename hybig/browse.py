@@ -247,16 +247,16 @@ def convert_mulitband_to_raster(data_array: DataArray) -> ndarray[uint8]:
     return np.concatenate((raster, nan_alpha[None, ...]), axis=0)
 
 
-def convert_to_uint8(bands: ndarray, dtype: str | None) -> ndarray:
-    """Convert banded data with NaNs as missing values into uint8 data cube.
+def convert_to_uint8(bands: ndarray, dtype: str | None) -> ndarray[uint8]:
+    """Convert Banded data with NaNs (missing) into a uint8 data cube.
 
-    99.9% of the time this will simply pass through the data coercing it back
-    into unsigned int and setting the missing values to 0 that will be masked
+    99.99% of the time this will simply pass through the data coercing it back
+    into unsigned ints and setting the missing values to 0 that will be masked
     as transparent in the output png.
 
-    There is a non-zero, but very close to zero, chance that the input RGB
-    image was 16 bit and if any of the values exceed 255, we will normalize all
-    of input data to the range 0-255.
+    There is a some small non-zero chance that the input RGB image was 16-bit
+    and if any of the values exceed 255, we must normalize all of input data to
+    the range 0-255.
 
     """
 
@@ -271,10 +271,10 @@ def convert_to_uint8(bands: ndarray, dtype: str | None) -> ndarray:
 
 
 def original_dtype(data_array: DataArray) -> str | None:
-    """Helper to return the original input data type.
+    """Return the original input data's type.
 
-    The input dtype is retained in the encoding dictionary and is used to know
-    what kind of casting is safe.
+    The input dtype is retained in the encoding dictionary and can be used to
+    understand what kind of casts are safe.
 
     """
     return data_array.encoding.get('dtype') or data_array.encoding.get('rasterio_dtype')
