@@ -560,12 +560,7 @@ class TestAdapter(TestCase):
         mock_download.side_effect = ForbiddenException('You are forbidden to download.')
         message = Message(
             {
-                'accessToken': self.access_token,
-                'callback': 'https://example.com/',
                 'sources': [{'collection': 'C1234-EEDTEST', 'shortName': 'test'}],
-                'stagingLocation': self.staging_location,
-                'user': self.user,
-                'format': {'mime': 'image/png'},
             }
         )
 
