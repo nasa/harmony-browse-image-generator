@@ -181,7 +181,11 @@ def create_browse_imagery(
                     f'incorrect number of bands for image: {rio_in_array.rio.count}'
                 )
 
-            raster, color_map = prepare_raster_for_writing(raster, output_driver)
+            if rio_in_array.rio.count == 1:
+                # we only paletize single band input data
+                raster, color_map = prepare_raster_for_writing(raster, output_driver)
+            else:
+                color_map = None
 
             grid_parameters = get_target_grid_parameters(message, rio_in_array)
             grid_parameter_list, tile_locators = create_tiled_output_parameters(
