@@ -30,7 +30,7 @@ def rasterio_test_file(raster_data=None, **options):
     }
 
     with NamedTemporaryFile(suffix='.tif') as tmp_file:
-        with rasterio.Env(CHECK_DISK_FREE_SPACE="NO"):
+        with rasterio.Env(CHECK_DISK_FREE_SPACE='NO'):
             with rasterio.open(
                 tmp_file.name, 'w', **default_options | options
             ) as tmp_rasterio_file:

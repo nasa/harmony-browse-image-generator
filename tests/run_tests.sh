@@ -18,30 +18,15 @@
 # Exit status used to report back to caller
 STATUS=0
 
-export HDF5_DISABLE_VERSION_CHECK=1
-
 # Run the standard set of unit tests, producing JUnit compatible output
-coverage run -m pytest tests --junitxml=tests/reports/test-results-"$(date +'%Y%m%d%H%M%S')".xml
-RESULT=$?
-
-if [ "$RESULT" -ne "0" ]; then
-    STATUS=1
-    echo "ERROR: unittest generated errors"
-fi
-
-echo "\n"
-echo "Test Coverage Estimates"
-coverage report --omit="tests/*"
-coverage html --omit="tests/*" -d tests/coverage
+pytest --cov=hybig --cov=harmony_service \
+       --cov-report=html:reports/coverage \
+       --cov-report term \
+       --junitxml=reports/test-reports/test-results-"$(date +'%Y%m%d%H%M%S')".xml || STATUS=1
 
 # Run pylint
-# Ignored errors/warnings:
-# W1203 - use of f-strings in log statements. This warning is leftover from
-#         using ''.format() vs % notation. For more information, see:
-#     	  https://github.com/PyCQA/pylint/issues/2354#issuecomment-414526879
-pylint hybig harmony_service --disable=W1203
-RESULT=$?
-RESULT=$((3 & $RESULT))
+pylint hybig harmony_service
+RESULT=$((3 & $?))
 
 if [ "$RESULT" -ne "0" ]; then
     STATUS=1

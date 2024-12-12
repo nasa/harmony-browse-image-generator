@@ -21,7 +21,7 @@ def get_tiled_file_extension(file_name: Path) -> str:
     generate the correct one to pass in.
 
     """
-    ext_pattern = r"(\.r\d+c\d+)?\.(png|jpg|pgw|jgw|txt)(.aux.xml)?"
+    ext_pattern = r'(\.r\d+c\d+)?\.(png|jpg|pgw|jgw|txt)(.aux.xml)?'
     match = re.search(ext_pattern, file_name.name)
     return match.group()
 
@@ -34,7 +34,7 @@ def get_asset_name(name: str, url: str) -> str:
     dictionary.
 
     """
-    tiled_pattern = r"\.(r\d+c\d+)\."
+    tiled_pattern = r'\.(r\d+c\d+)\.'
     tile_id = re.search(tiled_pattern, url)
     if tile_id is not None:
         name = f'{name}_{tile_id.groups()[0]}'

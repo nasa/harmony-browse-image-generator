@@ -422,7 +422,6 @@ class TestBrowse(TestCase):
         assert_array_equal(expected_raster, actual_raster)
 
     def test_convert_3_multiband_to_raster(self):
-
         bad_data = np.copy(self.data).astype('float64')
         bad_data[1][1] = np.nan
         bad_data[1][2] = np.nan
@@ -700,10 +699,10 @@ class TestBrowse(TestCase):
         ds.colormap.return_value = self.colormap
 
         lines = [
-            "100 255 0 0 255",
-            "200 255 255 0 255",
-            "300 0 255 0 255",
-            "400 0 0 255 255",
+            '100 255 0 0 255',
+            '200 255 255 0 255',
+            '300 0 255 0 255',
+            '400 0 0 255 255',
         ]
 
         expected_palette = ColorPalette()
@@ -877,17 +876,17 @@ class TestCreateBrowse(TestCase):
 
         # HarmonyMessage.Format does not have a json representation to compare
         # to so compare the pieces individually.
-        self.assertEqual(harmony_format.mime, "image/png")
-        self.assertEqual(harmony_format['crs'], {"epsg": "EPSG:4326"})
-        self.assertEqual(harmony_format['srs'], {"epsg": "EPSG:4326"})
+        self.assertEqual(harmony_format.mime, 'image/png')
+        self.assertEqual(harmony_format['crs'], {'epsg': 'EPSG:4326'})
+        self.assertEqual(harmony_format['srs'], {'epsg': 'EPSG:4326'})
         self.assertEqual(
             harmony_format['scaleExtent'],
             {
-                "x": {"min": -180, "max": 180},
-                "y": {"min": -90, "max": 90},
+                'x': {'min': -180, 'max': 180},
+                'y': {'min': -90, 'max': 90},
             },
         )
-        self.assertEqual(harmony_format['scaleSize'], {"x": 10, "y": 10})
+        self.assertEqual(harmony_format['scaleSize'], {'x': 10, 'y': 10})
         self.assertIsNone(harmony_message['format']['height'])
         self.assertIsNone(harmony_message['format']['width'])
 

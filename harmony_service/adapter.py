@@ -7,10 +7,8 @@ Global Imagery Browse Services (GIBS) compatible browse imagery.
 
 """
 
-from os.path import basename
 from pathlib import Path
-from shutil import rmtree
-from tempfile import mkdtemp
+from tempfile import TemporaryDirectory
 
 from harmony_service_lib import BaseHarmonyAdapter
 from harmony_service_lib.message import Source as HarmonySource
@@ -73,7 +71,8 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
         This is used to select which asset is used by HyBIG to generate
         the browse image following these steps:
 
-        1. If found, return the first asset with 'visual' in any of the item's values' roles.
+        1. If found, return the first asset with 'visual' in any of the item's
+           values' roles.
         2. If found, return the first asset that has 'data' in its item's values' roles.
         3. Raise a StopIteration error.
 
@@ -93,61 +92,59 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
 
     def process_item(self, item: Item, source: HarmonySource) -> Item:
         """Processes a single input STAC item."""
-        try:
-            working_directory = mkdtemp()
-            results = item.clone()
-            results.assets = {}
+        with TemporaryDirectory() as working_directory:
+            try:
+                results = item.clone()
+                results.assets = {}
 
-            asset = self.get_asset_from_item(item)
+                asset = self.get_asset_from_item(item)
 
-            color_palette = get_color_palette_from_item(item)
+                color_palette = get_color_palette_from_item(item)
 
-            # Download the input:
-            input_data_filename = download(
-                asset.href,
-                working_directory,
-                logger=self.logger,
-                cfg=self.config,
-                access_token=self.message.accessToken,
-            )
+                # Download the input:
+                input_data_filename = download(
+                    asset.href,
+                    working_directory,
+                    logger=self.logger,
+                    cfg=self.config,
+                    access_token=self.message.accessToken,
+                )
 
-            # Create browse images.
-            image_file_list = create_browse_imagery(
-                self.message,
-                input_data_filename,
-                source,
-                color_palette,
-                logger=self.logger,
-            )
+                # Create browse images.
+                image_file_list = create_browse_imagery(
+                    self.message,
+                    input_data_filename,
+                    source,
+                    color_palette,
+                    logger=self.logger,
+                )
 
-            # image_file_list is a list of tuples (image, world, auxiliary)
-            # we need to stage them each individually, and then add their final
-            # locations to a list before creating the stac item.
-            item_assets = []
+                # image_file_list is a list of tuples (image, world, auxiliary)
+                # we need to stage them each individually, and then add their final
+                # locations to a list before creating the stac item.
+                item_assets = []
 
-            for (
-                browse_image_name,
-                world_file_name,
-                aux_xml_file_name,
-            ) in image_file_list:
-                # Stage the images:
-                browse_image_url = self.stage_output(browse_image_name, asset.href)
-                browse_aux_url = self.stage_output(aux_xml_file_name, asset.href)
-                world_file_url = self.stage_output(world_file_name, asset.href)
-                item_assets.append(('data', browse_image_url, 'data'))
-                item_assets.append(('metadata', world_file_url, 'metadata'))
-                item_assets.append(('auxiliary', browse_aux_url, 'metadata'))
+                for (
+                    browse_image_name,
+                    world_file_name,
+                    aux_xml_file_name,
+                ) in image_file_list:
+                    # Stage the images:
+                    browse_image_url = self.stage_output(browse_image_name, asset.href)
+                    browse_aux_url = self.stage_output(aux_xml_file_name, asset.href)
+                    world_file_url = self.stage_output(world_file_name, asset.href)
+                    item_assets.append(('data', browse_image_url, 'data'))
+                    item_assets.append(('metadata', world_file_url, 'metadata'))
+                    item_assets.append(('auxiliary', browse_aux_url, 'metadata'))
 
-            manifest_url = self.stage_manifest(image_file_list, asset.href)
-            item_assets.insert(0, ('data', manifest_url, 'metadata'))
+                manifest_url = self.stage_manifest(image_file_list, asset.href)
+                item_assets.insert(0, ('data', manifest_url, 'metadata'))
 
-            return self.create_output_stac_item(item, item_assets)
+                return self.create_output_stac_item(item, item_assets)
 
-        except Exception as exception:
-            self.logger.exception(exception)
-            raise HyBIGServiceError from exception
-        finally:
-            rmtree(working_directory)
+            except Exception as exception:
+                self.logger.exception(exception)
+                raise HyBIGServiceError(str(exception)) from exception
 
     def stage_output(self, transformed_file: Path, input_file: str) -> str:
         """Generate an output file name based on the input asset URL and the
@@ -174,7 +171,7 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
         """Create an output STAC item used to access the browse imagery and
             ESRI world file as staged in S3.
 
-        asset_items are an array of tuples where the tuples should be: (name,
+        item_assets is an array of tuples where the tuples should be: (name,
         url, role)
 
         """
@@ -191,7 +188,7 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
 
             output_stac_item.assets[asset_name] = Asset(
                 url,
-                title=basename(url),
+                title=Path(url).name,
                 media_type=get_file_mime_type(url),
                 roles=[role],
             )
