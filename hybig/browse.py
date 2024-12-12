@@ -224,8 +224,8 @@ def create_browse_imagery(
 def convert_mulitband_to_raster(data_array: DataArray) -> ndarray[uint8]:
     """Convert multiband to a raster image.
 
-    Return a raster of a 4-band data set, the existing alpha layer is presumed to be the
-    missing data mask.
+    Return a 4-band raster, where the alpha layer is presumed to be the missing
+    data mask.
 
     Convert 3-band data into a 4-band raster by generating an alpha layer from
     any missing data in the RGB bands.
@@ -242,7 +242,7 @@ def convert_mulitband_to_raster(data_array: DataArray) -> ndarray[uint8]:
     if data_array.rio.count == 4:
         return convert_to_uint8(bands, original_dtype(data_array))
 
-    # Create a nan-based alpha layer where input NaN values are transparent.
+    # Input NaNs in any of the RGB bands are made transparent.
     nan_mask = np.isnan(bands).any(axis=0)
     nan_alpha = np.where(nan_mask, TRANSPARENT, OPAQUE)
 
@@ -277,8 +277,8 @@ def convert_to_uint8(bands: ndarray, dtype: str | None) -> ndarray[uint8]:
 def original_dtype(data_array: DataArray) -> str | None:
     """Return the original input data's type.
 
-    The input dtype is retained in the encoding dictionary and can be used to
-    understand what kind of casts are safe.
+    rastero_optn retains the input dtype in the encoding dictionary and is used
+    to understand what kind of casts are safe.
 
     """
     return data_array.encoding.get('dtype') or data_array.encoding.get('rasterio_dtype')

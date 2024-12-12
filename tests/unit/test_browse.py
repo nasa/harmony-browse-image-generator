@@ -553,14 +553,15 @@ class TestBrowse(TestCase):
         g_data = r_data.copy()
         b_data = r_data.copy()
 
-        a_data = np.ones_like(self.data) * 255
-        a_data[0, 0] = 0
+        a_data = np.ones_like(self.data) * OPAQUE
+        a_data[0, 0] = TRANSPARENT
 
         to_numpy_result = np.stack([r_data, g_data, b_data, a_data])
 
         ds.to_numpy.return_value = to_numpy_result
 
-        # expect the input data to have 0 to 400 to be scaled into 0 to 255
+        # expect the input data to have the data values from 0 to 400 to be
+        # scaled into the range 0 to 255.
         expected_raster = np.around(
             np.interp(to_numpy_result, (0, 400), (0.0, 1.0)) * 255.0
         ).astype('uint8')
