@@ -100,18 +100,19 @@ class TestAdapter(TestCase):
             },
         )
 
+    @patch('harmony_service.adapter.TemporaryDirectory')
     @patch('hybig.browse.reproject')
-    @patch('harmony_service.adapter.rmtree')
-    @patch('harmony_service.adapter.mkdtemp')
     @patch('harmony_service.adapter.download')
     @patch('harmony_service.adapter.stage')
     def test_valid_request_jpeg(
-        self, mock_stage, mock_download, mock_mkdtemp, mock_rmtree, mock_reproject
+        self, mock_stage, mock_download, mock_reproject, mock_temp_dir
     ):
         """Ensure a request with a correctly formatted message is fully
         processed.
 
         """
+        mock_temp_dir.return_value.__enter__.return_value = self.temp_dir
+
         expected_downloaded_file = self.temp_dir / 'input.tiff'
 
         expected_browse_basename = 'input.jpg'
@@ -135,8 +136,6 @@ class TestAdapter(TestCase):
         expected_world_mime = 'text/plain'
         expected_aux_mime = 'application/xml'
         expected_manifest_mime = 'text/plain'
-
-        mock_mkdtemp.return_value = self.temp_dir
 
         def move_tif(*args, **kwargs):
             """Copy fixture tiff to download location."""
@@ -332,21 +331,19 @@ class TestAdapter(TestCase):
             ]
         )
 
-        # Ensure container clean-up was requested:
-        mock_rmtree.assert_called_once_with(self.temp_dir)
-
+    @patch('harmony_service.adapter.TemporaryDirectory')
     @patch('hybig.browse.reproject')
-    @patch('harmony_service.adapter.rmtree')
-    @patch('harmony_service.adapter.mkdtemp')
     @patch('harmony_service.adapter.download')
     @patch('harmony_service.adapter.stage')
     def test_valid_request_png(
-        self, mock_stage, mock_download, mock_mkdtemp, mock_rmtree, mock_reproject
+        self, mock_stage, mock_download, mock_reproject, mock_temp_dir
     ):
         """Ensure a request with a correctly formatted message is fully
         processed.
 
         """
+        mock_temp_dir.return_value.__enter__.return_value = self.temp_dir
+
         expected_downloaded_file = self.temp_dir / 'input.tiff'
 
         expected_browse_basename = 'input.png'
@@ -370,8 +367,6 @@ class TestAdapter(TestCase):
         expected_world_mime = 'text/plain'
         expected_aux_mime = 'application/xml'
         expected_manifest_mime = 'text/plain'
-
-        mock_mkdtemp.return_value = self.temp_dir
 
         def move_tif(*args, **kwargs):
             """Copy fixture tiff to download location."""
@@ -551,9 +546,6 @@ class TestAdapter(TestCase):
                 ),
             ]
         )
-
-        # Ensure container clean-up was requested:
-        mock_rmtree.assert_called_once_with(self.temp_dir)
 
     @patch('harmony_service.adapter.download')
     def test_forbidden_download(self, mock_download):
