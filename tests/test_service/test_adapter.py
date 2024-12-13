@@ -460,7 +460,7 @@ class TestAdapter(TestCase):
             'count': 3,
         }
         raster = convert_mulitband_to_raster(rio_data_array)
-        raster, color_map = prepare_raster_for_writing(raster, 'PNG')
+        raster, color_map = prepare_raster_for_writing(raster, 'PNG', 3)
 
         dest = np.full(
             (expected_params['height'], expected_params['width']),

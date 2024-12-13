@@ -181,11 +181,9 @@ def create_browse_imagery(
                     f'incorrect number of bands for image: {rio_in_array.rio.count}'
                 )
 
-            raster, color_map = prepare_raster_for_writing(raster, output_driver)
-
-            if rio_in_array.rio.count == 1 and output_driver == 'PNG':
-                # we only paletize single band input data
-                raster, color_map = palettize_raster(raster)
+            raster, color_map = prepare_raster_for_writing(
+                raster, output_driver, rio_in_array.rio.count
+            )
 
             grid_parameters = get_target_grid_parameters(message, rio_in_array)
             grid_parameter_list, tile_locators = create_tiled_output_parameters(
@@ -360,12 +358,21 @@ def image_driver(mime: str) -> str:
 
 
 def prepare_raster_for_writing(
-    raster: ndarray, driver: str
+    raster: ndarray,
+    driver: str,
+    input_bands: int,
 ) -> tuple[ndarray, dict | None]:
     """Remove alpha layer if writing a jpeg."""
+    color_map = None
     if driver == 'JPEG' and raster.shape[0] == 4:
         raster = raster[0:3, :, :]
-    return raster, None
+        return raster, color_map
+
+    if input_bands == 1 and driver == 'PNG':
+        # we only paletize single band input data
+        raster, color_map = palettize_raster(raster)
+
+    return raster, color_map
 
 
 def palettize_raster(raster: ndarray) -> tuple[ndarray, dict]:
