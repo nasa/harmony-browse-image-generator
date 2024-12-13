@@ -363,16 +363,14 @@ def prepare_raster_for_writing(
     input_bands: int,
 ) -> tuple[ndarray, dict | None]:
     """Remove alpha layer if writing a jpeg."""
-    color_map = None
     if driver == 'JPEG' and raster.shape[0] == 4:
-        raster = raster[0:3, :, :]
-        return raster, color_map
+        return raster[0:3, :, :], None
 
-    if input_bands == 1 and driver == 'PNG':
+    if driver == 'PNG' and input_bands == 1:
         # we only paletize single band input data
-        raster, color_map = palettize_raster(raster)
+        return palettize_raster(raster)
 
-    return raster, color_map
+    return raster, None
 
 
 def palettize_raster(raster: ndarray) -> tuple[ndarray, dict]:
