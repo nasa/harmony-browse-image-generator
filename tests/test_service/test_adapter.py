@@ -470,7 +470,7 @@ class TestAdapter(TestCase):
 
         expected_reproject_calls = [
             call(
-                source=raster[0, :, :],
+                source=raster[band, :, :],
                 destination=dest,
                 src_transform=rio_data_array.rio.transform(),
                 src_crs=rio_data_array.rio.crs,
@@ -479,9 +479,10 @@ class TestAdapter(TestCase):
                 dst_nodata=255,
                 resampling=Resampling.nearest,
             )
+            for band in range(4)
         ]
 
-        self.assertEqual(mock_reproject.call_count, 1)
+        self.assertEqual(mock_reproject.call_count, 4)
         for actual_call, expected_call in zip(
             mock_reproject.call_args_list, expected_reproject_calls
         ):

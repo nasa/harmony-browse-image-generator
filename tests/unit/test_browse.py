@@ -677,9 +677,16 @@ class TestBrowse(TestCase):
         raster = self.random.integers(255, size=(4, 7, 8))
         driver = 'PNG'
 
-        prepare_raster_for_writing(raster, driver)
+        expected, _ = prepare_raster_for_writing(raster, driver)
+        np.testing.assert_array_equal(raster, expected, strict=True)
 
-        palettize_mock.assert_called_once_with(raster)
+    @patch('hybig.browse.palettize_raster')
+    def test_prepare_raster_for_writing_png_3band(self, palettize_mock):
+        raster = self.random.integers(255, size=(3, 7, 8))
+        driver = 'PNG'
+
+        expected, _ = prepare_raster_for_writing(raster, driver)
+        np.testing.assert_array_equal(raster, expected, strict=True)
 
     @patch('hybig.browse.Image')
     @patch('hybig.browse.get_color_map_from_image')
