@@ -470,7 +470,7 @@ class TestBrowse(TestCase):
         assert_array_equal(expected_raster, actual_raster.data, strict=True)
 
     def test_convert_uint8_3_multiband_to_raster(self):
-        """Ensure valid data is unchange when input is uint8."""
+        """Ensure valid data is unchanged when input is uint8."""
         scale_data = np.array(
             [
                 [10, 200, 30, 40],
@@ -525,20 +525,20 @@ class TestBrowse(TestCase):
         g_data = r_data.copy()
         b_data = r_data.copy()
 
-        a_data = np.ones_like(self.data) * 255
+        a_data = np.ones_like(r_data) * 255
         a_data[0, 0] = 0
 
         to_numpy_result = np.stack([r_data, g_data, b_data, a_data])
 
         ds.to_numpy.return_value = to_numpy_result
 
-        expected_raster = to_numpy_result.astype('uint8')
+        expected_raster = to_numpy_result
 
         actual_raster = convert_mulitband_to_raster(ds)
         assert_array_equal(expected_raster, actual_raster.data, strict=True)
 
     def test_convert_4_multiband_uint16_to_raster(self):
-        """4-band 'uint16' images are scaled if the range exceeds 255."""
+        """4-band 'uint16' images are scaled if their range exceeds 255."""
         ds = Mock(DataArray)
         ds.rio.count = 4
 
