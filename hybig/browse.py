@@ -507,9 +507,13 @@ def write_georaster_as_browse(
 
     """
     n_bands = raster.shape[0]
-    dst_nodata = NODATA_IDX
+
     if color_map is not None:
+        dst_nodata = NODATA_IDX
         color_map[dst_nodata] = NODATA_RGBA
+    else:
+        # for banded data set the each band's destination nodata to zero (TRANSPARENT).
+        dst_nodata = TRANSPARENT
 
     creation_options = {
         **grid_parameters,

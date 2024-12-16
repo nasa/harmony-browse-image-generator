@@ -456,7 +456,7 @@ class TestAdapter(TestCase):
             'transform': expected_transform,
             'driver': 'PNG',
             'dtype': 'uint8',
-            'dst_nodata': 255,
+            'dst_nodata': 0,
             'count': 3,
         }
         raster = convert_mulitband_to_raster(rio_data_array)
@@ -476,7 +476,7 @@ class TestAdapter(TestCase):
                 src_crs=rio_data_array.rio.crs,
                 dst_transform=expected_params['transform'],
                 dst_crs=expected_params['crs'],
-                dst_nodata=255,
+                dst_nodata=expected_params['dst_nodata'],
                 resampling=Resampling.nearest,
             )
             for band in range(4)

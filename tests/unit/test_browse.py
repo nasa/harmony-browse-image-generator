@@ -237,7 +237,7 @@ class TestBrowse(TestCase):
                 src_crs=da_mock.rio.crs,
                 dst_transform=target_transform,
                 dst_crs=CRS.from_string('EPSG:4326'),
-                dst_nodata=255,
+                dst_nodata=0,
                 resampling=Resampling.nearest,
             ),
             call(
@@ -247,7 +247,7 @@ class TestBrowse(TestCase):
                 src_crs=da_mock.rio.crs,
                 dst_transform=target_transform,
                 dst_crs=CRS.from_string('EPSG:4326'),
-                dst_nodata=255,
+                dst_nodata=0,
                 resampling=Resampling.nearest,
             ),
             call(
@@ -257,7 +257,7 @@ class TestBrowse(TestCase):
                 src_crs=da_mock.rio.crs,
                 dst_transform=target_transform,
                 dst_crs=CRS.from_string('EPSG:4326'),
-                dst_nodata=255,
+                dst_nodata=0,
                 resampling=Resampling.nearest,
             ),
         ]
