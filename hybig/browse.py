@@ -360,13 +360,30 @@ def image_driver(mime: str) -> str:
 def prepare_raster_for_writing(
     raster: ndarray,
     driver: str,
-    input_bands: int,
+    band_count: int,
 ) -> tuple[ndarray, dict | None]:
-    """Remove alpha layer if writing a jpeg."""
+    """Standardize raster data for writing to browse image.
+
+    Args:
+        raster: Input raster data array
+        driver: Output image format ('JPEG' or 'PNG')
+        band_count: Number of bands in original input data
+
+    The function handles two special cases:
+    - JPEG output with 4-band data -> Drop alpha channel and return 3-band RGB
+    - PNG output with single-band data -> Convert to paletted format
+
+    Returns:
+        tuple: (prepared_raster, color_map) where:
+            - prepared_raster is the processed ndarray
+            - color_map is either None or a dict mapping palette indices to RGBA values
+
+
+    """
     if driver == 'JPEG' and raster.shape[0] == 4:
         return raster[0:3, :, :], None
 
-    if driver == 'PNG' and input_bands == 1:
+    if driver == 'PNG' and band_count == 1:
         # we only paletize single band input data
         return palettize_raster(raster)
 
