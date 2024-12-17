@@ -384,7 +384,8 @@ def standardize_raster_for_writing(
         return raster[0:3, :, :], None
 
     if driver == 'PNG' and band_count == 1:
-        # we only paletize single band input data
+        # Only paletize single band input data that has been converted to an
+        # RGBA raster.
         return palettize_raster(raster)
 
     return raster, None
