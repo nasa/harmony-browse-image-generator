@@ -181,7 +181,7 @@ def create_browse_imagery(
                     f'incorrect number of bands for image: {rio_in_array.rio.count}'
                 )
 
-            raster, color_map = prepare_raster_for_writing(
+            raster, color_map = standardize_raster_for_writing(
                 raster, output_driver, rio_in_array.rio.count
             )
 
@@ -357,7 +357,7 @@ def image_driver(mime: str) -> str:
     return 'PNG'
 
 
-def prepare_raster_for_writing(
+def standardize_raster_for_writing(
     raster: ndarray,
     driver: str,
     band_count: int,
