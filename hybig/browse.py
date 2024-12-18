@@ -275,7 +275,7 @@ def convert_to_uint8(bands: ndarray, dtype: str | None) -> ndarray[uint8]:
 def original_dtype(data_array: DataArray) -> str | None:
     """Return the original input data's type.
 
-    rastero_optn retains the input dtype in the encoding dictionary and is used
+    rastero_open retains the input dtype in the encoding dictionary and is used
     to understand what kind of casts are safe.
 
     """
@@ -384,7 +384,7 @@ def standardize_raster_for_writing(
         return raster[0:3, :, :], None
 
     if driver == 'PNG' and band_count == 1:
-        # Only paletize single band input data that has been converted to an
+        # Only palettize single band input data that has been converted to an
         # RGBA raster.
         return palettize_raster(raster)
 
