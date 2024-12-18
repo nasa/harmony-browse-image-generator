@@ -30,7 +30,7 @@ from hybig.browse import (
     output_image_file,
     output_world_file,
     palettize_raster,
-    prepare_raster_for_writing,
+    standardize_raster_for_writing,
     validate_file_crs,
     validate_file_type,
 )
@@ -237,7 +237,7 @@ class TestBrowse(TestCase):
                 src_crs=da_mock.rio.crs,
                 dst_transform=target_transform,
                 dst_crs=CRS.from_string('EPSG:4326'),
-                dst_nodata=255,
+                dst_nodata=0,
                 resampling=Resampling.nearest,
             ),
             call(
@@ -247,7 +247,7 @@ class TestBrowse(TestCase):
                 src_crs=da_mock.rio.crs,
                 dst_transform=target_transform,
                 dst_crs=CRS.from_string('EPSG:4326'),
-                dst_nodata=255,
+                dst_nodata=0,
                 resampling=Resampling.nearest,
             ),
             call(
@@ -257,7 +257,7 @@ class TestBrowse(TestCase):
                 src_crs=da_mock.rio.crs,
                 dst_transform=target_transform,
                 dst_crs=CRS.from_string('EPSG:4326'),
-                dst_nodata=255,
+                dst_nodata=0,
                 resampling=Resampling.nearest,
             ),
         ]
@@ -266,10 +266,14 @@ class TestBrowse(TestCase):
             reproject_mock.call_args_list, expected_calls
         ):
             np.testing.assert_array_equal(
-                actual_call.kwargs['source'], expected_call.kwargs['source']
+                actual_call.kwargs['source'],
+                expected_call.kwargs['source'],
+                strict=True,
             )
             np.testing.assert_array_equal(
-                actual_call.kwargs['destination'], expected_call.kwargs['destination']
+                actual_call.kwargs['destination'],
+                expected_call.kwargs['destination'],
+                strict=True,
             )
             self.assertEqual(
                 actual_call.kwargs['src_transform'],
@@ -339,7 +343,7 @@ class TestBrowse(TestCase):
             dtype='uint8',
         )
         actual_raster = convert_singleband_to_raster(ds, None)
-        assert_array_equal(expected_raster, actual_raster)
+        assert_array_equal(expected_raster, actual_raster, strict=True)
 
     def test_convert_singleband_to_raster_with_colormap(self):
         ds = DataArray(self.data).expand_dims('band')
@@ -376,7 +380,7 @@ class TestBrowse(TestCase):
         # Read down: red, yellow, green, blue
         image_palette = convert_colormap_to_palette(self.colormap)
         actual_raster = convert_singleband_to_raster(ds, image_palette)
-        assert_array_equal(expected_raster, actual_raster)
+        assert_array_equal(expected_raster, actual_raster, strict=True)
 
     def test_convert_singleband_to_raster_with_colormap_and_bad_data(self):
         data_array = np.array(self.data, dtype='float')
@@ -419,9 +423,10 @@ class TestBrowse(TestCase):
 
         image_palette = convert_colormap_to_palette(colormap)
         actual_raster = convert_singleband_to_raster(ds, image_palette)
-        assert_array_equal(expected_raster, actual_raster)
+        assert_array_equal(expected_raster, actual_raster, strict=True)
 
-    def test_convert_3_multiband_to_raster(self):
+    def test_convert_uint16_3_multiband_to_raster(self):
+        """Test that uint16 input scales the output."""
         bad_data = np.copy(self.data).astype('float64')
         bad_data[1][1] = np.nan
         bad_data[1][2] = np.nan
@@ -429,6 +434,7 @@ class TestBrowse(TestCase):
             np.stack([self.data, bad_data, self.data]),
             dims=('band', 'y', 'x'),
         )
+        ds.encoding = {'dtype': 'uint16'}
 
         expected_raster = np.array(
             [
@@ -461,64 +467,110 @@ class TestBrowse(TestCase):
         )
 
         actual_raster = convert_mulitband_to_raster(ds)
-        assert_array_equal(expected_raster, actual_raster.data)
+        assert_array_equal(expected_raster, actual_raster.data, strict=True)
 
-    def test_convert_4_multiband_to_raster(self):
-        """Input data has NaN _fillValue match in the red layer at [1,1]
-        and alpha channel also exists with a single transparent value at [0,0]
+    def test_convert_uint8_3_multiband_to_raster(self):
+        """Ensure valid data is unchanged when input is uint8."""
+        scale_data = np.array(
+            [
+                [10, 200, 30, 40],
+                [10, np.nan, np.nan, 40],
+                [10, 200, 30, 40],
+                [10, 200, 30, 40],
+            ]
+        ).astype('float32')
 
-        See that the expected output has transformed the missing data [nan]
-        into fully transparent at [1,1] and retained the transparent value of 1
-        at [0,0]
+        ds = DataArray(
+            np.stack([scale_data, scale_data, scale_data]),
+            dims=('band', 'y', 'x'),
+        )
+        ds.encoding = {'dtype': 'uint8'}
 
-        """
-        ds = Mock(DataArray)
-        bad_data = np.copy(self.data).astype('float64')
-        bad_data[1, 1] = np.nan
+        expected_data = scale_data.copy()
+        expected_data[1][1] = 0
+        expected_data[1][2] = 0
 
-        alpha = np.ones_like(self.data) * 255
-        alpha[0, 0] = 1
-        ds.rio.count = 4
-        ds.to_numpy.return_value = np.stack([bad_data, self.data, self.data, alpha])
         expected_raster = np.array(
             [
+                expected_data,
+                expected_data,
+                expected_data,
                 [
-                    [0, 85, 170, 255],
-                    [0, 0, 170, 255],
-                    [0, 85, 170, 255],
-                    [0, 85, 170, 255],
-                ],
-                [
-                    [0, 85, 170, 255],
-                    [0, 85, 170, 255],
-                    [0, 85, 170, 255],
-                    [0, 85, 170, 255],
-                ],
-                [
-                    [0, 85, 170, 255],
-                    [0, 85, 170, 255],
-                    [0, 85, 170, 255],
-                    [0, 85, 170, 255],
-                ],
-                [
-                    [1, 255, 255, 255],
-                    [255, 0, 255, 255],
-                    [255, 255, 255, 255],
-                    [255, 255, 255, 255],
+                    [OPAQUE, OPAQUE, OPAQUE, OPAQUE],
+                    [OPAQUE, TRANSPARENT, TRANSPARENT, OPAQUE],
+                    [OPAQUE, OPAQUE, OPAQUE, OPAQUE],
+                    [OPAQUE, OPAQUE, OPAQUE, OPAQUE],
                 ],
             ],
             dtype='uint8',
         )
 
         actual_raster = convert_mulitband_to_raster(ds)
-        assert_array_equal(expected_raster, actual_raster.data)
+        assert_array_equal(expected_raster, actual_raster.data, strict=True)
+
+    def test_convert_4_multiband_uint8_to_raster(self):
+        """4-band 'uint8' images are returned unchanged."""
+        ds = Mock(DataArray)
+        ds.rio.count = 4
+
+        r_data = np.array(
+            [
+                [10, 200, 30, 40],
+                [10, 200, 30, 40],
+                [10, 200, 30, 40],
+                [10, 200, 30, 40],
+            ]
+        ).astype('uint8')
+
+        g_data = r_data.copy()
+        b_data = r_data.copy()
+
+        a_data = np.ones_like(r_data) * 255
+        a_data[0, 0] = 0
+
+        to_numpy_result = np.stack([r_data, g_data, b_data, a_data])
+
+        ds.to_numpy.return_value = to_numpy_result
+
+        expected_raster = to_numpy_result
+
+        actual_raster = convert_mulitband_to_raster(ds)
+        assert_array_equal(expected_raster, actual_raster.data, strict=True)
+
+    def test_convert_4_multiband_uint16_to_raster(self):
+        """4-band 'uint16' images are scaled if their range exceeds 255."""
+        ds = Mock(DataArray)
+        ds.rio.count = 4
+
+        r_data = np.array(
+            [
+                [10, 200, 300, 400],
+                [10, 200, 300, 400],
+                [10, 200, 300, 400],
+                [10, 200, 300, 400],
+            ]
+        ).astype('uint16')
+        g_data = r_data.copy()
+        b_data = r_data.copy()
+
+        a_data = np.ones_like(self.data) * OPAQUE
+        a_data[0, 0] = TRANSPARENT
+
+        to_numpy_result = np.stack([r_data, g_data, b_data, a_data])
+
+        ds.to_numpy.return_value = to_numpy_result
+
+        # expect the input data to have the data values from 0 to 400 to be
+        # scaled into the range 0 to 255.
+        expected_raster = np.around(
+            np.interp(to_numpy_result, (0, 400), (0.0, 1.0)) * 255.0
+        ).astype('uint8')
+
+        actual_raster = convert_mulitband_to_raster(ds)
+        assert_array_equal(expected_raster, actual_raster.data, strict=True)
 
     def test_convert_4_multiband_masked_to_raster(self):
-        """Input data is selected from a subset of a real OPERA RTC input data
-        file that has masked the alpha layer and as a result as a datatype of
-        float32.
-
-        """
+        """4-band images are returned with nan -> 0"""
         ds = Mock(DataArray)
         ds.rio.count = 4
         nan = np.nan
@@ -553,18 +605,38 @@ class TestBrowse(TestCase):
         )
         ds.to_numpy.return_value = input_array
 
-        expected_raster = np.ma.array(
-            data=[
-                [[0, 0, 0, 121], [0, 0, 0, 64], [0, 0, 255, 0], [0, 0, 13, 255]],
-                [[0, 0, 0, 255], [0, 0, 0, 255], [0, 0, 255, 255], [0, 0, 255, 255]],
-                [[0, 0, 0, 121], [0, 0, 0, 64], [0, 0, 255, 0], [0, 0, 13, 255]],
-                [[0, 0, 0, 255], [0, 0, 0, 255], [0, 0, 255, 255], [0, 0, 255, 255]],
+        expected_raster = np.array(
+            [
+                [
+                    [0, 0, 0, 234],
+                    [0, 0, 0, 225],
+                    [0, 0, 255, 215],
+                    [0, 0, 217, 255],
+                ],
+                [
+                    [0, 0, 0, 255],
+                    [0, 0, 0, 255],
+                    [0, 0, 255, 255],
+                    [0, 0, 255, 255],
+                ],
+                [
+                    [0, 0, 0, 234],
+                    [0, 0, 0, 225],
+                    [0, 0, 255, 215],
+                    [0, 0, 217, 255],
+                ],
+                [
+                    [0, 0, 0, 255],
+                    [0, 0, 0, 255],
+                    [0, 0, 255, 255],
+                    [0, 0, 255, 255],
+                ],
             ],
             dtype=np.uint8,
         )
 
         actual_raster = convert_mulitband_to_raster(ds)
-        assert_array_equal(expected_raster.data, actual_raster.data)
+        assert_array_equal(expected_raster.data, actual_raster.data, strict=True)
 
     def test_convert_5_multiband_to_raster(self):
         ds = Mock(DataArray)
@@ -581,33 +653,59 @@ class TestBrowse(TestCase):
             'Cannot create image from 5 band image. Expecting 3 or 4 bands.',
         )
 
-    def test_prepare_raster_for_writing_jpeg_3band(self):
+    def test_standardize_raster_for_writing_jpeg_3band(self):
         raster = self.random.integers(255, size=(3, 5, 6))
+        count = 'irrelevant'
         driver = 'JPEG'
         expected_raster = np.copy(raster)
         expected_color_map = None
 
-        actual_raster, actual_color_map = prepare_raster_for_writing(raster, driver)
+        actual_raster, actual_color_map = standardize_raster_for_writing(
+            raster, driver, count
+        )
         self.assertEqual(expected_color_map, actual_color_map)
-        np.testing.assert_array_equal(expected_raster, actual_raster)
+        np.testing.assert_array_equal(expected_raster, actual_raster, strict=True)
 
-    def test_prepare_raster_for_writing_jpeg_4band(self):
+    def test_standardize_raster_for_writing_jpeg_4band(self):
         raster = self.random.integers(255, size=(4, 7, 8))
         driver = 'JPEG'
+        count = 'irrelevant'
         expected_raster = np.copy(raster[0:3, :, :])
         expected_color_map = None
-        actual_raster, actual_color_map = prepare_raster_for_writing(raster, driver)
+        actual_raster, actual_color_map = standardize_raster_for_writing(
+            raster, driver, count
+        )
         self.assertEqual(expected_color_map, actual_color_map)
-        np.testing.assert_array_equal(expected_raster, actual_raster)
+        np.testing.assert_array_equal(expected_raster, actual_raster, strict=True)
 
     @patch('hybig.browse.palettize_raster')
-    def test_prepare_raster_for_writing_png_4band(self, palettize_mock):
+    def test_standardize_raster_for_writing_png_4band(self, palettize_mock):
         raster = self.random.integers(255, size=(4, 7, 8))
         driver = 'PNG'
+        count = 'not 1'
 
-        prepare_raster_for_writing(raster, driver)
+        expected, _ = standardize_raster_for_writing(raster, driver, count)
+        np.testing.assert_array_equal(raster, expected, strict=True)
+        palettize_mock.assert_not_called()
 
-        palettize_mock.assert_called_once_with(raster)
+    @patch('hybig.browse.palettize_raster')
+    def test_standardize_raster_for_writing_png_3band(self, palettize_mock):
+        raster = self.random.integers(255, size=(3, 7, 8))
+        driver = 'PNG'
+        count = 'not 1'
+
+        expected, _ = standardize_raster_for_writing(raster, driver, count)
+        np.testing.assert_array_equal(raster, expected, strict=True)
+        palettize_mock.assert_not_called()
+
+    @patch('hybig.browse.palettize_raster')
+    def test_prepare_1band_raster_for_writing_png(self, palettize_mock):
+        raster = self.random.integers(255, size=(1, 7, 8))
+        driver = 'PNG'
+        count = 1
+        palettize_mock.return_value = (None, None)
+        expected, _ = standardize_raster_for_writing(raster, driver, count)
+        palettize_mock.assert_called_with(raster)
 
     @patch('hybig.browse.Image')
     @patch('hybig.browse.get_color_map_from_image')
@@ -629,7 +727,7 @@ class TestBrowse(TestCase):
         multiband_image_mock.quantize.assert_called_once_with(colors=254)
         get_color_map_mock.assert_called_once_with(quantized_output)
 
-        np.testing.assert_array_equal(expected_out_raster, out_raster)
+        np.testing.assert_array_equal(expected_out_raster, out_raster, strict=True)
 
     @patch('hybig.browse.Image')
     @patch('hybig.browse.get_color_map_from_image')
@@ -657,7 +755,7 @@ class TestBrowse(TestCase):
         multiband_image_mock.quantize.assert_called_once_with(colors=254)
         get_color_map_mock.assert_called_once_with(quantized_output)
 
-        np.testing.assert_array_equal(expected_out_raster, out_raster)
+        np.testing.assert_array_equal(expected_out_raster, out_raster, strict=True)
 
     def test_get_color_map_from_image(self):
         """PIL Image yields a color_map

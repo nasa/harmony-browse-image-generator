@@ -13,7 +13,7 @@ from harmony_service_lib.message import Message as HarmonyMessage
 from harmony_service_lib.message import Source as HarmonySource
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
-from numpy import ndarray
+from numpy import ndarray, uint8
 from osgeo_utils.auxiliary.color_palette import ColorPalette
 from PIL import Image
 from rasterio.io import DatasetReader
@@ -181,7 +181,9 @@ def create_browse_imagery(
                     f'incorrect number of bands for image: {rio_in_array.rio.count}'
                 )
 
-            raster, color_map = prepare_raster_for_writing(raster, output_driver)
+            raster, color_map = standardize_raster_for_writing(
+                raster, output_driver, rio_in_array.rio.count
+            )
 
             grid_parameters = get_target_grid_parameters(message, rio_in_array)
             grid_parameter_list, tile_locators = create_tiled_output_parameters(
@@ -217,12 +219,14 @@ def create_browse_imagery(
     return processed_files
 
 
-def convert_mulitband_to_raster(data_array: DataArray) -> ndarray:
+def convert_mulitband_to_raster(data_array: DataArray) -> ndarray[uint8]:
     """Convert multiband to a raster image.
 
-    Reads the three or four bands from the file, then normalizes them to the range
-    0 to 255. This assumes the input image is already in RGB or RGBA format and
-    just ensures that the output is 8bit.
+    Return a 4-band raster, where the alpha layer is presumed to be the missing
+    data mask.
+
+    Convert 3-band data into a 4-band raster by generating an alpha layer from
+    any missing data in the RGB bands.
 
     """
     if data_array.rio.count not in [3, 4]:
@@ -233,26 +237,49 @@ def convert_mulitband_to_raster(data_array: DataArray) -> ndarray:
 
     bands = data_array.to_numpy()
 
-    # Create an alpha layer where input NaN values are transparent.
+    if data_array.rio.count == 4:
+        return convert_to_uint8(bands, original_dtype(data_array))
+
+    # Input NaNs in any of the RGB bands are made transparent.
     nan_mask = np.isnan(bands).any(axis=0)
     nan_alpha = np.where(nan_mask, TRANSPARENT, OPAQUE)
 
-    # grab any existing alpha layer
-    bands, image_alpha = remove_alpha(bands)
+    raster = convert_to_uint8(bands, original_dtype(data_array))
 
-    norm = Normalize(vmin=np.nanmin(bands), vmax=np.nanmax(bands))
-    raster = np.nan_to_num(np.around(norm(bands) * 255.0), copy=False, nan=0.0).astype(
-        'uint8'
-    )
+    return np.concatenate((raster, nan_alpha[None, ...]), axis=0)
 
-    if image_alpha is not None:
-        # merge missing alpha with the image alpha band prefering transparency
-        # to opaqueness.
-        alpha = np.minimum(nan_alpha, image_alpha).astype(np.uint8)
+
+def convert_to_uint8(bands: ndarray, dtype: str | None) -> ndarray[uint8]:
+    """Convert Banded data with NaNs (missing) into a uint8 data cube.
+
+    Nearly all of the time this will simply pass through the data coercing it
+    back into unsigned ints and setting the missing values to 0 that will be
+    masked as transparent in the output png.
+
+    There is a some small non-zero chance that the input RGB image was 16-bit
+    and if any of the values exceed 255, we must normalize all of input data to
+    the range 0-255.
+
+    """
+
+    if dtype != 'uint8' and np.nanmax(bands) > 255:
+        norm = Normalize(vmin=np.nanmin(bands), vmax=np.nanmax(bands))
+        scaled = np.around(norm(bands) * 255.0)
+        raster = scaled.filled(0).astype('uint8')
     else:
-        alpha = nan_alpha
+        raster = np.nan_to_num(bands).astype('uint8')
 
-    return np.concatenate((raster, alpha[None, ...]), axis=0)
+    return raster
+
+
+def original_dtype(data_array: DataArray) -> str | None:
+    """Return the original input data's type.
+
+    rastero_open retains the input dtype in the encoding dictionary and is used
+    to understand what kind of casts are safe.
+
+    """
+    return data_array.encoding.get('dtype') or data_array.encoding.get('rasterio_dtype')
 
 
 def convert_singleband_to_raster(
@@ -330,16 +357,38 @@ def image_driver(mime: str) -> str:
     return 'PNG'
 
 
-def prepare_raster_for_writing(
-    raster: ndarray, driver: str
+def standardize_raster_for_writing(
+    raster: ndarray,
+    driver: str,
+    band_count: int,
 ) -> tuple[ndarray, dict | None]:
-    """Remove alpha layer if writing a jpeg."""
-    if driver == 'JPEG':
-        if raster.shape[0] == 4:
-            raster = raster[0:3, :, :]
-        return raster, None
+    """Standardize raster data for writing to browse image.
 
-    return palettize_raster(raster)
+    Args:
+        raster: Input raster data array
+        driver: Output image format ('JPEG' or 'PNG')
+        band_count: Number of bands in original input data
+
+    The function handles two special cases:
+    - JPEG output with 4-band data -> Drop alpha channel and return 3-band RGB
+    - PNG output with single-band data -> Convert to paletted format
+
+    Returns:
+        tuple: (prepared_raster, color_map) where:
+            - prepared_raster is the processed ndarray
+            - color_map is either None or a dict mapping palette indices to RGBA values
+
+
+    """
+    if driver == 'JPEG' and raster.shape[0] == 4:
+        return raster[0:3, :, :], None
+
+    if driver == 'PNG' and band_count == 1:
+        # Only palettize single band input data that has been converted to an
+        # RGBA raster.
+        return palettize_raster(raster)
+
+    return raster, None
 
 
 def palettize_raster(raster: ndarray) -> tuple[ndarray, dict]:
@@ -476,9 +525,13 @@ def write_georaster_as_browse(
 
     """
     n_bands = raster.shape[0]
-    dst_nodata = NODATA_IDX
+
     if color_map is not None:
+        dst_nodata = NODATA_IDX
         color_map[dst_nodata] = NODATA_RGBA
+    else:
+        # for banded data set the each band's destination nodata to zero (TRANSPARENT).
+        dst_nodata = TRANSPARENT
 
     creation_options = {
         **grid_parameters,

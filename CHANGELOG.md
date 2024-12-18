@@ -4,10 +4,11 @@ HyBIG follows semantic versioning. All notable changes to this project will be
 documented in this file. The format is based on [Keep a
 Changelog](http://keepachangelog.com/en/1.0.0/).
 
-## [unreleased] - 2024-12-10
+## [v2.1.0] - 2024-12-13
 
 ### Changed
 
+* Input GeoTIFF RGB[A] images are **no longer palettized** when converted to a PNG. The new resulting output browse images are now 3 or 4 band PNG retaining the color information of the input image.[#39](https://github.com/nasa/harmony-browse-image-generator/pull/39)
 * Changed pre-commit configuration to remove `black-jupyter` dependency [#38](https://github.com/nasa/harmony-browse-image-generator/pull/38)
 * Updates service image's python to 3.12 [#38](https://github.com/nasa/harmony-browse-image-generator/pull/38)
 * Simplifies test scripts to run with pytest and pytest plugins [#38](https://github.com/nasa/harmony-browse-image-generator/pull/38)
@@ -90,14 +91,15 @@ outlined by the NASA open-source guidelines.
 For more information on internal releases prior to NASA open-source approval,
 see legacy-CHANGELOG.md.
 
-[unreleased]:https://github.com/nasa/harmony-browse-image-generator/compare/2.0.2..HEAD
-[v2.0.2]:https://github.com/nasa/harmony-browse-image-generator/compare/2.0.1..2.0.2
-[v2.0.1]:https://github.com/nasa/harmony-browse-image-generator/compare/2.0.0..2.0.1
-[v2.0.0]:https://github.com/nasa/harmony-browse-image-generator/compare/1.2.2..2.0.0
-[v1.2.2]: https://github.com/nasa/harmony-browse-image-generator/compare/1.2.1..1.2.2
-[v1.2.1]: https://github.com/nasa/harmony-browse-image-generator/compare/1.2.0..1.2.1
-[v1.2.0]: https://github.com/nasa/harmony-browse-image-generator/compare/1.1.0..1.2.0
-[v1.1.0]: https://github.com/nasa/harmony-browse-image-generator/compare/1.0.2..1.1.0
-[v1.0.2]: https://github.com/nasa/harmony-browse-image-generator/compare/1.0.1..1.0.2
-[v1.0.1]: https://github.com/nasa/harmony-browse-image-generator/compare/1.0.0..1.0.1
-[v1.0.0]: https://github.com/nasa/harmony-browse-image-generator/compare/0.0.11-legacy..1.0.0
+[unreleased]: https://github.com/nasa/harmony-browse-image-generator/
+[v2.1.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.1.0
+[v2.0.2]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.0.2
+[v2.0.1]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.0.1
+[v2.0.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.0.0
+[v1.2.2]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/1.2.2
+[v1.2.1]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/1.2.1
+[v1.2.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/1.2.0
+[v1.1.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/1.1.0
+[v1.0.2]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/1.0.2
+[v1.0.1]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/1.0.1
+[v1.0.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/1.0.0

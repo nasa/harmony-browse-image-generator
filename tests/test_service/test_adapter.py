@@ -19,7 +19,7 @@ from harmony_service.adapter import BrowseImageGeneratorAdapter
 from harmony_service.exceptions import HyBIGServiceError
 from hybig.browse import (
     convert_mulitband_to_raster,
-    prepare_raster_for_writing,
+    standardize_raster_for_writing,
 )
 from tests.utilities import Granule, create_stac
 
@@ -270,10 +270,14 @@ class TestAdapter(TestCase):
             mock_reproject.call_args_list, expected_reproject_calls
         ):
             np.testing.assert_array_equal(
-                actual_call.kwargs['source'], expected_call.kwargs['source']
+                actual_call.kwargs['source'],
+                expected_call.kwargs['source'],
+                strict=True,
             )
             np.testing.assert_array_equal(
-                actual_call.kwargs['destination'], expected_call.kwargs['destination']
+                actual_call.kwargs['destination'],
+                expected_call.kwargs['destination'],
+                strict=True,
             )
             self.assertEqual(
                 actual_call.kwargs['src_transform'],
@@ -452,11 +456,11 @@ class TestAdapter(TestCase):
             'transform': expected_transform,
             'driver': 'PNG',
             'dtype': 'uint8',
-            'dst_nodata': 255,
+            'dst_nodata': 0,
             'count': 3,
         }
         raster = convert_mulitband_to_raster(rio_data_array)
-        raster, color_map = prepare_raster_for_writing(raster, 'PNG')
+        raster, color_map = standardize_raster_for_writing(raster, 'PNG', 3)
 
         dest = np.full(
             (expected_params['height'], expected_params['width']),
@@ -466,26 +470,31 @@ class TestAdapter(TestCase):
 
         expected_reproject_calls = [
             call(
-                source=raster[0, :, :],
+                source=raster[band, :, :],
                 destination=dest,
                 src_transform=rio_data_array.rio.transform(),
                 src_crs=rio_data_array.rio.crs,
                 dst_transform=expected_params['transform'],
                 dst_crs=expected_params['crs'],
-                dst_nodata=255,
+                dst_nodata=expected_params['dst_nodata'],
                 resampling=Resampling.nearest,
             )
+            for band in range(4)
         ]
 
-        self.assertEqual(mock_reproject.call_count, 1)
+        self.assertEqual(mock_reproject.call_count, 4)
         for actual_call, expected_call in zip(
             mock_reproject.call_args_list, expected_reproject_calls
         ):
             np.testing.assert_array_equal(
-                actual_call.kwargs['source'], expected_call.kwargs['source']
+                actual_call.kwargs['source'],
+                expected_call.kwargs['source'],
+                strict=True,
             )
             np.testing.assert_array_equal(
-                actual_call.kwargs['destination'], expected_call.kwargs['destination']
+                actual_call.kwargs['destination'],
+                expected_call.kwargs['destination'],
+                strict=True,
             )
             self.assertEqual(
                 actual_call.kwargs['src_transform'],
