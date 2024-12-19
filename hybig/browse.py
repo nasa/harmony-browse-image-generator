@@ -28,8 +28,6 @@ from hybig.color_utility import (
     NODATA_RGBA,
     OPAQUE,
     TRANSPARENT,
-    TRANSPARENT_IDX,
-    TRANSPARENT_RGBA,
     all_black_color_map,
     get_color_palette,
     palette_from_remote_colortable,
@@ -299,7 +297,7 @@ def convert_gray_1band_to_raster(data_array: DataArray) -> ndarray:
     """Convert a 1-band raster without a color association."""
     band = data_array[0, :, :]
     cmap = matplotlib.colormaps['Greys_r']
-    cmap.set_bad(TRANSPARENT_RGBA)
+    cmap.set_bad(NODATA_RGBA)
     norm = Normalize(vmin=np.nanmin(band), vmax=np.nanmax(band))
     scalar_map = ScalarMappable(cmap=cmap, norm=norm)
 
@@ -403,9 +401,9 @@ def palettize_raster(raster: ndarray) -> tuple[ndarray, dict]:
     written to the final raster as 254 and add the mapped RGBA value to the
     color palette.
     """
-    # reserves 254 for transparent images and 255 for off grid fill values
-    # 0 to 253
-    max_colors = 254
+    # reserves 255 for transparent and off grid fill values
+    # 0 to 254
+    max_colors = 255
     rgb_raster, alpha = remove_alpha(raster)
 
     multiband_image = Image.fromarray(reshape_as_image(rgb_raster))
@@ -427,8 +425,8 @@ def add_alpha(
     """
     if alpha is not None and np.any(alpha != OPAQUE):
         # Set any alpha to the transparent index value
-        quantized_array = np.where(alpha != OPAQUE, TRANSPARENT_IDX, quantized_array)
-        color_map[TRANSPARENT_IDX] = TRANSPARENT_RGBA
+        quantized_array = np.where(alpha != OPAQUE, NODATA_IDX, quantized_array)
+        color_map[NODATA_IDX] = NODATA_RGBA
     return quantized_array, color_map
 
 
