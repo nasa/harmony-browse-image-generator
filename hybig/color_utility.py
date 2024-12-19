@@ -21,9 +21,6 @@ from hybig.exceptions import (
 # Applied to transparent pixels where alpha < 255
 TRANSPARENT = np.uint8(0)
 OPAQUE = np.uint8(255)
-TRANSPARENT_RGBA = (0, 0, 0, 0)
-TRANSPARENT_IDX = 254
-
 # Applied to off grid areas during reprojection
 NODATA_RGBA = (0, 0, 0, 0)
 NODATA_IDX = 255

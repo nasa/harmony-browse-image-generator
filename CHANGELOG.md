@@ -4,6 +4,14 @@ HyBIG follows semantic versioning. All notable changes to this project will be
 documented in this file. The format is based on [Keep a
 Changelog](http://keepachangelog.com/en/1.0.0/).
 
+## [v2.2.0] - 2024-12-19
+
+### Changed
+
+* NODATA and TRANSPARENT values are merged. [[#41](https://github.com/nasa/harmony-browse-image-generator/pull/41)]
+  - The user visible change is that now a paletted output PNG will have up to 254 color values and a 255th value that is transparent.
+  - Internally, the code change removes `TRANSPARENT_IDX` (254) and uses `NODATA_IDX` in its stead.  A color of (0,0,0,0) was already set to both of the indexes in the ouput PNGs. This ensures the roundtrip from single band to RGBA to Paletted PNG is consistent.
+
 ## [v2.1.0] - 2024-12-13
 
 ### Changed
@@ -92,6 +100,7 @@ For more information on internal releases prior to NASA open-source approval,
 see legacy-CHANGELOG.md.
 
 [unreleased]: https://github.com/nasa/harmony-browse-image-generator/
+[v2.2.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.2.0
 [v2.1.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.1.0
 [v2.0.2]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.0.2
 [v2.0.1]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.0.1

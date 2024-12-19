@@ -724,7 +724,7 @@ class TestBrowse(TestCase):
 
         out_raster, out_map = palettize_raster(raster)
 
-        multiband_image_mock.quantize.assert_called_once_with(colors=254)
+        multiband_image_mock.quantize.assert_called_once_with(colors=255)
         get_color_map_mock.assert_called_once_with(quantized_output)
 
         np.testing.assert_array_equal(expected_out_raster, out_raster, strict=True)
@@ -748,11 +748,11 @@ class TestBrowse(TestCase):
         multiband_image_mock.quantize.return_value = quantized_output
 
         expected_out_raster = np.array(quantized_output).reshape(1, 10, 11)
-        expected_out_raster[0, 0:3, 0:3] = 254
+        expected_out_raster[0, 0:3, 0:3] = 255
 
         out_raster, out_map = palettize_raster(raster)
 
-        multiband_image_mock.quantize.assert_called_once_with(colors=254)
+        multiband_image_mock.quantize.assert_called_once_with(colors=255)
         get_color_map_mock.assert_called_once_with(quantized_output)
 
         np.testing.assert_array_equal(expected_out_raster, out_raster, strict=True)
