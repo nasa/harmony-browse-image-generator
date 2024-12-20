@@ -654,7 +654,7 @@ class TestBrowse(TestCase):
         )
 
     def test_standardize_raster_for_writing_jpeg_3band(self):
-        raster = self.random.integers(255, size=(3, 5, 6))
+        raster = self.random.integers(255, size=(3, 5, 6), dtype='uint8')
         count = 'irrelevant'
         driver = 'JPEG'
         expected_raster = np.copy(raster)
@@ -667,7 +667,7 @@ class TestBrowse(TestCase):
         np.testing.assert_array_equal(expected_raster, actual_raster, strict=True)
 
     def test_standardize_raster_for_writing_jpeg_4band(self):
-        raster = self.random.integers(255, size=(4, 7, 8))
+        raster = self.random.integers(255, size=(4, 7, 8), dtype='uint8')
         driver = 'JPEG'
         count = 'irrelevant'
         expected_raster = np.copy(raster[0:3, :, :])
@@ -680,7 +680,7 @@ class TestBrowse(TestCase):
 
     @patch('hybig.browse.palettize_raster')
     def test_standardize_raster_for_writing_png_4band(self, palettize_mock):
-        raster = self.random.integers(255, size=(4, 7, 8))
+        raster = self.random.integers(255, size=(4, 7, 8), dtype='uint8')
         driver = 'PNG'
         count = 'not 1'
 
@@ -690,7 +690,7 @@ class TestBrowse(TestCase):
 
     @patch('hybig.browse.palettize_raster')
     def test_standardize_raster_for_writing_png_3band(self, palettize_mock):
-        raster = self.random.integers(255, size=(3, 7, 8))
+        raster = self.random.integers(255, size=(3, 7, 8), dtype='uint8')
         driver = 'PNG'
         count = 'not 1'
 
@@ -700,7 +700,7 @@ class TestBrowse(TestCase):
 
     @patch('hybig.browse.palettize_raster')
     def test_prepare_1band_raster_for_writing_png(self, palettize_mock):
-        raster = self.random.integers(255, size=(1, 7, 8))
+        raster = self.random.integers(255, size=(1, 7, 8), dtype='uint8')
         driver = 'PNG'
         count = 1
         palettize_mock.return_value = (None, None)
@@ -711,7 +711,7 @@ class TestBrowse(TestCase):
     @patch('hybig.browse.get_color_map_from_image')
     def test_palettize_raster_no_alpha_layer(self, get_color_map_mock, image_mock):
         """Test that the quantize function is called by a correct image."""
-        raster = self.random.integers(255, dtype='uint8', size=(3, 10, 11))
+        raster = self.random.integers(255, size=(3, 10, 11), dtype='uint8')
 
         quantized_output = Image.fromarray(
             self.random.integers(254, size=(10, 11), dtype='uint8')
@@ -733,7 +733,7 @@ class TestBrowse(TestCase):
     @patch('hybig.browse.get_color_map_from_image')
     def test_palettize_raster_with_alpha_layer(self, get_color_map_mock, image_mock):
         """Test that the quantize function is called by a correct image."""
-        raster = self.random.integers(255, dtype='uint8', size=(4, 10, 11))
+        raster = self.random.integers(255, size=(4, 10, 11), dtype='uint8')
         # No transparent pixels
         raster[3, :, :] = 255
 

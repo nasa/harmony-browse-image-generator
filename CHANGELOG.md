@@ -15,7 +15,7 @@ Changelog](http://keepachangelog.com/en/1.0.0/).
     `NODATA_IDX` (255) in its stead.  A color of (0,0,0,0) was previosly set to
     both the indexes (254 and 255) in the ouput PNGs and now only 255 will have
     this value. This change ensures the roundtrip from single band to RGBA to
-    Paletted PNG is consistent.
+    paletted PNG is consistent.
 
 ## [v2.1.0] - 2024-12-13
 
