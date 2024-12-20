@@ -4,18 +4,31 @@ HyBIG follows semantic versioning. All notable changes to this project will be
 documented in this file. The format is based on [Keep a
 Changelog](http://keepachangelog.com/en/1.0.0/).
 
+## [v2.2.0] - 2024-12-19
+
+### Changed
+
+* NODATA and TRANSPARENT values are merged. [[#41](https://github.com/nasa/harmony-browse-image-generator/pull/41)]
+  - User visible change: paletted PNG outupt images will have up to 254 color
+    values and a 255th value that is transparent.
+  - Internal code changes: removes `TRANSPARENT_IDX` (254) and uses
+    `NODATA_IDX` (255) in its stead.  A color of (0,0,0,0) was previosly set to
+    both the indexes (254 and 255) in the ouput PNGs and now only 255 will have
+    this value. This change ensures the roundtrip from single band to RGBA to
+    paletted PNG is consistent.
+
 ## [v2.1.0] - 2024-12-13
 
 ### Changed
 
-* Input GeoTIFF RGB[A] images are **no longer palettized** when converted to a PNG. The new resulting output browse images are now 3 or 4 band PNG retaining the color information of the input image.[#39](https://github.com/nasa/harmony-browse-image-generator/pull/39)
-* Changed pre-commit configuration to remove `black-jupyter` dependency [#38](https://github.com/nasa/harmony-browse-image-generator/pull/38)
-* Updates service image's python to 3.12 [#38](https://github.com/nasa/harmony-browse-image-generator/pull/38)
-* Simplifies test scripts to run with pytest and pytest plugins [#38](https://github.com/nasa/harmony-browse-image-generator/pull/38)
+* Input GeoTIFF RGB[A] images are **no longer palettized** when converted to a PNG. The new resulting output browse images are now 3 or 4 band PNG retaining the color information of the input image.[[#39](https://github.com/nasa/harmony-browse-image-generator/pull/39)]
+* Changed pre-commit configuration to remove `black-jupyter` dependency [[#38](https://github.com/nasa/harmony-browse-image-generator/pull/38)]
+* Updates service image's python to 3.12 [[#38](https://github.com/nasa/harmony-browse-image-generator/pull/38)]
+* Simplifies test scripts to run with pytest and pytest plugins [[#38](https://github.com/nasa/harmony-browse-image-generator/pull/38)]
 
 ### Removed
 
-* Removes `test_code_format.py` in favor of `ruff` pre-commit configuration [#38](https://github.com/nasa/harmony-browse-image-generator/pull/38)
+* Removes `test_code_format.py` in favor of `ruff` pre-commit configuration [[#38](https://github.com/nasa/harmony-browse-image-generator/pull/38)]
 
 
 ## [v2.0.2] - 2024-10-15
@@ -92,6 +105,7 @@ For more information on internal releases prior to NASA open-source approval,
 see legacy-CHANGELOG.md.
 
 [unreleased]: https://github.com/nasa/harmony-browse-image-generator/
+[v2.2.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.2.0
 [v2.1.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.1.0
 [v2.0.2]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.0.2
 [v2.0.1]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.0.1
