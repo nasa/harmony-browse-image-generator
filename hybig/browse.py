@@ -181,14 +181,12 @@ def create_browse_imagery(
             elif rio_in_array.rio.count in (3, 4):
                 raster = convert_mulitband_to_raster(rio_in_array)
                 color_map = None
+                if output_driver == 'JPEG':
+                    raster = raster[0:3, :, :]
             else:
                 raise HyBIGError(
                     f'incorrect number of bands for image: {rio_in_array.rio.count}'
                 )
-
-            raster, color_map = standardize_raster_for_writing(
-                raster, output_driver, color_map
-            )
 
             grid_parameters = get_target_grid_parameters(message, rio_in_array)
             grid_parameter_list, tile_locators = create_tiled_output_parameters(
@@ -410,35 +408,6 @@ def image_driver(mime: str) -> str:
     if re.search('jpeg', mime, re.I):
         return 'JPEG'
     return 'PNG'
-
-
-def standardize_raster_for_writing(
-    raster: ndarray,
-    driver: str,
-    color_map: ColorMap | None,
-) -> tuple[ndarray]:
-    """Standardize raster data for writing to browse image.
-
-    Args:
-        raster: Input raster data array
-        driver: Output image format ('JPEG' or 'PNG')
-        band_count: Number of bands in original input data
-
-    The function handles two special cases:
-    - JPEG output with 4-band data -> Drop alpha channel and return 3-band RGB
-    - PNG output with single-band data -> Convert to paletted format
-
-    Returns:
-        tuple: (prepared_raster, color_map) where:
-            - prepared_raster is the processed ndarray
-            - color_map is either None or a dict mapping palette indices to RGBA values
-
-
-    """
-    if driver == 'JPEG' and raster.shape[0] == 4:
-        return raster[0:3, :, :], color_map
-
-    return raster, color_map
 
 
 def palettize_raster(raster: ndarray) -> tuple[ndarray, dict]:
