@@ -11,13 +11,11 @@ import rasterio
 from affine import dumpsw
 from harmony_service_lib.message import Message as HarmonyMessage
 from harmony_service_lib.message import Source as HarmonySource
-from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 from numpy import ndarray, uint8
 from osgeo_utils.auxiliary.color_palette import ColorPalette
 from PIL import Image
 from rasterio.io import DatasetReader
-from rasterio.plot import reshape_as_image, reshape_as_raster
 from rasterio.warp import Resampling, reproject
 from rioxarray import open_rasterio
 from xarray import DataArray
@@ -34,7 +32,6 @@ from hybig.color_utility import (
     get_color_palette,
     greyscale_colormap,
     palette_from_remote_colortable,
-    remove_alpha,
 )
 from hybig.exceptions import HyBIGError
 from hybig.sizes import (
@@ -289,29 +286,13 @@ def convert_singleband_to_raster(
     data_array: DataArray,
     color_palette: ColorPalette | None = None,
 ) -> tuple[ndarray, ColorMap]:
-    """Convert input dataset to a 4 band raster image.
+    """Convert input dataset to a 1-band raster image with colormap.
 
-    Use a palette if provided otherwise return a greyscale image.
+    Uses a palette if provided otherwise returns a greyscale image.
     """
     if color_palette is None:
         return scale_grey_1band(data_array)
     return scale_paletted_1band(data_array, color_palette)
-
-
-def convert_gray_1band_to_raster(data_array: DataArray) -> ndarray:
-    """Convert a 1-band raster without a color association."""
-    band = data_array[0, :, :]
-    cmap = matplotlib.colormaps['Greys_r']
-    cmap.set_bad(NODATA_RGBA)
-    norm = Normalize(vmin=np.nanmin(band), vmax=np.nanmax(band))
-    scalar_map = ScalarMappable(cmap=cmap, norm=norm)
-
-    rgba_image = np.zeros((*band.shape, 4), dtype='uint8')
-    for row_no in range(band.shape[0]):
-        rgba_image_slice = scalar_map.to_rgba(band[row_no, :], bytes=True)
-        rgba_image[row_no, :, :] = rgba_image_slice
-
-    return reshape_as_raster(rgba_image)
 
 
 def scale_grey_1band(data_array: DataArray) -> tuple[ndarray, ColorMap]:
@@ -364,91 +345,11 @@ def scale_paletted_1band(
     return np.expand_dims(scaled_band.data, 0), color_map
 
 
-def convert_paletted_1band_to_raster(
-    data_array: DataArray, palette: ColorPalette
-) -> ndarray:
-    """Convert a 1 band image with palette into a rgba raster image."""
-    band = data_array[0, :, :]
-    levels = list(palette.pal.keys())
-    colors = [
-        palette.color_to_color_entry(value, with_alpha=True)
-        for value in palette.pal.values()
-    ]
-    scaled_colors = [
-        (r / 255.0, g / 255.0, b / 255.0, a / 255.0) for r, g, b, a in colors
-    ]
-
-    cmap, norm = matplotlib.colors.from_levels_and_colors(
-        levels, scaled_colors, extend='max'
-    )
-
-    # handle palette no data value
-    if palette.ndv is not None:
-        nodata_colors = palette.color_to_color_entry(palette.ndv, with_alpha=True)
-        cmap.set_bad(
-            (
-                nodata_colors[0] / 255.0,
-                nodata_colors[1] / 255.0,
-                nodata_colors[2] / 255.0,
-                nodata_colors[3] / 255.0,
-            )
-        )
-
-    scalar_map = matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap)
-    rgba_image = np.zeros((*band.shape, 4), dtype='uint8')
-    for row_no in range(band.shape[0]):
-        rgba_image[row_no, :, :] = scalar_map.to_rgba(
-            np.ma.masked_invalid(band[row_no, :]), bytes=True
-        )
-    return reshape_as_raster(rgba_image)
-
-
 def image_driver(mime: str) -> str:
     """Return requested rasterio driver for output image."""
     if re.search('jpeg', mime, re.I):
         return 'JPEG'
     return 'PNG'
-
-
-def palettize_raster(raster: ndarray) -> tuple[ndarray, dict]:
-    """Convert an RGB or RGBA image into a 1band image and palette.
-
-    Converts a 3 or 4 band np raster into a PIL image.
-    Quantizes the image into a 1band raster with palette
-
-    Transparency is handled by first removing the Alpha layer and creating
-    quantized raster from just the RGB layers. Next the Alpha layer values are
-    treated as either transparent or opaque and any transparent values are
-    written to the final raster as 254 and add the mapped RGBA value to the
-    color palette.
-    """
-    # reserves index 255 for transparent and off grid fill values
-    # 0 to 254
-    max_colors = 255
-    rgb_raster, alpha = remove_alpha(raster)
-
-    multiband_image = Image.fromarray(reshape_as_image(rgb_raster))
-    quantized_image = multiband_image.quantize(colors=max_colors)
-
-    color_map = get_color_map_from_image(quantized_image)
-
-    quantized_array, color_map = add_alpha(alpha, np.array(quantized_image), color_map)
-
-    one_band_raster = np.expand_dims(quantized_array, 0)
-    return one_band_raster, color_map
-
-
-def add_alpha(
-    alpha: ndarray | None, quantized_array: ndarray, color_map: dict
-) -> tuple[ndarray, dict]:
-    """If the input data had alpha values, manually set the quantized_image
-    index to the transparent index in those places.
-    """
-    if alpha is not None and np.any(alpha != OPAQUE):
-        # Set any alpha to the transparent index value
-        quantized_array = np.where(alpha != OPAQUE, NODATA_IDX, quantized_array)
-        color_map[NODATA_IDX] = NODATA_RGBA
-    return quantized_array, color_map
 
 
 def get_color_map_from_image(image: Image) -> dict:
