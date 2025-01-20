@@ -401,7 +401,7 @@ def palettize_raster(raster: ndarray) -> tuple[ndarray, dict]:
     written to the final raster as 254 and add the mapped RGBA value to the
     color palette.
     """
-    # reserves 255 for transparent and off grid fill values
+    # reserves index 255 for transparent and off grid fill values
     # 0 to 254
     max_colors = 255
     rgb_raster, alpha = remove_alpha(raster)
