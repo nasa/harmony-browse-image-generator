@@ -9,13 +9,13 @@ Changelog](http://keepachangelog.com/en/1.0.0/).
 ### Changed
 
 * NODATA and TRANSPARENT values are merged. [[#41](https://github.com/nasa/harmony-browse-image-generator/pull/41)]
-  - User visible change: paletted PNG outupt images will have up to 254 color
+  - User visible change: paletted PNG output images will have up to 254 color
     values and a 255th value that is transparent.
   - Internal code changes: removes `TRANSPARENT_IDX` (254) and uses
-    `NODATA_IDX` (255) in its stead.  A color of (0,0,0,0) was previosly set to
-    both the indexes (254 and 255) in the ouput PNGs and now only 255 will have
-    this value. This change ensures the roundtrip from single band to RGBA to
-    paletted PNG is consistent.
+    `NODATA_IDX` (255) in its stead.  A color of (0,0,0,0) was previously set to
+    both the indexes (254 and 255) in the output PNGs and now only 255 will have
+    this value. This change ensures the round-trip from single band to RGBA to
+    Paletted PNG is consistent.
 
 ## [v2.1.0] - 2024-12-13
 
