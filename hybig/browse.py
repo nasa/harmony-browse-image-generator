@@ -28,8 +28,11 @@ from hybig.color_utility import (
     NODATA_RGBA,
     OPAQUE,
     TRANSPARENT,
+    ColorMap,
     all_black_color_map,
+    colormap_from_colors,
     get_color_palette,
+    greyscale_colormap,
     palette_from_remote_colortable,
     remove_alpha,
 )
@@ -155,6 +158,7 @@ def create_browse_imagery(
     xml file.
 
     """
+    logger.info(message)
     output_driver = image_driver(message.format.mime)
     out_image_file = output_image_file(Path(input_file_path), driver=output_driver)
     out_world_file = output_world_file(Path(input_file_path), driver=output_driver)
@@ -171,16 +175,19 @@ def create_browse_imagery(
                 color_palette = get_color_palette(
                     in_dataset, source, item_color_palette
                 )
-                raster = convert_singleband_to_raster(rio_in_array, color_palette)
+                raster, color_map = convert_singleband_to_raster(
+                    rio_in_array, color_palette
+                )
             elif rio_in_array.rio.count in (3, 4):
                 raster = convert_mulitband_to_raster(rio_in_array)
+                color_map = None
             else:
                 raise HyBIGError(
                     f'incorrect number of bands for image: {rio_in_array.rio.count}'
                 )
 
             raster, color_map = standardize_raster_for_writing(
-                raster, output_driver, rio_in_array.rio.count
+                raster, output_driver, color_map
             )
 
             grid_parameters = get_target_grid_parameters(message, rio_in_array)
@@ -283,14 +290,14 @@ def original_dtype(data_array: DataArray) -> str | None:
 def convert_singleband_to_raster(
     data_array: DataArray,
     color_palette: ColorPalette | None = None,
-) -> ndarray:
+) -> tuple[ndarray, ColorMap]:
     """Convert input dataset to a 4 band raster image.
 
     Use a palette if provided otherwise return a greyscale image.
     """
     if color_palette is None:
-        return convert_gray_1band_to_raster(data_array)
-    return convert_paletted_1band_to_raster(data_array, color_palette)
+        return scale_grey_1band(data_array)
+    return scale_paletted_1band(data_array, color_palette)
 
 
 def convert_gray_1band_to_raster(data_array: DataArray) -> ndarray:
@@ -307,6 +314,56 @@ def convert_gray_1band_to_raster(data_array: DataArray) -> ndarray:
         rgba_image[row_no, :, :] = rgba_image_slice
 
     return reshape_as_raster(rgba_image)
+
+
+def scale_grey_1band(data_array: DataArray) -> tuple[ndarray, ColorMap]:
+    """Normalize input array and return scaled data with greyscale ColorMap."""
+    band = data_array[0, :, :]
+    norm = Normalize(vmin=np.nanmin(band), vmax=np.nanmax(band))
+
+    # Scale input data from 0 to 254
+    normalized_data = norm(band) * 254.0
+
+    # Set any missing to missing
+    normalized_data[np.isnan(normalized_data)] = NODATA_IDX
+
+    grey_colormap = greyscale_colormap()
+    raster_data = np.expand_dims(np.round(normalized_data).data, 0)
+    return raster_data, grey_colormap
+
+
+def scale_paletted_1band(
+    data_array: DataArray, palette: ColorPalette
+) -> tuple[ndarray, ColorMap]:
+    """Scale a 1-band image with palette into modified image and associated color_map.
+
+    Use the palette's levels and values, transform the input data_array into
+    the correct levels indexed from 0-255 return the scaled array along side of
+    a colormap corresponding to the new levels.
+    """
+    band = data_array[0, :, :]
+    levels = list(palette.pal.keys())
+    colors = [
+        palette.color_to_color_entry(value, with_alpha=True)
+        for value in palette.pal.values()
+    ]
+    norm = matplotlib.colors.BoundaryNorm(levels, len(levels) - 1)
+
+    # handle palette no data value
+    nodata_color = (0, 0, 0, 0)
+    if palette.ndv is not None:
+        nodata_color = palette.color_to_color_entry(palette.ndv, with_alpha=True)
+
+    colors = [*colors, nodata_color]
+
+    scaled_band = norm(band)
+
+    # Set underflow and nan values to nodata
+    scaled_band[scaled_band == -1] = len(colors) - 1
+    scaled_band[np.isnan(band)] = len(colors) - 1
+
+    color_map = colormap_from_colors(colors)
+    return np.expand_dims(scaled_band.data, 0), color_map
 
 
 def convert_paletted_1band_to_raster(
@@ -358,8 +415,8 @@ def image_driver(mime: str) -> str:
 def standardize_raster_for_writing(
     raster: ndarray,
     driver: str,
-    band_count: int,
-) -> tuple[ndarray, dict | None]:
+    color_map: ColorMap | None,
+) -> tuple[ndarray]:
     """Standardize raster data for writing to browse image.
 
     Args:
@@ -379,14 +436,9 @@ def standardize_raster_for_writing(
 
     """
     if driver == 'JPEG' and raster.shape[0] == 4:
-        return raster[0:3, :, :], None
+        return raster[0:3, :, :], color_map
 
-    if driver == 'PNG' and band_count == 1:
-        # Only palettize single band input data that has been converted to an
-        # RGBA raster.
-        return palettize_raster(raster)
-
-    return raster, None
+    return raster, color_map
 
 
 def palettize_raster(raster: ndarray) -> tuple[ndarray, dict]:
