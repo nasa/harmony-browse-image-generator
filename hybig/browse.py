@@ -456,7 +456,7 @@ def get_tiled_filename(input_file: Path, locator: dict | None = None) -> Path:
     """
     if locator is not None:
         return input_file.with_suffix(
-            f".r{int(locator['row']):02d}c{int(locator['col']):02d}{input_file.suffix}"
+            f'.r{int(locator["row"]):02d}c{int(locator["col"]):02d}{input_file.suffix}'
         )
     return input_file
 

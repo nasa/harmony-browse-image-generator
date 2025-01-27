@@ -56,8 +56,7 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
         if has_scale_extents(self.message) or has_scale_sizes(self.message):
             if not has_crs(self.message):
                 raise HyBIGInvalidMessageError(
-                    'Harmony message must include a crs '
-                    'with scaleExtent or scaleSizes.'
+                    'Harmony message must include a crs with scaleExtent or scaleSizes.'
                 )
 
         if not has_valid_scale_extents(self.message):
