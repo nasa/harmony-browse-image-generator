@@ -458,6 +458,29 @@ class TestChooseScaleExtent(TestCase):
                 actual_scale_extent, rel=1e-12
             )
 
+    def test_scale_extent_from_input_image_that_crosses_antimeridian(self):
+        """Verify that bounding box is correctly shifted at dateline.
+
+        Notice that the xmax value is > 180.
+        """
+        target_crs = CRS.from_string(PREFERRED_CRS['global'])
+        with open_rasterio(
+            self.fixtures / 'split-dateline-sample.tif', mode='r', mask_and_scale=True
+        ) as in_array:
+            expected_scale_extent = ScaleExtent(
+                {
+                    'xmin': 179.25694918947116,
+                    'ymin': -16.351723987726583,
+                    'xmax': 180.29656915724874,
+                    'ymax': -15.345453705696787,
+                }
+            )
+
+            actual_scale_extent = choose_scale_extent({}, target_crs, in_array)
+            assert expected_scale_extent == pytest.approx(
+                actual_scale_extent, rel=1e-12
+            )
+
 
 class TestChooseTargetDimensions(TestCase):
     def test_message_has_dimensions(self):

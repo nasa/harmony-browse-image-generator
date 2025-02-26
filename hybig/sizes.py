@@ -153,6 +153,10 @@ def choose_scale_extent(
         )
     else:
         left, bottom, right, top = data_array.rio.transform_bounds(target_crs)
+
+        # Correct for antimeridian crossing.
+        if left > right:
+            right = right + 360
         scale_extent = ScaleExtent(
             {'xmin': left, 'ymin': bottom, 'xmax': right, 'ymax': top}
         )
