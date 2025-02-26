@@ -4,6 +4,15 @@ HyBIG follows semantic versioning. All notable changes to this project will be
 documented in this file. The format is based on [Keep a
 Changelog](http://keepachangelog.com/en/1.0.0/).
 
+
+## [v2.3.0] - 2025-02-26
+
+### Changed
+
+* Fixes images that cross the antimeridian. Now, target extexts are corrected
+  when the bounding box crosses the
+  dateline. [[#48](https://github.com/nasa/harmony-browse-image-generator/pull/48)]
+
 ## [v2.2.0] - 2024-12-19
 
 ### Changed
@@ -105,6 +114,7 @@ For more information on internal releases prior to NASA open-source approval,
 see legacy-CHANGELOG.md.
 
 [unreleased]: https://github.com/nasa/harmony-browse-image-generator/
+[v2.3.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.3.0
 [v2.2.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.2.0
 [v2.1.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.1.0
 [v2.0.2]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.0.2
