@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, Mock, call, patch
 import numpy as np
 from harmony_service_lib.message import Message as HarmonyMessage
 from harmony_service_lib.message import Source as HarmonySource
-from numpy.testing import assert_array_equal
+from numpy.testing import assert_array_equal, assert_equal
 from osgeo_utils.auxiliary.color_palette import ColorPalette
 from PIL import Image
 from rasterio import Affine
@@ -29,8 +29,6 @@ from hybig.browse import (
     get_tiled_filename,
     output_image_file,
     output_world_file,
-    palettize_raster,
-    standardize_raster_for_writing,
     validate_file_crs,
     validate_file_type,
 )
@@ -350,37 +348,28 @@ class TestBrowse(TestCase):
 
         expected_raster = np.array(
             [
-                [  # red
-                    [255, 255, 0, 0],
-                    [255, 255, 0, 0],
-                    [255, 255, 0, 0],
-                    [255, 255, 0, 0],
-                ],
-                [  # green
-                    [0, 255, 255, 0],
-                    [0, 255, 255, 0],
-                    [0, 255, 255, 0],
-                    [0, 255, 255, 0],
-                ],
-                [  # blue
-                    [0, 0, 0, 255],
-                    [0, 0, 0, 255],
-                    [0, 0, 0, 255],
-                    [0, 0, 0, 255],
-                ],
-                [  # alpha
-                    [255, 255, 255, 255],
-                    [255, 255, 255, 255],
-                    [255, 255, 255, 255],
-                    [255, 255, 255, 255],
+                [  # singleband paletted
+                    [0, 1, 2, 3],
+                    [0, 1, 2, 3],
+                    [0, 1, 2, 3],
+                    [0, 1, 2, 3],
                 ],
             ],
             dtype='uint8',
         )
+        expected_palette = {
+            0: (255, 0, 0, 255), # red
+            1: (255, 255, 0, 255), # yellow
+            2: (0, 255, 0, 255), # green
+            3: (0, 0, 255, 255), # blue
+            4: (0, 0, 0, 0), # alpha
+        }
         # Read down: red, yellow, green, blue
         image_palette = convert_colormap_to_palette(self.colormap)
-        actual_raster = convert_singleband_to_raster(ds, image_palette)
+        actual_raster, actual_palette = convert_singleband_to_raster(ds, image_palette)
         assert_array_equal(expected_raster, actual_raster, strict=True)
+        assert_equal(expected_palette, actual_palette, strict=True)
+
 
     def test_convert_singleband_to_raster_with_colormap_and_bad_data(self):
         data_array = np.array(self.data, dtype='float')
@@ -652,110 +641,6 @@ class TestBrowse(TestCase):
             excepted.exception.message,
             'Cannot create image from 5 band image. Expecting 3 or 4 bands.',
         )
-
-    def test_standardize_raster_for_writing_jpeg_3band(self):
-        raster = self.random.integers(255, size=(3, 5, 6), dtype='uint8')
-        count = 'irrelevant'
-        driver = 'JPEG'
-        expected_raster = np.copy(raster)
-        expected_color_map = None
-
-        actual_raster, actual_color_map = standardize_raster_for_writing(
-            raster, driver, count
-        )
-        self.assertEqual(expected_color_map, actual_color_map)
-        np.testing.assert_array_equal(expected_raster, actual_raster, strict=True)
-
-    def test_standardize_raster_for_writing_jpeg_4band(self):
-        raster = self.random.integers(255, size=(4, 7, 8), dtype='uint8')
-        driver = 'JPEG'
-        count = 'irrelevant'
-        expected_raster = np.copy(raster[0:3, :, :])
-        expected_color_map = None
-        actual_raster, actual_color_map = standardize_raster_for_writing(
-            raster, driver, count
-        )
-        self.assertEqual(expected_color_map, actual_color_map)
-        np.testing.assert_array_equal(expected_raster, actual_raster, strict=True)
-
-    @patch('hybig.browse.palettize_raster')
-    def test_standardize_raster_for_writing_png_4band(self, palettize_mock):
-        raster = self.random.integers(255, size=(4, 7, 8), dtype='uint8')
-        driver = 'PNG'
-        count = 'not 1'
-
-        expected, _ = standardize_raster_for_writing(raster, driver, count)
-        np.testing.assert_array_equal(raster, expected, strict=True)
-        palettize_mock.assert_not_called()
-
-    @patch('hybig.browse.palettize_raster')
-    def test_standardize_raster_for_writing_png_3band(self, palettize_mock):
-        raster = self.random.integers(255, size=(3, 7, 8), dtype='uint8')
-        driver = 'PNG'
-        count = 'not 1'
-
-        expected, _ = standardize_raster_for_writing(raster, driver, count)
-        np.testing.assert_array_equal(raster, expected, strict=True)
-        palettize_mock.assert_not_called()
-
-    @patch('hybig.browse.palettize_raster')
-    def test_prepare_1band_raster_for_writing_png(self, palettize_mock):
-        raster = self.random.integers(255, size=(1, 7, 8), dtype='uint8')
-        driver = 'PNG'
-        count = 1
-        palettize_mock.return_value = (None, None)
-        expected, _ = standardize_raster_for_writing(raster, driver, count)
-        palettize_mock.assert_called_with(raster)
-
-    @patch('hybig.browse.Image')
-    @patch('hybig.browse.get_color_map_from_image')
-    def test_palettize_raster_no_alpha_layer(self, get_color_map_mock, image_mock):
-        """Test that the quantize function is called by a correct image."""
-        raster = self.random.integers(255, size=(3, 10, 11), dtype='uint8')
-
-        quantized_output = Image.fromarray(
-            self.random.integers(254, size=(10, 11), dtype='uint8')
-        )
-        multiband_image_mock = Mock()
-        image_mock.fromarray.return_value = multiband_image_mock
-        multiband_image_mock.quantize.return_value = quantized_output
-
-        expected_out_raster = np.array(quantized_output).reshape(1, 10, 11)
-
-        out_raster, out_map = palettize_raster(raster)
-
-        multiband_image_mock.quantize.assert_called_once_with(colors=255)
-        get_color_map_mock.assert_called_once_with(quantized_output)
-
-        np.testing.assert_array_equal(expected_out_raster, out_raster, strict=True)
-
-    @patch('hybig.browse.Image')
-    @patch('hybig.browse.get_color_map_from_image')
-    def test_palettize_raster_with_alpha_layer(self, get_color_map_mock, image_mock):
-        """Test that the quantize function is called by a correct image."""
-        raster = self.random.integers(255, size=(4, 10, 11), dtype='uint8')
-        # No transparent pixels
-        raster[3, :, :] = 255
-
-        # corner transparent:
-        raster[3, 0:3, 0:3] = 0
-
-        quantized_output = Image.fromarray(
-            self.random.integers(254, size=(10, 11), dtype='uint8')
-        )
-        multiband_image_mock = Mock()
-        image_mock.fromarray.return_value = multiband_image_mock
-        multiband_image_mock.quantize.return_value = quantized_output
-
-        expected_out_raster = np.array(quantized_output).reshape(1, 10, 11)
-        expected_out_raster[0, 0:3, 0:3] = 255
-
-        out_raster, out_map = palettize_raster(raster)
-
-        multiband_image_mock.quantize.assert_called_once_with(colors=255)
-        get_color_map_mock.assert_called_once_with(quantized_output)
-
-        np.testing.assert_array_equal(expected_out_raster, out_raster, strict=True)
 
     def test_get_color_map_from_image(self):
         """PIL Image yields a color_map

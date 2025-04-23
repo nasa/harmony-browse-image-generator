@@ -15,19 +15,31 @@
 # and updates the entrypoint of the new service container
 #
 ###############################################################################
-FROM python:3.12
+FROM python:3.12-slim
 
 WORKDIR "/home"
 
-RUN apt-get update
-RUN apt-get install -y libgdal-dev
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libgdal-dev \
+    gdal-bin \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN export GDAL_VERSION=$(gdal-config --version) && \
+    echo "GDAL version: $GDAL_VERSION"
+
+ENV CPLUS_INCLUDE_PATH=/usr/include/gdal
+ENV C_INCLUDE_PATH=/usr/include/gdal
+
+RUN pip install GDAL==$(gdal-config --version)
 
 # Install Pip dependencies
-COPY pip_requirements*.txt /home/
+COPY pip_requirements.txt /home/
 
 RUN pip install --no-input --no-cache-dir \
-    -r pip_requirements.txt \
-    -r pip_requirements_skip_snyk.txt
+    -r pip_requirements.txt
+#    -r pip_requirements_skip_snyk.txt
 
 # Copy service code.
 COPY ./harmony_service harmony_service
