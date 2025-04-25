@@ -132,6 +132,8 @@ class TestBrowse(TestCase):
         )
         message = HarmonyMessage({'format': {'mime': 'JPEG'}})
 
+        mock_logger = MagicMock(spec=Logger)
+
         with rasterio_test_file(
             raster_data=two_dimensional_raster,
             height=two_dimensional_raster.shape[1],
@@ -142,7 +144,7 @@ class TestBrowse(TestCase):
                 HyBIGError, 'incorrect number of bands for image: 2'
             ):
                 create_browse_imagery(
-                    message, test_tif_filename, HarmonySource({}), None, None
+                    message, test_tif_filename, HarmonySource({}), None, mock_logger
                 )
 
     @patch('hybig.browse.reproject')
@@ -172,28 +174,10 @@ class TestBrowse(TestCase):
         expected_raster = np.array(
             [
                 [
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                ],
-                [
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                ],
-                [
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                ],
-                [
-                    [255, 255, 255, 255],
-                    [255, 255, 255, 255],
-                    [255, 255, 255, 255],
-                    [255, 255, 255, 255],
+                    [0, 85, 169, 254],
+                    [0, 85, 169, 254],
+                    [0, 85, 169, 254],
+                    [0, 85, 169, 254],
                 ],
             ],
             dtype='uint8',
@@ -225,7 +209,8 @@ class TestBrowse(TestCase):
         target_transform = Affine(90.0, 0.0, -180.0, 0.0, -45.0, 90.0)
         dest = np.zeros((da_mock.rio.height, da_mock.rio.width), dtype='uint8')
 
-        self.assertEqual(reproject_mock.call_count, 3)
+        # since we are no longer de-palettizing, we only have to reproject a single band
+        self.assertEqual(reproject_mock.call_count, 1)
 
         expected_calls = [
             call(
@@ -235,27 +220,7 @@ class TestBrowse(TestCase):
                 src_crs=da_mock.rio.crs,
                 dst_transform=target_transform,
                 dst_crs=CRS.from_string('EPSG:4326'),
-                dst_nodata=0,
-                resampling=Resampling.nearest,
-            ),
-            call(
-                source=expected_raster[1, :, :],
-                destination=dest,
-                src_transform=file_transform,
-                src_crs=da_mock.rio.crs,
-                dst_transform=target_transform,
-                dst_crs=CRS.from_string('EPSG:4326'),
-                dst_nodata=0,
-                resampling=Resampling.nearest,
-            ),
-            call(
-                source=expected_raster[2, :, :],
-                destination=dest,
-                src_transform=file_transform,
-                src_crs=da_mock.rio.crs,
-                dst_transform=target_transform,
-                dst_crs=CRS.from_string('EPSG:4326'),
-                dst_nodata=0,
+                dst_nodata=255, # NODATA_IDX
                 resampling=Resampling.nearest,
             ),
         ]
@@ -306,7 +271,7 @@ class TestBrowse(TestCase):
         )
 
     def test_convert_singleband_to_raster_without_colortable(self):
-        """Tests convert_gray_1band_to_raster."""
+        """Tests scale_grey_1band."""
         return_data = np.copy(self.data).astype('float64')
         return_data[0][1] = np.nan
         ds = DataArray(return_data).expand_dims('band')
@@ -314,33 +279,15 @@ class TestBrowse(TestCase):
         expected_raster = np.array(
             [
                 [
-                    [0, 0, 198, 255],
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                ],
-                [
-                    [0, 0, 198, 255],
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                ],
-                [
-                    [0, 0, 198, 255],
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                ],
-                [
-                    [255, 0, 255, 255],
-                    [255, 255, 255, 255],
-                    [255, 255, 255, 255],
-                    [255, 255, 255, 255],
+                    [0, 255, 169, 254],
+                    [0, 85, 169, 254],
+                    [0, 85, 169, 254],
+                    [0, 85, 169, 254],
                 ],
             ],
             dtype='uint8',
         )
-        actual_raster = convert_singleband_to_raster(ds, None)
+        actual_raster, _ = convert_singleband_to_raster(ds, None)
         assert_array_equal(expected_raster, actual_raster, strict=True)
 
     def test_convert_singleband_to_raster_with_colormap(self):
@@ -368,7 +315,7 @@ class TestBrowse(TestCase):
         image_palette = convert_colormap_to_palette(self.colormap)
         actual_raster, actual_palette = convert_singleband_to_raster(ds, image_palette)
         assert_array_equal(expected_raster, actual_raster, strict=True)
-        assert_equal(expected_palette, actual_palette, strict=True)
+        assert_equal(expected_palette, actual_palette)
 
 
     def test_convert_singleband_to_raster_with_colormap_and_bad_data(self):
@@ -380,39 +327,29 @@ class TestBrowse(TestCase):
         # Read the image down: red, yellow, green, blue
         expected_raster = np.array(
             [
-                [  # red
-                    [nv_color[0], 255, 0, 0],
-                    [255, 255, 0, 0],
-                    [255, 255, 0, 0],
-                    [255, 255, 0, 0],
-                ],
-                [  # green
-                    [nv_color[1], 255, 255, 0],
-                    [0, 255, 255, 0],
-                    [0, 255, 255, 0],
-                    [0, 255, 255, 0],
-                ],
-                [  # blue
-                    [nv_color[2], 0, 0, 255],
-                    [0, 0, 0, 255],
-                    [0, 0, 0, 255],
-                    [0, 0, 0, 255],
-                ],
-                [  # alpha
-                    [nv_color[3], 255, 255, 255],
-                    [255, 255, 255, 255],
-                    [255, 255, 255, 255],
-                    [255, 255, 255, 255],
+                [  # singleband paletted
+                    [4, 1, 2, 3],
+                    [0, 1, 2, 3],
+                    [0, 1, 2, 3],
+                    [0, 1, 2, 3],
                 ],
             ],
             dtype='uint8',
         )
+        expected_palette = {
+            0: (255, 0, 0, 255), # red
+            1: (255, 255, 0, 255), # yellow
+            2: (0, 255, 0, 255), # green
+            3: (0, 0, 255, 255), # blue
+            4: (10, 20, 30, 40), # nv
+        }
 
         colormap = {**self.colormap, 'nv': nv_color}
 
         image_palette = convert_colormap_to_palette(colormap)
-        actual_raster = convert_singleband_to_raster(ds, image_palette)
+        actual_raster, actual_palette = convert_singleband_to_raster(ds, image_palette)
         assert_array_equal(expected_raster, actual_raster, strict=True)
+        assert_equal(expected_palette, actual_palette)
 
     def test_convert_uint16_3_multiband_to_raster(self):
         """Test that uint16 input scales the output."""
@@ -680,6 +617,7 @@ class TestBrowse(TestCase):
     def test_get_color_palette_map_exists_source_does_not(self):
         ds = Mock(DatasetReader)
         ds.colormap.return_value = self.colormap
+        ds.get_nodatavals.return_value = ()
 
         lines = [
             '100 255 0 0 255',

@@ -11,13 +11,11 @@ import rasterio
 from affine import dumpsw
 from harmony_service_lib.message import Message as HarmonyMessage
 from harmony_service_lib.message import Source as HarmonySource
-from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 from numpy import ndarray, uint8
 from osgeo_utils.auxiliary.color_palette import ColorPalette
 from PIL import Image
 from rasterio.io import DatasetReader
-from rasterio.plot import reshape_as_image, reshape_as_raster
 from rasterio.warp import Resampling, reproject
 from rioxarray import open_rasterio
 from xarray import DataArray
@@ -310,7 +308,7 @@ def scale_grey_1band(data_array: DataArray) -> tuple[ndarray, ColorMap]:
 
     grey_colormap = greyscale_colormap()
     raster_data = np.expand_dims(np.round(normalized_data).data, 0)
-    return raster_data, grey_colormap
+    return np.array(raster_data, dtype='uint8'), grey_colormap
 
 
 def scale_paletted_1band(
@@ -344,7 +342,8 @@ def scale_paletted_1band(
     scaled_band[np.isnan(band)] = len(colors) - 1
 
     color_map = colormap_from_colors(colors)
-    return np.array(np.expand_dims(scaled_band.data, 0), dtype="uint8"), color_map
+    raster_data = np.expand_dims(scaled_band.data, 0)
+    return np.array(raster_data, dtype='uint8'), color_map
 
 
 def image_driver(mime: str) -> str:
