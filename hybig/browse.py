@@ -155,7 +155,6 @@ def create_browse_imagery(
     xml file.
 
     """
-    logger.info(message)
     output_driver = image_driver(message.format.mime)
     out_image_file = output_image_file(Path(input_file_path), driver=output_driver)
     out_world_file = output_world_file(Path(input_file_path), driver=output_driver)
@@ -365,10 +364,6 @@ def get_color_map_from_image(image: Image) -> dict:
     for idx, color_tuple in enumerate(color_tuples):
         color_map[idx] = tuple(color_tuple)
     return color_map
-
-
-def get_colormap_from_scaled_colors(scaled_colors) -> dict:
-    pass
 
 
 def get_aux_xml_filename(image_filename: Path) -> Path:

@@ -39,7 +39,6 @@ COPY pip_requirements.txt /home/
 
 RUN pip install --no-input --no-cache-dir \
     -r pip_requirements.txt
-#    -r pip_requirements_skip_snyk.txt
 
 # Copy service code.
 COPY ./harmony_service harmony_service
