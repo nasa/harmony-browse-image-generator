@@ -314,7 +314,7 @@ def scale_paletted_1band(
     data_array: DataArray, palette: ColorPalette
 ) -> tuple[ndarray, ColorMap]:
     """Scale a 1-band image with palette into modified image and associated color_map.
-    
+
     Use the palette's levels and values, transform the input data_array into
     the correct levels indexed from 0-255 return the scaled array along side of
     a colormap corresponding to the new levels.

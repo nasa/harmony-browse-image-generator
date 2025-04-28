@@ -220,7 +220,7 @@ class TestBrowse(TestCase):
                 src_crs=da_mock.rio.crs,
                 dst_transform=target_transform,
                 dst_crs=CRS.from_string('EPSG:4326'),
-                dst_nodata=255, # NODATA_IDX
+                dst_nodata=255,  # NODATA_IDX
                 resampling=Resampling.nearest,
             ),
         ]
@@ -305,18 +305,17 @@ class TestBrowse(TestCase):
             dtype='uint8',
         )
         expected_palette = {
-            0: (255, 0, 0, 255), # red
-            1: (255, 255, 0, 255), # yellow
-            2: (0, 255, 0, 255), # green
-            3: (0, 0, 255, 255), # blue
-            4: (0, 0, 0, 0), # alpha
+            0: (255, 0, 0, 255),  # red
+            1: (255, 255, 0, 255),  # yellow
+            2: (0, 255, 0, 255),  # green
+            3: (0, 0, 255, 255),  # blue
+            4: (0, 0, 0, 0),  # alpha
         }
         # Read down: red, yellow, green, blue
         image_palette = convert_colormap_to_palette(self.colormap)
         actual_raster, actual_palette = convert_singleband_to_raster(ds, image_palette)
         assert_array_equal(expected_raster, actual_raster, strict=True)
         assert_equal(expected_palette, actual_palette)
-
 
     def test_convert_singleband_to_raster_with_colormap_and_bad_data(self):
         data_array = np.array(self.data, dtype='float')
@@ -337,11 +336,11 @@ class TestBrowse(TestCase):
             dtype='uint8',
         )
         expected_palette = {
-            0: (255, 0, 0, 255), # red
-            1: (255, 255, 0, 255), # yellow
-            2: (0, 255, 0, 255), # green
-            3: (0, 0, 255, 255), # blue
-            4: (10, 20, 30, 40), # nv
+            0: (255, 0, 0, 255),  # red
+            1: (255, 255, 0, 255),  # yellow
+            2: (0, 255, 0, 255),  # green
+            3: (0, 0, 255, 255),  # blue
+            4: (10, 20, 30, 40),  # nv
         }
 
         colormap = {**self.colormap, 'nv': nv_color}
