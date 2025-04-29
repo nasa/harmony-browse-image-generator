@@ -312,6 +312,32 @@ class TestColorUtility(TestCase):
         )
         self.assertEqual(palette_fake, actual_palette)
 
+    @patch('hybig.color_utility.get_remote_palette_from_source')
+    def test_get_color_palette_with_ndv(self, get_remote_palette_from_source_mock):
+        """Test get_color_palette with dataset that has nodata values."""
+        get_remote_palette_from_source_mock.side_effect = HyBIGNoColorInformation('No color in source')
+        
+        ds = Mock(DatasetReader)
+        test_colormap = {
+            100: (255, 0, 0, 255), 
+            200: (0, 255, 0, 255)
+        }
+        ds.colormap.return_value = test_colormap.copy()
+        
+        # Mock the get_nodatavals function to return a tuple with a nodata value
+        # that matches one of our colormap keys
+        ds.get_nodatavals.return_value = (100,)
+        
+        actual_palette = get_color_palette(ds, None, None)
+        
+        get_remote_palette_from_source_mock.assert_called_once()
+        ds.colormap.assert_called_once_with(1)
+        ds.get_nodatavals.assert_called_once()
+        
+        # Compare the actual and expected palettes
+        self.assertEqual(actual_palette.get_color(200), encode_color(0, 255, 0, 255))
+        self.assertEqual(actual_palette.get_color('nv'), encode_color(255, 0, 0, 255))
+
     def test_convert_colormap_to_palette_3bands(self):
         input_colormap = {
             5: (255, 0, 0),  # red
