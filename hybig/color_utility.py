@@ -8,6 +8,7 @@ that are used to generate browse images.
 import numpy as np
 import requests
 from harmony_service_lib.message import Source as HarmonySource
+from numpy import uint8
 from osgeo_utils.auxiliary.color_palette import ColorPalette
 from pystac import Item
 from rasterio.io import DatasetReader
@@ -17,16 +18,18 @@ from hybig.exceptions import (
     HyBIGNoColorInformation,
 )
 
+ColorMap = dict[uint8, tuple[uint8, uint8, uint8, uint8]]
+
 # Constants for output PNG images
 # Applied to transparent pixels where alpha < 255
-TRANSPARENT = np.uint8(0)
-OPAQUE = np.uint8(255)
+TRANSPARENT = uint8(0)
+OPAQUE = uint8(255)
 # Applied to off grid areas during reprojection
 NODATA_RGBA = (0, 0, 0, 0)
 NODATA_IDX = 255
 
 
-def remove_alpha(raster: np.ndarray) -> tuple[np.ndarray, np.ndarray, None]:
+def remove_alpha(raster: np.ndarray) -> tuple[np.ndarray, np.ndarray | None]:
     """Remove alpha layer when it exists."""
     if raster.shape[0] == 4:
         return raster[0:3, :, :], raster[3, :, :]
@@ -87,7 +90,16 @@ def get_color_palette(
         return get_remote_palette_from_source(source)
     except HyBIGNoColorInformation:
         try:
-            return convert_colormap_to_palette(dataset.colormap(1))
+            ds_cmap = dataset.colormap(1)
+            # very defensive since this function is not documented in rasterio
+            ndv_tuple: tuple[float, ...] = dataset.get_nodatavals()
+            if ndv_tuple is not None and len(ndv_tuple) > 0:
+                # this service only supports one ndv, so just use the first one
+                # (usually the only one)
+                ds_cmap['nv'] = ds_cmap[ndv_tuple[0]]
+                # then remove the value associated with the ndv key
+                ds_cmap.pop(ndv_tuple[0])
+            return convert_colormap_to_palette(ds_cmap)
         except ValueError:
             return None
 
@@ -120,9 +132,26 @@ def get_remote_palette_from_source(source: HarmonySource) -> dict:
         raise HyBIGNoColorInformation('No color in source') from exc
 
 
-def all_black_color_map():
+def all_black_color_map() -> ColorMap:
     """Return a full length rgba color map with all black values."""
     return {idx: (0, 0, 0, 255) for idx in range(256)}
+
+
+def colormap_from_colors(
+    colors: list[tuple[uint8, uint8, uint8, uint8]],
+) -> ColorMap:
+    color_map = {}
+    for idx, rgba in enumerate(colors):
+        color_map[idx] = rgba
+    return color_map
+
+
+def greyscale_colormap() -> ColorMap:
+    color_map = {}
+    for idx in range(255):
+        color_map[idx] = (idx, idx, idx, 255)
+    color_map[NODATA_IDX] = NODATA_RGBA
+    return color_map
 
 
 def convert_colormap_to_palette(colormap: dict) -> ColorPalette:

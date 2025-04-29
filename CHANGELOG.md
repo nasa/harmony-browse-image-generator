@@ -4,6 +4,12 @@ HyBIG follows semantic versioning. All notable changes to this project will be
 documented in this file. The format is based on [Keep a
 Changelog](http://keepachangelog.com/en/1.0.0/).
 
+## [v2.4.0] - 2025-04-28
+
+### Changed
+
+* Fix rasterization issues with palettized granules. Source images now retain their palette in a scaled form, rather than reinterpreting the palette. [[#50](https://github.com/nasa/harmony-browse-image-generator/pull/50)]
+* Minor bugfixes and type formatting improvements.
 
 ## [v2.3.0] - 2025-02-26
 
@@ -112,6 +118,7 @@ For more information on internal releases prior to NASA open-source approval,
 see legacy-CHANGELOG.md.
 
 [unreleased]: https://github.com/nasa/harmony-browse-image-generator/
+[v2.4.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.4.0
 [v2.3.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.3.0
 [v2.2.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.2.0
 [v2.1.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.1.0

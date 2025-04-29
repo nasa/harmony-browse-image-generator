@@ -1,3 +1,0 @@
-# Because snyk can't install gdal properly during automated scans, we have this
-# file that includes the GDAL package alone which is not scanned by snyk
-GDAL==3.6.2
