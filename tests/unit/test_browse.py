@@ -195,7 +195,7 @@ class TestBrowse(TestCase):
         # Act to run the test
         out_file_list = create_browse_imagery(
             message,
-            self.tmp_dir / 'input_file_path',
+            str(self.tmp_dir / 'input_file_path'),
             HarmonySource({}),
             None,
             self.logger,
@@ -271,8 +271,26 @@ class TestBrowse(TestCase):
         )
 
     def test_convert_singleband_to_raster_without_colortable(self):
-        """Tests scale_grey_1band."""
-        return_data = np.copy(self.data).astype('float64')
+        """Tests scale_grey_1band when there is no ndv in the raster."""
+        return_data = np.copy(self.data).astype('float32')
+        ds = DataArray(return_data).expand_dims('band')
+
+        expected_raster = np.array(
+            [
+                [
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                ],
+            ],
+            dtype='uint8',
+        )
+        actual_raster, _ = convert_singleband_to_raster(ds, None)
+        assert_array_equal(expected_raster, actual_raster, strict=True)
+    
+    def test_convert_singleband_to_raster_without_colortable_with_ndv(self):
+        return_data = np.copy(self.data).astype('float32')
         return_data[0][1] = np.nan
         ds = DataArray(return_data).expand_dims('band')
 

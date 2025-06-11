@@ -40,10 +40,10 @@ def palette_from_remote_colortable(url: str) -> ColorPalette:
     """Return a gdal ColorPalette from a remote colortable."""
     response = requests.get(url, timeout=10)
     if not response.ok:
-        raise HyBIGError(f'Failed to retrieve color table at {url}')
+        raise HyBIGError(f"Failed to retrieve color table at {url}")
 
     palette = ColorPalette()
-    palette.read_file_txt(lines=response.text.split('\n'))
+    palette.read_file_txt(lines=response.text.split("\n"))
     return palette
 
 
@@ -58,7 +58,7 @@ def get_color_palette_from_item(item: Item) -> ColorPalette | None:
         (
             item_asset
             for item_asset in item.assets.values()
-            if 'palette' in (item_asset.roles or [])
+            if "palette" in (item_asset.roles or [])
         ),
         None,
     )
@@ -69,7 +69,7 @@ def get_color_palette_from_item(item: Item) -> ColorPalette | None:
 
 def get_color_palette(
     dataset: DatasetReader,
-    source: HarmonySource = None,
+    source: HarmonySource | None = None,
     item_color_palette: ColorPalette | None = None,
 ) -> ColorPalette | None:
     """Get a color palette for the single band image
@@ -87,16 +87,21 @@ def get_color_palette(
         return item_color_palette
 
     try:
-        return get_remote_palette_from_source(source)
+        if source is not None:
+            return get_remote_palette_from_source(source)
+        else:
+            # if the HarmonySource is None, ensure that the "except" block
+            # below is executed
+            raise HyBIGNoColorInformation
     except HyBIGNoColorInformation:
         try:
             ds_cmap = dataset.colormap(1)
             # very defensive since this function is not documented in rasterio
-            ndv_tuple: tuple[float, ...] = dataset.get_nodatavals()
-            if ndv_tuple is not None and len(ndv_tuple) > 0:
+            ndv_tuple: tuple[float | None, ...] = dataset.get_nodatavals()
+            if ndv_tuple is not None and ndv_tuple[0] is not None:
                 # this service only supports one ndv, so just use the first one
                 # (usually the only one)
-                ds_cmap['nv'] = ds_cmap[ndv_tuple[0]]
+                ds_cmap["nv"] = ds_cmap[ndv_tuple[0]]
                 # then remove the value associated with the ndv key
                 ds_cmap.pop(ndv_tuple[0])
             return convert_colormap_to_palette(ds_cmap)
@@ -104,7 +109,7 @@ def get_color_palette(
             return None
 
 
-def get_remote_palette_from_source(source: HarmonySource) -> dict:
+def get_remote_palette_from_source(source: HarmonySource) -> ColorPalette:
     """Get a colormap from a remote url
 
     Checks the HarmonySource object for a URL to download a color map for the
@@ -112,29 +117,31 @@ def get_remote_palette_from_source(source: HarmonySource) -> dict:
 
     """
     try:
-        if len(source.variables) != 1:
-            raise TypeError('Palette must come from a single variable')
-        variable = source.variables[0]
+        if len(source.variables) != 1:  # type: ignore
+            raise TypeError("Palette must come from a single variable")
+        variable = source.variables[0]  # type: ignore
         remote_colortable_url = next(
             r_url.url
             for r_url in variable.relatedUrls
             if (
-                r_url.urlContentType == 'VisualizationURL' and r_url.type == 'Color Map'
+                r_url.urlContentType == "VisualizationURL" and r_url.type == "Color Map"
             )
         )
         return palette_from_remote_colortable(remote_colortable_url)
 
     except HyBIGError as hybig_exc:
         raise HyBIGError(
-            f'Failed to retrieve color table at {remote_colortable_url}'
+            f"Failed to retrieve color table at {remote_colortable_url}"  # type: ignore
         ) from hybig_exc
     except Exception as exc:
-        raise HyBIGNoColorInformation('No color in source') from exc
+        raise HyBIGNoColorInformation("No color in source") from exc
 
 
 def all_black_color_map() -> ColorMap:
     """Return a full length rgba color map with all black values."""
-    return {idx: (0, 0, 0, 255) for idx in range(256)}
+    return {
+        uint8(idx): (uint8(0), uint8(0), uint8(0), uint8(255)) for idx in range(256)
+    }
 
 
 def colormap_from_colors(
@@ -146,11 +153,13 @@ def colormap_from_colors(
     return color_map
 
 
-def greyscale_colormap() -> ColorMap:
+def greyscale_colormap(with_ndv: bool = True) -> ColorMap:
     color_map = {}
-    for idx in range(255):
+    max_dn = 255 if with_ndv else 256
+    for idx in range(max_dn):
         color_map[idx] = (idx, idx, idx, 255)
-    color_map[NODATA_IDX] = NODATA_RGBA
+    if with_ndv:
+        color_map[NODATA_IDX] = NODATA_RGBA
     return color_map
 
 
@@ -168,7 +177,7 @@ def convert_colormap_to_palette(colormap: dict) -> ColorPalette:
     """
     list_of_key_rgba = [list((key, *rgba)) for key, rgba in colormap.items()]
     strings_of_key_r_g_b_a = [
-        ' '.join([str(item) for item in line]) for line in list_of_key_rgba
+        " ".join([str(item) for item in line]) for line in list_of_key_rgba
     ]
     palette = ColorPalette()
     palette.read_file_txt(lines=strings_of_key_r_g_b_a)
