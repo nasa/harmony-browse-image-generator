@@ -209,9 +209,10 @@ class TestBrowse(TestCase):
         target_transform = Affine(90.0, 0.0, -180.0, 0.0, -45.0, 90.0)
         dest = np.zeros((da_mock.rio.height, da_mock.rio.width), dtype='uint8')
 
-        # since we are no longer de-palettizing, we only have to reproject a single band
-        self.assertEqual(reproject_mock.call_count, 1)
+        # For JPEG output with 1-band input, we convert to RGB, so we reproject 3 bands
+        self.assertEqual(reproject_mock.call_count, 3)
 
+        # For RGB output, we expect 3 calls (one per band) with TRANSPARENT nodata
         expected_calls = [
             call(
                 source=expected_raster[0, :, :],
@@ -220,7 +221,27 @@ class TestBrowse(TestCase):
                 src_crs=da_mock.rio.crs,
                 dst_transform=target_transform,
                 dst_crs=CRS.from_string('EPSG:4326'),
-                dst_nodata=255,  # NODATA_IDX
+                dst_nodata=0,  # TRANSPARENT for RGB data
+                resampling=Resampling.nearest,
+            ),
+            call(
+                source=expected_raster[0, :, :],
+                destination=dest,
+                src_transform=file_transform,
+                src_crs=da_mock.rio.crs,
+                dst_transform=target_transform,
+                dst_crs=CRS.from_string('EPSG:4326'),
+                dst_nodata=0,  # TRANSPARENT for RGB data
+                resampling=Resampling.nearest,
+            ),
+            call(
+                source=expected_raster[0, :, :],
+                destination=dest,
+                src_transform=file_transform,
+                src_crs=da_mock.rio.crs,
+                dst_transform=target_transform,
+                dst_crs=CRS.from_string('EPSG:4326'),
+                dst_nodata=0,  # TRANSPARENT for RGB data
                 resampling=Resampling.nearest,
             ),
         ]

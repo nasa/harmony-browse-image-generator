@@ -5,11 +5,13 @@ dynamic = ["dependencies", "version"]
 authors = [
   {name="Matt Savoie", email="savoie@colorado.edu"},
   {name="Owen Littlejohns", email="owen.m.littlejohns@nasa.gov"},
+  {name="Jacqueline Ryan", email="Jacqueline.Ryan@jpl.nasa.gov"},
+  {name="Mauricio Hess-Flores", email="Mauricio.A.Hess.Flores@jpl.nasa.gov"},
 ]
 
 maintainers = [
-  {name="Matt Savoie", email="savoie@colorado.edu"},
-  {name="Owen Littlejohns", email="owen.m.littlejohns@nasa.gov"},
+  {name="Jacqueline Ryan", email="Jacqueline.Ryan@jpl.nasa.gov"},
+  {name="Mauricio Hess-Flores", email="Mauricio.A.Hess.Flores@jpl.nasa.gov"},
 ]
 
 description = "Python package designed to produce browse imagery compatible with NASA's Global Image Browse Services (GIBS)."
