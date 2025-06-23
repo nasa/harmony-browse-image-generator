@@ -172,7 +172,7 @@ def create_browse_imagery(
                     in_dataset, source, item_color_palette
                 )
                 if output_driver == 'JPEG':
-                    # For JPEG output, convert to RGB since JPEG doesn't support colormaps
+                    # For JPEG output, convert to RGB
                     # color_map will be None
                     raster, color_map = convert_singleband_to_rgb(
                         rio_in_array, color_palette
