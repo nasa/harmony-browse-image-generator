@@ -478,6 +478,5 @@ Guide](https://github.com/nasa/harmony/blob/main/docs/guides/managing-existing-s
 
 You can reach out to the maintainers of this repository via email:
 
-* david.p.auty@nasa.gov
-* matthew.savoie@colorado.edu
-* owen.m.littlejohns@nasa.gov
+* Jacqueline.Ryan@jpl.nasa.gov
+* Mauricio.A.Hess.Flores@jpl.nasa.gov

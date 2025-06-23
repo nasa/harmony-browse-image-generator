@@ -171,9 +171,17 @@ def create_browse_imagery(
                 color_palette = get_color_palette(
                     in_dataset, source, item_color_palette
                 )
-                raster, color_map = convert_singleband_to_raster(
-                    rio_in_array, color_palette
-                )
+                if output_driver == 'JPEG':
+                    # For JPEG output, convert to RGB since JPEG doesn't support colormaps
+                    # color_map will be None
+                    raster, color_map = convert_singleband_to_rgb(
+                        rio_in_array, color_palette
+                    )
+                else:
+                    # For PNG output, use palettized approach
+                    raster, color_map = convert_singleband_to_raster(
+                        rio_in_array, color_palette
+                    )
             elif rio_in_array.rio.count in (3, 4):
                 raster = convert_mulitband_to_raster(rio_in_array)
                 color_map = None
@@ -308,6 +316,78 @@ def scale_grey_1band(data_array: DataArray) -> tuple[ndarray, ColorMap]:
     grey_colormap = greyscale_colormap()
     raster_data = np.expand_dims(np.round(normalized_data).data, 0)
     return np.array(raster_data, dtype='uint8'), grey_colormap
+
+
+def convert_singleband_to_rgb(
+    data_array: DataArray,
+    color_palette: ColorPalette | None = None,
+) -> tuple[ndarray, None]:
+    """Convert input 1-band dataset to RGB image for JPEG output.
+
+    Uses a palette if provided, otherwise returns a greyscale RGB image.
+    Returns a 3-band RGB array and None for colormap (since RGB doesn't need colormap).
+    """
+    if color_palette is None:
+        return scale_grey_1band_to_rgb(data_array)
+    return scale_paletted_1band_to_rgb(data_array, color_palette)
+
+
+def scale_grey_1band_to_rgb(data_array: DataArray) -> tuple[ndarray, None]:
+    """Normalize input array and return as 3-band RGB grayscale image."""
+    band = data_array[0, :, :]
+    norm = Normalize(vmin=np.nanmin(band), vmax=np.nanmax(band))
+
+    # Scale input data from 0 to 254 (palettized data is 254-level quantized)
+    normalized_data = norm(band) * 254.0
+
+    # Set any missing to 0 (black), no transparency
+    normalized_data[np.isnan(normalized_data)] = 0
+
+    grey_data = np.round(normalized_data).astype('uint8')
+    rgb_data = np.stack([grey_data, grey_data, grey_data], axis=0)
+
+    return rgb_data, None
+
+
+def scale_paletted_1band_to_rgb(
+    data_array: DataArray, palette: ColorPalette
+) -> tuple[ndarray, None]:
+    """Scale a 1-band image with palette into RGB image for JPEG output."""
+    band = data_array[0, :, :]
+    levels = list(palette.pal.keys())
+    colors = [
+        palette.color_to_color_entry(value, with_alpha=True)
+        for value in palette.pal.values()
+    ]
+    norm = matplotlib.colors.BoundaryNorm(levels, len(levels) - 1)
+
+    # handle palette no data value
+    nodata_color = (0, 0, 0, 0)
+    if palette.ndv is not None:
+        nodata_color = palette.color_to_color_entry(palette.ndv, with_alpha=True)
+
+    # Apply normalization to get palette indices
+    indexed_band = norm(band)
+
+    # Create RGB output array
+    height, width = band.shape
+    rgb_array = np.zeros((3, height, width), dtype='uint8')
+
+    # Apply colors based on palette indices
+    for i, color in enumerate(colors):
+        mask = indexed_band == i
+        rgb_array[0, mask] = color[0]  # Red
+        rgb_array[1, mask] = color[1]  # Green
+        rgb_array[2, mask] = color[2]  # Blue
+
+    # Handle NaN/nodata values
+    nan_mask = np.isnan(band)
+    if nan_mask.any():
+        rgb_array[0, nan_mask] = nodata_color[0]
+        rgb_array[1, nan_mask] = nodata_color[1]
+        rgb_array[2, nan_mask] = nodata_color[2]
+
+    return rgb_array, None
 
 
 def scale_paletted_1band(
