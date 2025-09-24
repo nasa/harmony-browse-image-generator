@@ -16,9 +16,7 @@ jobs:
 
     steps:
       - name: Checkout harmony-browse-image-generator repository
-        uses: actions/checkout@v4
-        with:
-          lfs: true
+        uses: actions/checkout@v5
 
       - name: Build service image
         run: ./bin/build-image

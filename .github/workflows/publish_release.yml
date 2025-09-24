@@ -40,9 +40,9 @@ jobs:
 
     steps:
       - name: Checkout harmony-browse-image-generator repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
-          lfs: true
+          fetch-depth: 0
 
       - name: Extract semantic version number
         run: echo "semantic_version=$(cat docker/service_version.txt)" >> $GITHUB_ENV
