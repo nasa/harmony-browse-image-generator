@@ -11,6 +11,12 @@ Changelog](http://keepachangelog.com/en/1.0.0/).
 * GitHub release notes for HyBIG will now include the commit history for that
   release.
 
+## [v2.4.2] - Unreleased
+
+### Changed
+
+* Dynamically determine nodata index based on where it is supplied in the remote/embedded color table for a product.
+
 ## [v2.4.1] - 2025-06-23
 
 ### Changed

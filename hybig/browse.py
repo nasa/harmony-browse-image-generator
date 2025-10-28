@@ -312,7 +312,7 @@ def scale_grey_1band(data_array: DataArray) -> tuple[ndarray, ColorMap]:
     normalized_data = norm(band) * 254.0
 
     # Set any missing to missing
-    normalized_data[np.isnan(normalized_data)] = DST_NODATA
+    normalized_data[np.isnan(normalized_data)] = NODATA_IDX
 
     grey_colormap = greyscale_colormap()
     raster_data = np.expand_dims(np.round(normalized_data).data, 0)
