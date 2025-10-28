@@ -348,20 +348,20 @@ class TestBrowse(TestCase):
         expected_raster = np.array(
             [
                 [  # singleband paletted
-                    [4, 1, 2, 3],
-                    [0, 1, 2, 3],
-                    [0, 1, 2, 3],
-                    [0, 1, 2, 3],
+                    [0, 2, 3, 4],
+                    [1, 2, 3, 4],
+                    [1, 2, 3, 4],
+                    [1, 2, 3, 4],
                 ],
             ],
             dtype='uint8',
         )
         expected_palette = {
-            0: (255, 0, 0, 255),  # red
-            1: (255, 255, 0, 255),  # yellow
-            2: (0, 255, 0, 255),  # green
-            3: (0, 0, 255, 255),  # blue
-            4: (10, 20, 30, 40),  # nv
+            0: (10, 20, 30, 40),  # nv
+            1: (255, 0, 0, 255),  # red
+            2: (255, 255, 0, 255),  # yellow
+            3: (0, 255, 0, 255),  # green
+            4: (0, 0, 255, 255),  # blue
         }
 
         colormap = {**self.colormap, 'nv': nv_color}

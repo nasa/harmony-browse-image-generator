@@ -98,7 +98,7 @@ def get_color_palette(
                 # (usually the only one)
                 ds_cmap['nv'] = ds_cmap[ndv_tuple[0]]
                 # then remove the value associated with the ndv key
-                ds_cmap.pop(ndv_tuple[0])
+                # ds_cmap.pop(ndv_tuple[0])
             return convert_colormap_to_palette(ds_cmap)
         except ValueError:
             return None
