@@ -23,7 +23,6 @@ from xarray import DataArray
 from hybig.browse_utility import get_harmony_message_from_params
 from hybig.color_utility import (
     NODATA_IDX,
-    NODATA_RGBA,
     OPAQUE,
     TRANSPARENT,
     ColorMap,
@@ -39,6 +38,8 @@ from hybig.sizes import (
     create_tiled_output_parameters,
     get_target_grid_parameters,
 )
+
+DST_NODATA = NODATA_IDX
 
 
 def create_browse(
@@ -362,7 +363,7 @@ def scale_paletted_1band_to_rgb(
     norm = matplotlib.colors.BoundaryNorm(levels, len(levels) - 1)
 
     # handle palette no data value
-    nodata_color = (0, 0, 0, 0)
+    nodata_color = (0, 0, 0)
     if palette.ndv is not None:
         nodata_color = palette.color_to_color_entry(palette.ndv, with_alpha=True)
 
@@ -399,6 +400,7 @@ def scale_paletted_1band(
     the correct levels indexed from 0-255 return the scaled array along side of
     a colormap corresponding to the new levels.
     """
+    global DST_NODATA
     band = data_array[0, :, :]
     levels = list(palette.pal.keys())
     colors = [
@@ -411,14 +413,31 @@ def scale_paletted_1band(
     nodata_color = (0, 0, 0, 0)
     if palette.ndv is not None:
         nodata_color = palette.color_to_color_entry(palette.ndv, with_alpha=True)
-
-    colors = [*colors, nodata_color]
+        color_list = list(palette.pal.values())
+        try:
+            DST_NODATA = color_list.index(palette.ndv)
+            # ndv is included in the list of colors, so no need to add nodata_color
+            # to the list
+        except ValueError:
+            # ndv is not an index in the color palette, therefore it should be
+            # index 0, which is the default for a ColorPalette when using
+            # palette.get_all_keys()
+            DST_NODATA = 0
+            colors = [nodata_color, *colors]
+    else:
+        # if there is no ndv, add one to the end of the colormap
+        colors = [*colors, nodata_color]
+        DST_NODATA = len(colors) - 1
 
     scaled_band = norm(band)
+    if DST_NODATA == 0:
+        # boundary norm indexes [0, levels) by default, so if the NODATA index is 0,
+        # all the palette indices need to be incremented by 1.
+        scaled_band += 1
 
-    # Set underflow and nan values to nodata
-    scaled_band[scaled_band == -1] = len(colors) - 1
-    scaled_band[np.isnan(band)] = len(colors) - 1
+    # Set underflow and nan values to nodata index
+    scaled_band[scaled_band == -1] = DST_NODATA
+    scaled_band[np.isnan(band)] = DST_NODATA
 
     color_map = colormap_from_colors(colors)
     raster_data = np.expand_dims(scaled_band.data, 0)
@@ -427,7 +446,7 @@ def scale_paletted_1band(
 
 def image_driver(mime: str) -> str:
     """Return requested rasterio driver for output image."""
-    if re.search('jpeg', mime, re.I):
+    if re.search('jpeg', mime, re.I) or re.search('jpg', mime, re.I):
         return 'JPEG'
     return 'PNG'
 
@@ -527,11 +546,12 @@ def write_georaster_as_browse(
     n_bands = raster.shape[0]
 
     if color_map is not None:
-        dst_nodata = NODATA_IDX
-        color_map[dst_nodata] = NODATA_RGBA
+        # DST_NODATA is a global that was set earlier in scale_grey_1band or
+        # scale_paletted_1band
+        dst_nodata = DST_NODATA
     else:
-        # for banded data set the each band's destination nodata to zero (TRANSPARENT).
-        dst_nodata = TRANSPARENT
+        # for banded data set each band's destination nodata to zero (TRANSPARENT).
+        dst_nodata = int(TRANSPARENT)
 
     creation_options = {
         **grid_parameters,
