@@ -776,6 +776,197 @@ class TestBrowse(TestCase):
                 ),
             )
 
+    def test_scale_paletted_1band_clips_underflow_values(self):
+        """Test that values below the palette min are clipped to lowest color."""
+        from hybig.browse import scale_paletted_1band
+
+        # Create test data with values below the palette minimum
+        # Palette covers 100-400, but data includes -50 and 50
+        data_with_underflow = np.array(
+            [
+                [-50, 50, 100, 200],
+                [100, 200, 300, 400],
+                [50, 100, 200, 300],
+                [-100, 0, 150, 250],
+            ]
+        ).astype('float64')
+        ds = DataArray(data_with_underflow).expand_dims('band')
+
+        # Expected: underflow values (-50, 50, 0, -100) should map to index 0
+        # which is the lowest color (red at value 100)
+        expected_raster = np.array(
+            [
+                [
+                    [0, 0, 0, 1],  # -50, 50 -> 0 (red), 100->0, 200->1
+                    [0, 1, 2, 3],  # 100->0, 200->1, 300->2, 400->3
+                    [0, 0, 1, 2],  # 50, 100 -> 0, 200->1, 300->2
+                    [0, 0, 0, 1],  # -100, 0 -> 0, 150->0, 250->1
+                ],
+            ],
+            dtype='uint8',
+        )
+
+        image_palette = convert_colormap_to_palette(self.colormap)
+        actual_raster, _ = scale_paletted_1band(ds, image_palette)
+        assert_array_equal(expected_raster, actual_raster, strict=True)
+
+    def test_scale_paletted_1band_clips_overflow_values(self):
+        """Test that values above the palette max are clipped to highest color."""
+        from hybig.browse import scale_paletted_1band
+
+        # Create test data with values above the palette maximum
+        # Palette covers 100-400, but data includes 500 and 1000
+        data_with_overflow = np.array(
+            [
+                [100, 200, 300, 400],
+                [400, 500, 600, 1000],
+                [200, 300, 400, 500],
+                [300, 350, 400, 800],
+            ]
+        ).astype('float64')
+        ds = DataArray(data_with_overflow).expand_dims('band')
+
+        # Expected: overflow values (500, 600, 1000, 800) should map to index 3
+        # which is the highest color (blue at value 400)
+        expected_raster = np.array(
+            [
+                [
+                    [0, 1, 2, 3],  # 100->0, 200->1, 300->2, 400->3
+                    [3, 3, 3, 3],  # 400->3, 500->3, 600->3, 1000->3
+                    [1, 2, 3, 3],  # 200->1, 300->2, 400->3, 500->3
+                    [2, 2, 3, 3],  # 300->2, 350->2, 400->3, 800->3
+                ],
+            ],
+            dtype='uint8',
+        )
+
+        image_palette = convert_colormap_to_palette(self.colormap)
+        actual_raster, _ = scale_paletted_1band(ds, image_palette)
+        assert_array_equal(expected_raster, actual_raster, strict=True)
+
+    def test_scale_paletted_1band_with_nan_and_clipping(self):
+        """Test that NaN values map to nodata while clipping still works."""
+        from hybig.browse import scale_paletted_1band
+
+        # Create test data with NaN, underflow, and overflow values
+        data_mixed = np.array(
+            [
+                [np.nan, -50, 100, 500],
+                [50, 200, 300, 1000],
+                [100, np.nan, 400, 600],
+                [-100, 250, np.nan, 800],
+            ]
+        ).astype('float64')
+        ds = DataArray(data_mixed).expand_dims('band')
+
+        # Expected: NaN -> 4 (nodata), underflow -> 0, overflow -> 3
+        expected_raster = np.array(
+            [
+                [
+                    [4, 0, 0, 3],  # NaN->4, -50->0, 100->0, 500->3
+                    [0, 1, 2, 3],  # 50->0, 200->1, 300->2, 1000->3
+                    [0, 4, 3, 3],  # 100->0, NaN->4, 400->3, 600->3
+                    [0, 1, 4, 3],  # -100->0, 250->1, NaN->4, 800->3
+                ],
+            ],
+            dtype='uint8',
+        )
+
+        image_palette = convert_colormap_to_palette(self.colormap)
+        actual_raster, actual_palette = scale_paletted_1band(ds, image_palette)
+        assert_array_equal(expected_raster, actual_raster, strict=True)
+
+        # Verify nodata color is transparent
+        expected_nodata_color = (0, 0, 0, 0)
+        self.assertEqual(actual_palette[np.uint8(4)], expected_nodata_color)
+
+    def test_scale_paletted_1band_to_rgb_clips_underflow_values(self):
+        """Test RGB output clips values below palette min to lowest color."""
+        from hybig.browse import scale_paletted_1band_to_rgb
+
+        # Create test data with values below the palette minimum
+        data_with_underflow = np.array(
+            [
+                [-50, 50, 100, 200],
+                [100, 200, 300, 400],
+            ]
+        ).astype('float64')
+        ds = DataArray(data_with_underflow).expand_dims('band')
+
+        image_palette = convert_colormap_to_palette(self.colormap)
+        actual_rgb, _ = scale_paletted_1band_to_rgb(ds, image_palette)
+
+        # Values -50 and 50 should get red color (255, 0, 0)
+        # which is the lowest color in the palette
+        self.assertEqual(actual_rgb[0, 0, 0], 255)  # Red channel for -50
+        self.assertEqual(actual_rgb[1, 0, 0], 0)  # Green channel for -50
+        self.assertEqual(actual_rgb[2, 0, 0], 0)  # Blue channel for -50
+
+        self.assertEqual(actual_rgb[0, 0, 1], 255)  # Red channel for 50
+        self.assertEqual(actual_rgb[1, 0, 1], 0)  # Green channel for 50
+        self.assertEqual(actual_rgb[2, 0, 1], 0)  # Blue channel for 50
+
+    def test_scale_paletted_1band_to_rgb_clips_overflow_values(self):
+        """Test RGB output clips values above palette max to highest color."""
+        from hybig.browse import scale_paletted_1band_to_rgb
+
+        # Create test data with values above the palette maximum
+        data_with_overflow = np.array(
+            [
+                [400, 500, 600, 1000],
+                [300, 400, 800, 1500],
+            ]
+        ).astype('float64')
+        ds = DataArray(data_with_overflow).expand_dims('band')
+
+        image_palette = convert_colormap_to_palette(self.colormap)
+        actual_rgb, _ = scale_paletted_1band_to_rgb(ds, image_palette)
+
+        # Values 500, 600, 1000, 800, 1500 should get blue color (0, 0, 255)
+        # which is the highest color in the palette
+        for col in [1, 2, 3]:  # columns 1, 2, 3 in row 0
+            self.assertEqual(actual_rgb[0, 0, col], 0)  # Red channel
+            self.assertEqual(actual_rgb[1, 0, col], 0)  # Green channel
+            self.assertEqual(actual_rgb[2, 0, col], 255)  # Blue channel
+
+        for col in [2, 3]:  # columns 2, 3 in row 1
+            self.assertEqual(actual_rgb[0, 1, col], 0)  # Red channel
+            self.assertEqual(actual_rgb[1, 1, col], 0)  # Green channel
+            self.assertEqual(actual_rgb[2, 1, col], 255)  # Blue channel
+
+    def test_scale_paletted_1band_to_rgb_with_nan_and_clipping(self):
+        """Test RGB output with NaN mapped to nodata and clipping working."""
+        from hybig.browse import scale_paletted_1band_to_rgb
+
+        # Create test data with NaN, underflow, and overflow values
+        data_mixed = np.array(
+            [
+                [np.nan, -50, 100, 500],
+                [50, 200, np.nan, 1000],
+            ]
+        ).astype('float64')
+        ds = DataArray(data_mixed).expand_dims('band')
+
+        image_palette = convert_colormap_to_palette(self.colormap)
+        actual_rgb, _ = scale_paletted_1band_to_rgb(ds, image_palette)
+
+        # NaN should map to nodata color (0, 0, 0)
+        self.assertEqual(actual_rgb[0, 0, 0], 0)  # Red for NaN at (0,0)
+        self.assertEqual(actual_rgb[1, 0, 0], 0)  # Green for NaN at (0,0)
+        self.assertEqual(actual_rgb[2, 0, 0], 0)  # Blue for NaN at (0,0)
+
+        self.assertEqual(actual_rgb[0, 1, 2], 0)  # Red for NaN at (1,2)
+        self.assertEqual(actual_rgb[1, 1, 2], 0)  # Green for NaN at (1,2)
+        self.assertEqual(actual_rgb[2, 1, 2], 0)  # Blue for NaN at (1,2)
+
+        # -50 and 50 should clip to red (255, 0, 0)
+        self.assertEqual(actual_rgb[0, 0, 1], 255)  # Red for -50
+        self.assertEqual(actual_rgb[0, 1, 0], 255)  # Red for 50
+
+        # 500 and 1000 should clip to blue (0, 0, 255)
+        self.assertEqual(actual_rgb[2, 0, 3], 255)  # Blue for 500
+        self.assertEqual(actual_rgb[2, 1, 3], 255)  # Blue for 1000
+
 
 class TestCreateBrowse(TestCase):
     """A class testing the create_browse function call.

@@ -312,7 +312,7 @@ def scale_grey_1band(data_array: DataArray) -> tuple[ndarray, ColorMap]:
     normalized_data = norm(band) * 254.0
 
     # Set any missing to missing
-    normalized_data[np.isnan(normalized_data)] = NODATA_IDX
+    normalized_data[np.isnan(band)] = NODATA_IDX
 
     grey_colormap = greyscale_colormap()
     raster_data = np.expand_dims(np.round(normalized_data).data, 0)
@@ -342,7 +342,7 @@ def scale_grey_1band_to_rgb(data_array: DataArray) -> tuple[ndarray, None]:
     normalized_data = norm(band) * 254.0
 
     # Set any missing to 0 (black), no transparency
-    normalized_data[np.isnan(normalized_data)] = 0
+    normalized_data[np.isnan(band)] = 0
 
     grey_data = np.round(normalized_data).astype('uint8')
     rgb_data = np.stack([grey_data, grey_data, grey_data], axis=0)
@@ -367,8 +367,17 @@ def scale_paletted_1band_to_rgb(
     if palette.ndv is not None:
         nodata_color = palette.color_to_color_entry(palette.ndv, with_alpha=True)
 
+    # Store NaN mask before normalization
+    nan_mask = np.isnan(band)
+
+    # Replace NaN with first level to avoid issues during normalization
+    band_clean = np.where(nan_mask, levels[0], band)
+
     # Apply normalization to get palette indices
-    indexed_band = norm(band)
+    indexed_band = norm(band_clean)
+
+    # Clip indices to valid range [0, len(colors)-1]
+    indexed_band = np.clip(indexed_band, 0, len(colors) - 1)
 
     # Create RGB output array
     height, width = band.shape
@@ -381,8 +390,7 @@ def scale_paletted_1band_to_rgb(
         rgb_array[1, mask] = color[1]  # Green
         rgb_array[2, mask] = color[2]  # Blue
 
-    # Handle NaN/nodata values
-    nan_mask = np.isnan(band)
+    # Handle NaN/nodata values (overwrite any color assignment)
     if nan_mask.any():
         rgb_array[0, nan_mask] = nodata_color[0]
         rgb_array[1, nan_mask] = nodata_color[1]
@@ -399,6 +407,10 @@ def scale_paletted_1band(
     Use the palette's levels and values, transform the input data_array into
     the correct levels indexed from 0-255 return the scaled array along side of
     a colormap corresponding to the new levels.
+
+    Values below the minimum palette level are clipped to the lowest color.
+    Values above the maximum palette level are clipped to the highest color.
+    Only NaN values are mapped to the nodata index.
     """
     global DST_NODATA
     band = data_array[0, :, :]
@@ -413,31 +425,38 @@ def scale_paletted_1band(
     nodata_color = (0, 0, 0, 0)
     if palette.ndv is not None:
         nodata_color = palette.color_to_color_entry(palette.ndv, with_alpha=True)
-        color_list = list(palette.pal.values())
-        try:
-            DST_NODATA = color_list.index(palette.ndv)
-            # ndv is included in the list of colors, so no need to add nodata_color
-            # to the list
-        except ValueError:
-            # ndv is not an index in the color palette, therefore it should be
-            # index 0, which is the default for a ColorPalette when using
-            # palette.get_all_keys()
+        # Check if nodata color already exists in palette
+        if palette.ndv in palette.pal.values():
+            DST_NODATA = list(palette.pal.values()).index(palette.ndv)
+            # Don't add nodata_color; it's already in colors
+        else:
+            # Nodata not in palette, add it at the beginning
             DST_NODATA = 0
             colors = [nodata_color, *colors]
     else:
         # if there is no ndv, add one to the end of the colormap
+        DST_NODATA = len(colors)
         colors = [*colors, nodata_color]
-        DST_NODATA = len(colors) - 1
 
-    scaled_band = norm(band)
+    nan_mask = np.isnan(band)
+    band_clean = np.where(nan_mask, levels[0], band)
+    scaled_band = norm(band_clean)
+
     if DST_NODATA == 0:
         # boundary norm indexes [0, levels) by default, so if the NODATA index is 0,
         # all the palette indices need to be incremented by 1.
-        scaled_band += 1
+        scaled_band = scaled_band + 1
 
-    # Set underflow and nan values to nodata index
-    scaled_band[scaled_band == -1] = DST_NODATA
-    scaled_band[np.isnan(band)] = DST_NODATA
+    # Clip to valid palette range (excluding nodata index)
+    if DST_NODATA == 0:
+        # Palette occupies indices 1 to len(colors)-1
+        scaled_band = np.clip(scaled_band, 1, len(colors) - 1)
+    else:
+        # Palette occupies indices 0 to DST_NODATA-1
+        scaled_band = np.clip(scaled_band, 0, DST_NODATA - 1)
+
+    # Only set NaN values to nodata index
+    scaled_band[nan_mask] = DST_NODATA
 
     color_map = colormap_from_colors(colors)
     raster_data = np.expand_dims(scaled_band.data, 0)
