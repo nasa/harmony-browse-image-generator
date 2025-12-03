@@ -11,7 +11,13 @@ Changelog](http://keepachangelog.com/en/1.0.0/).
 * GitHub release notes for HyBIG will now include the commit history for that
   release.
 
-## [v2.4.2] - Unreleased
+## [v2.5.0] - Unreleased
+
+### Changed
+
+* Correctly handle clipping behavior for values outside the colormap range
+
+## [v2.4.2] - 2025-10-28
 
 ### Changed
 
