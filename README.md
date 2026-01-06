@@ -343,7 +343,7 @@ independent of the main Harmony application:
 
 
 ```
-> conda create --name hybig-env python==3.11
+> conda create --name hybig-env python==3.12
 > pip install -r pip_requirements.txt -r pip_requirements_skip_snyk.txt
 > pip install -r dev-requirements.txt
 
