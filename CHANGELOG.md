@@ -11,7 +11,9 @@ Changelog](http://keepachangelog.com/en/1.0.0/).
 * GitHub release notes for HyBIG will now include the commit history for that
   release.
 
-## [v2.5.0] - Unreleased
+* Service libraries updated to address vulnerabilities.
+
+## [v2.5.0] - 2026-12-03
 
 ### Changed
 
