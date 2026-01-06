@@ -4,7 +4,7 @@ HyBIG follows semantic versioning. All notable changes to this project will be
 documented in this file. The format is based on [Keep a
 Changelog](http://keepachangelog.com/en/1.0.0/).
 
-## [vX.Y.Z] - Unreleased
+## [v2.5.1] - 2026-01-06
 
 ### Changed
 
@@ -146,6 +146,9 @@ For more information on internal releases prior to NASA open-source approval,
 see legacy-CHANGELOG.md.
 
 [unreleased]: https://github.com/nasa/harmony-browse-image-generator/
+[v2.5.1]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.5.1
+[v2.5.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.5.0
+[v2.4.2]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.4.2
 [v2.4.1]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.4.1
 [v2.4.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.4.0
 [v2.3.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.3.0
