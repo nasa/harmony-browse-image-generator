@@ -249,6 +249,7 @@ also with units of degrees.
 ## Repository structure:
 
 ```
+|- .snyk
 |- 📂 bin
 |- 📂 docker
 |- 📂 docs
@@ -266,6 +267,12 @@ also with units of degrees.
 |- pyproject.toml
 
 ```
+
+* `.snyk` - A file used by the Snyk webhook to ensure the correct version of
+  Python is used when installing the full dependency tree for the project. This
+  file is duplicated in each directory that contains a requirements
+  file. (`./docs`, `./tests`) **This file, and all copies, must be updated when
+  the version of Python is updated in the service Docker image.**
 
 * `bin` - A directory containing utility scripts to build the service and test
   images. A script to extract the release notes for the most recent version, as
@@ -336,7 +343,7 @@ independent of the main Harmony application:
 
 
 ```
-> conda create --name hybig-env python==3.11
+> conda create --name hybig-env python==3.12
 > pip install -r pip_requirements.txt -r pip_requirements_skip_snyk.txt
 > pip install -r dev-requirements.txt
 
