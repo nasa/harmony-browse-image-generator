@@ -5,19 +5,17 @@ from itertools import zip_longest
 from logging import Logger, getLogger
 from pathlib import Path
 
-import matplotlib
 import numpy as np
 import rasterio
 from affine import dumpsw
 from harmony_service_lib.message import Message as HarmonyMessage
 from harmony_service_lib.message import Source as HarmonySource
-from matplotlib.colors import Normalize
-from numpy import ndarray, uint8
+from matplotlib.colors import BoundaryNorm, Normalize
+from numpy.typing import NDArray
 from osgeo_utils.auxiliary.color_palette import ColorPalette
-from PIL import Image
 from rasterio.io import DatasetReader
-from rasterio.warp import Resampling, reproject
-from rioxarray import open_rasterio
+from rasterio.warp import Resampling, reproject, transform_bounds
+from rasterio.windows import Window
 from xarray import DataArray
 
 from hybig.browse_utility import get_harmony_message_from_params
@@ -26,7 +24,6 @@ from hybig.color_utility import (
     OPAQUE,
     TRANSPARENT,
     ColorMap,
-    all_black_color_map,
     colormap_from_colors,
     get_color_palette,
     greyscale_colormap,
@@ -44,9 +41,9 @@ DST_NODATA = NODATA_IDX
 
 def create_browse(
     source_tiff: str,
-    params: dict = None,
+    params: dict | None = None,
     palette: str | ColorPalette | None = None,
-    logger: Logger = None,
+    logger: Logger | None = None,
 ) -> list[tuple[Path, Path, Path]]:
     """Create browse imagery from an input geotiff.
 
@@ -156,50 +153,31 @@ def create_browse_imagery(
     xml file.
 
     """
-    output_driver = image_driver(message.format.mime)
+    output_driver = image_driver(message.format.mime)  # type: ignore
     out_image_file = output_image_file(Path(input_file_path), driver=output_driver)
     out_world_file = output_world_file(Path(input_file_path), driver=output_driver)
 
     try:
-        with open_rasterio(
-            input_file_path, mode='r', mask_and_scale=True
-        ) as rio_in_array:
-            in_dataset = rio_in_array.rio._manager.acquire()
-            validate_file_type(in_dataset)
-            validate_file_crs(rio_in_array)
+        with rasterio.open(input_file_path, chunks='auto') as src_ds:
+            validate_file_type(src_ds)
+            validate_file_crs(src_ds)
 
-            if rio_in_array.rio.count == 1:
-                color_palette = get_color_palette(
-                    in_dataset, source, item_color_palette
-                )
-                if output_driver == 'JPEG':
-                    # For JPEG output, convert to RGB
-                    # color_map will be None
-                    raster, color_map = convert_singleband_to_rgb(
-                        rio_in_array, color_palette
-                    )
-                else:
-                    # For PNG output, use palettized approach
-                    raster, color_map = convert_singleband_to_raster(
-                        rio_in_array, color_palette
-                    )
-            elif rio_in_array.rio.count in (3, 4):
-                raster = convert_mulitband_to_raster(rio_in_array)
-                color_map = None
-                if output_driver == 'JPEG':
-                    raster = raster[0:3, :, :]
-            else:
-                raise HyBIGError(
-                    f'incorrect number of bands for image: {rio_in_array.rio.count}'
-                )
+            band_count = src_ds.count
+            color_palette = None
 
-            grid_parameters = get_target_grid_parameters(message, rio_in_array)
+            if band_count == 1:
+                color_palette = get_color_palette(src_ds, source, item_color_palette)
+            elif band_count not in (3, 4):
+                raise HyBIGError(f'incorrect number of bands for image: {src_ds.count}')
+
+            grid_parameters = get_target_grid_parameters(message, src_ds)
             grid_parameter_list, tile_locators = create_tiled_output_parameters(
                 grid_parameters
             )
 
-            processed_files = []
-            for grid_parameters, tile_location in zip_longest(
+            # A list of (image_path, world_file_path, aux_xml_path)
+            processed_files: list[tuple[Path, Path, Path]] = []
+            for grid_params, tile_location in zip_longest(
                 grid_parameter_list, tile_locators
             ):
                 tiled_out_image_file = get_tiled_filename(out_image_file, tile_location)
@@ -207,15 +185,14 @@ def create_browse_imagery(
                 tiled_out_aux_xml_file = get_aux_xml_filename(tiled_out_image_file)
                 logger.info(f'out image file: {tiled_out_image_file}: {tile_location}')
 
-                write_georaster_as_browse(
-                    rio_in_array,
-                    raster,
-                    color_map,
-                    grid_parameters,
-                    logger=logger,
-                    driver=output_driver,
-                    out_file_name=tiled_out_image_file,
-                    out_world_name=tiled_out_world_file,
+                process_tile(
+                    src_ds,
+                    grid_params,
+                    color_palette,
+                    output_driver,
+                    tiled_out_image_file,
+                    tiled_out_world_file,
+                    logger,
                 )
                 processed_files.append(
                     (tiled_out_image_file, tiled_out_world_file, tiled_out_aux_xml_file)
@@ -227,7 +204,200 @@ def create_browse_imagery(
     return processed_files
 
 
-def convert_mulitband_to_raster(data_array: DataArray) -> ndarray[uint8]:
+def process_tile(
+    src_ds: DatasetReader,
+    grid_params: GridParams,
+    color_palette: ColorPalette | None,
+    output_driver: str,
+    out_file_name: Path,
+    out_world_name: Path,
+    logger: Logger,
+) -> None:
+    """Read a region from the source dataset, convert raster, and write output."""
+    band_count = src_ds.count
+
+    src_window = calculate_source_window(src_ds, grid_params)
+
+    # Tile is outside source bounds
+    if src_window is None:
+        return
+
+    # Explicitly load a subset of ds
+    tile_source = read_window_with_mask_and_scale(src_ds, src_window)
+    src_crs = src_ds.crs
+    src_transform = src_ds.window_transform(src_window)
+
+    if band_count == 1:
+        if output_driver == 'JPEG':
+            raster, color_map = convert_singleband_to_rgb(tile_source, color_palette)
+        else:
+            raster, color_map = convert_singleband_to_raster(tile_source, color_palette)
+    else:
+        raster = convert_mulitband_to_raster(tile_source)
+        color_map = None
+        if output_driver == 'JPEG':
+            raster = raster[0:3, :, :]
+
+    write_georaster_as_browse(
+        raster,
+        src_crs,
+        src_transform,
+        color_map,
+        grid_params,
+        logger,
+        driver=output_driver,
+        out_file_name=out_file_name,
+        out_world_name=out_world_name,
+    )
+
+    # Explicit cleanup
+    del raster
+    del tile_source
+
+
+def calculate_source_window(
+    src_ds: DatasetReader,
+    grid_params: GridParams,
+) -> Window | None:
+    """Calculate the source window needed to cover the target tile.
+
+    Returns a Window defining which portion of the source to read,
+    with some buffer for reprojection edge effects.
+    """
+    try:
+        # Get target tile bounds in target CRS
+        dst_height = grid_params['height']
+        dst_width = grid_params['width']
+        dst_crs = grid_params['crs']
+        dst_transform = grid_params['transform']
+
+        # Calculate tile bounds in destination CRS
+        dst_left = dst_transform.c
+        dst_top = dst_transform.f
+        dst_right = dst_left + dst_width * dst_transform.a
+        dst_bottom = dst_top + dst_height * dst_transform.e
+
+        dst_bounds = (
+            min(dst_left, dst_right),
+            min(dst_top, dst_bottom),
+            max(dst_left, dst_right),
+            max(dst_top, dst_bottom),
+        )
+
+        # Transform bounds to source CRS
+        src_crs = src_ds.crs
+        src_bounds = transform_bounds(dst_crs, src_crs, *dst_bounds)
+
+        # Add buffer for reprojection (10% on each side)
+        width = src_bounds[2] - src_bounds[0]
+        height = src_bounds[3] - src_bounds[1]
+        buffer_x = width * 0.1
+        buffer_y = height * 0.1
+
+        buffered_bounds = (
+            src_bounds[0] - buffer_x,
+            src_bounds[1] - buffer_y,
+            src_bounds[2] + buffer_x,
+            src_bounds[3] + buffer_y,
+        )
+
+        # Convert to window in source pixel coordinates
+        src_transform = src_ds.transform
+        if len(src_ds.shape) == 3:
+            src_height, src_width = src_ds.shape[1], src_ds.shape[2]
+        else:
+            # Single band
+            src_height, src_width = src_ds.shape[0], src_ds.shape[1]
+
+        # Inverse transform to get pixel coordinates from geographic coordinates
+        # For a point (x, y), the pixel coordinate is:
+        #   col = (x - transform.c) / transform.a
+        #   row = (y - transform.f) / transform.e
+        # Works like rasterio.windows.from_bounds but also handles positive y pixel size
+        # which is an edge case for some datasets like PODAAC's GHRSST MUR.
+        left, bottom, right, top = buffered_bounds
+        col_left = (left - src_transform.c) / src_transform.a
+        col_right = (right - src_transform.c) / src_transform.a
+
+        row_top = (top - src_transform.f) / src_transform.e
+        row_bottom = (bottom - src_transform.f) / src_transform.e
+
+        # Handle both positive and negative y scales
+        col_min = min(col_left, col_right)
+        col_max = max(col_left, col_right)
+        row_min = min(row_top, row_bottom)
+        row_max = max(row_top, row_bottom)
+
+        # Convert to integer pixel bounds and clip to image extent
+        col_off = max(0, int(np.floor(col_min)))
+        row_off = max(0, int(np.floor(row_min)))
+        col_end = min(src_width, int(np.ceil(col_max)))
+        row_end = min(src_height, int(np.ceil(row_max)))
+
+        win_width = col_end - col_off
+        win_height = row_end - row_off
+
+        if win_width <= 0 or win_height <= 0:
+            return None
+
+        return Window(col_off, row_off, win_width, win_height)  # type: ignore
+
+    except Exception:
+        # If calculation fails, return None to fall back to reading full raster
+        return None
+
+
+def read_window_with_mask_and_scale(
+    src_ds: DatasetReader,
+    window: Window,
+    bands: list[int] | None = None,
+) -> NDArray:
+    """Read a window from a rasterio dataset with masking and scaling applied.
+
+    Replicates the behavior of rioxarray's mask_and_scale=True option.
+    """
+    if bands is None:
+        bands = list(range(1, src_ds.count + 1))
+
+    # Read the raw data
+    data = src_ds.read(bands, window=window)
+
+    # Convert to float for NaN support
+    data = data.astype('float64')
+
+    # Apply masking and scaling per band
+    for i, band_idx in enumerate(bands):
+        band_data = data[i]
+
+        # Get nodata value for this band
+        nodata = src_ds.nodatavals[band_idx - 1]  # nodatavals is 0-indexed
+
+        # Mask nodata values
+        if nodata is not None:
+            if np.isnan(nodata):
+                mask = np.isnan(band_data)
+            else:
+                mask = band_data == nodata
+            band_data[mask] = np.nan
+
+        scale = 1.0
+        offset = 0.0
+        try:
+            scale = src_ds.scales[band_idx - 1]
+            offset = src_ds.offsets[band_idx - 1]
+        except Exception:
+            pass
+
+        if scale != 1.0 or offset != 0.0:
+            # Only apply to non-NaN values
+            valid_mask = ~np.isnan(band_data)
+            band_data[valid_mask] = band_data[valid_mask] * scale + offset
+
+        data[i] = band_data
+    return data
+
+
+def convert_mulitband_to_raster(data_array: NDArray) -> NDArray[np.uint8]:
     """Convert multiband to a raster image.
 
     Return a 4-band raster, where the alpha layer is presumed to be the missing
@@ -237,27 +407,25 @@ def convert_mulitband_to_raster(data_array: DataArray) -> ndarray[uint8]:
     any missing data in the RGB bands.
 
     """
-    if data_array.rio.count not in [3, 4]:
+    if data_array.shape[0] not in [3, 4]:
         raise HyBIGError(
-            f'Cannot create image from {data_array.rio.count} band image. '
+            f'Cannot create image from {data_array.shape[0]} band image. '
             'Expecting 3 or 4 bands.'
         )
 
-    bands = data_array.to_numpy()
-
-    if data_array.rio.count == 4:
-        return convert_to_uint8(bands, original_dtype(data_array))
+    if data_array.shape[0] == 4:
+        return convert_to_uint8(data_array, str(data_array.dtype))
 
     # Input NaNs in any of the RGB bands are made transparent.
-    nan_mask = np.isnan(bands).any(axis=0)
+    nan_mask = np.isnan(data_array).any(axis=0)
     nan_alpha = np.where(nan_mask, TRANSPARENT, OPAQUE)
 
-    raster = convert_to_uint8(bands, original_dtype(data_array))
+    raster = convert_to_uint8(data_array, str(data_array.dtype))
 
     return np.concatenate((raster, nan_alpha[None, ...]), axis=0)
 
 
-def convert_to_uint8(bands: ndarray, dtype: str | None) -> ndarray[uint8]:
+def convert_to_uint8(bands: NDArray, dtype: str | None) -> NDArray[np.uint8]:
     """Convert Banded data with NaNs (missing) into a uint8 data cube.
 
     Nearly all of the time this will simply pass through the data coercing it
@@ -291,9 +459,9 @@ def original_dtype(data_array: DataArray) -> str | None:
 
 
 def convert_singleband_to_raster(
-    data_array: DataArray,
+    data_array: NDArray,
     color_palette: ColorPalette | None = None,
-) -> tuple[ndarray, ColorMap]:
+) -> tuple[NDArray, ColorMap]:
     """Convert input dataset to a 1-band palettized image with colormap.
 
     Uses a palette if provided otherwise returns a greyscale image.
@@ -303,13 +471,13 @@ def convert_singleband_to_raster(
     return scale_paletted_1band(data_array, color_palette)
 
 
-def scale_grey_1band(data_array: DataArray) -> tuple[ndarray, ColorMap]:
+def scale_grey_1band(data_array: NDArray) -> tuple[NDArray, ColorMap]:
     """Normalize input array and return scaled data with greyscale ColorMap."""
     band = data_array[0, :, :]
     norm = Normalize(vmin=np.nanmin(band), vmax=np.nanmax(band))
 
     # Scale input data from 0 to 254
-    normalized_data = norm(band) * 254.0
+    normalized_data = np.array(norm(band)) * 254.0
 
     # Set any missing to missing
     normalized_data[np.isnan(band)] = NODATA_IDX
@@ -320,9 +488,9 @@ def scale_grey_1band(data_array: DataArray) -> tuple[ndarray, ColorMap]:
 
 
 def convert_singleband_to_rgb(
-    data_array: DataArray,
+    data_array: NDArray,
     color_palette: ColorPalette | None = None,
-) -> tuple[ndarray, None]:
+) -> tuple[NDArray, None]:
     """Convert input 1-band dataset to RGB image for JPEG output.
 
     Uses a palette if provided, otherwise returns a greyscale RGB image.
@@ -333,13 +501,13 @@ def convert_singleband_to_rgb(
     return scale_paletted_1band_to_rgb(data_array, color_palette)
 
 
-def scale_grey_1band_to_rgb(data_array: DataArray) -> tuple[ndarray, None]:
+def scale_grey_1band_to_rgb(data_array: NDArray) -> tuple[NDArray, None]:
     """Normalize input array and return as 3-band RGB grayscale image."""
     band = data_array[0, :, :]
     norm = Normalize(vmin=np.nanmin(band), vmax=np.nanmax(band))
 
     # Scale input data from 0 to 254 (palettized data is 254-level quantized)
-    normalized_data = norm(band) * 254.0
+    normalized_data = np.array(norm(band)) * 254.0
 
     # Set any missing to 0 (black), no transparency
     normalized_data[np.isnan(band)] = 0
@@ -351,8 +519,8 @@ def scale_grey_1band_to_rgb(data_array: DataArray) -> tuple[ndarray, None]:
 
 
 def scale_paletted_1band_to_rgb(
-    data_array: DataArray, palette: ColorPalette
-) -> tuple[ndarray, None]:
+    data_array: NDArray, palette: ColorPalette
+) -> tuple[NDArray, None]:
     """Scale a 1-band image with palette into RGB image for JPEG output."""
     band = data_array[0, :, :]
     levels = list(palette.pal.keys())
@@ -360,7 +528,7 @@ def scale_paletted_1band_to_rgb(
         palette.color_to_color_entry(value, with_alpha=True)
         for value in palette.pal.values()
     ]
-    norm = matplotlib.colors.BoundaryNorm(levels, len(levels) - 1)
+    norm = BoundaryNorm(levels, len(levels) - 1)
 
     # handle palette no data value
     nodata_color = (0, 0, 0)
@@ -400,8 +568,8 @@ def scale_paletted_1band_to_rgb(
 
 
 def scale_paletted_1band(
-    data_array: DataArray, palette: ColorPalette
-) -> tuple[ndarray, ColorMap]:
+    data_array: NDArray, palette: ColorPalette
+) -> tuple[NDArray, ColorMap]:
     """Scale a 1-band image with palette into modified image and associated color_map.
 
     Use the palette's levels and values, transform the input data_array into
@@ -413,13 +581,14 @@ def scale_paletted_1band(
     Only NaN values are mapped to the nodata index.
     """
     global DST_NODATA
+    # print(data_array)
     band = data_array[0, :, :]
     levels = list(palette.pal.keys())
     colors = [
         palette.color_to_color_entry(value, with_alpha=True)
         for value in palette.pal.values()
     ]
-    norm = matplotlib.colors.BoundaryNorm(levels, len(levels) - 1)
+    norm = BoundaryNorm(levels, len(levels) - 1)
 
     # handle palette no data value
     nodata_color = (0, 0, 0, 0)
@@ -427,40 +596,43 @@ def scale_paletted_1band(
         nodata_color = palette.color_to_color_entry(palette.ndv, with_alpha=True)
         # Check if nodata color already exists in palette
         if palette.ndv in palette.pal.values():
-            DST_NODATA = list(palette.pal.values()).index(palette.ndv)
+            DST_NODATA = np.uint8(list(palette.pal.values()).index(palette.ndv))
             # Don't add nodata_color; it's already in colors
         else:
             # Nodata not in palette, add it at the beginning
-            DST_NODATA = 0
+            DST_NODATA = np.uint8(0)
             colors = [nodata_color, *colors]
     else:
         # if there is no ndv, add one to the end of the colormap
-        DST_NODATA = len(colors)
+        DST_NODATA = np.uint8(len(colors))
         colors = [*colors, nodata_color]
 
     nan_mask = np.isnan(band)
-    band_clean = np.where(nan_mask, levels[0], band)
+    if band.flags.writeable:
+        band[nan_mask] = levels[0]
+        band_clean = band
+    else:
+        band_clean = np.where(nan_mask, levels[0], band)
     scaled_band = norm(band_clean)
 
+    # Apply offset and clip to valid palette range
     if DST_NODATA == 0:
         # boundary norm indexes [0, levels) by default, so if the NODATA index is 0,
         # all the palette indices need to be incremented by 1.
         scaled_band = scaled_band + 1
-
-    # Clip to valid palette range (excluding nodata index)
-    if DST_NODATA == 0:
-        # Palette occupies indices 1 to len(colors)-1
-        scaled_band = np.clip(scaled_band, 1, len(colors) - 1)
+        np.clip(scaled_band, 1, len(colors) - 1, out=scaled_band)
     else:
         # Palette occupies indices 0 to DST_NODATA-1
-        scaled_band = np.clip(scaled_band, 0, DST_NODATA - 1)
+        np.clip(scaled_band, 0, DST_NODATA - 1, out=scaled_band)
 
     # Only set NaN values to nodata index
     scaled_band[nan_mask] = DST_NODATA
 
+    del nan_mask
+    del band_clean
+
     color_map = colormap_from_colors(colors)
-    raster_data = np.expand_dims(scaled_band.data, 0)
-    return np.array(raster_data, dtype='uint8'), color_map
+    return scaled_band.data.astype('uint8')[np.newaxis, :, :], color_map
 
 
 def image_driver(mime: str) -> str:
@@ -468,20 +640,6 @@ def image_driver(mime: str) -> str:
     if re.search('jpeg', mime, re.I) or re.search('jpg', mime, re.I):
         return 'JPEG'
     return 'PNG'
-
-
-def get_color_map_from_image(image: Image) -> dict:
-    """Get a writable color map
-
-    Read the RGBA palette from a PIL Image and covert into a dictionary
-    that can be written by rasterio.
-
-    """
-    color_tuples = np.array(image.getpalette(rawmode='RGBA')).reshape(-1, 4)
-    color_map = all_black_color_map()
-    for idx, color_tuple in enumerate(color_tuples):
-        color_map[idx] = tuple(color_tuple)
-    return color_map
 
 
 def get_aux_xml_filename(image_filename: Path) -> Path:
@@ -519,26 +677,26 @@ def output_world_file(input_file_path: Path, driver: str = 'PNG'):
     return input_file_path.with_suffix(ext)
 
 
-def validate_file_crs(data_array: DataArray) -> None:
+def validate_file_crs(src_ds: DatasetReader) -> None:
     """Explicit check for a CRS on the input geotiff.
 
     Raises HyBIGError if crs is missing.
     """
-    if data_array.rio.crs is None:
+    if src_ds.crs is None:
         raise HyBIGError('Input geotiff must have defined CRS.')
 
 
-def validate_file_type(dsr: DatasetReader) -> None:
+def validate_file_type(src_ds: DatasetReader) -> None:
     """Ensure we can work with the input data file.
 
     Raise an exception if this file is unusable by the service.
 
     """
-    if dsr.driver != 'GTiff':
-        raise HyBIGError(f'Input file type not supported: {dsr.driver}')
+    if src_ds.driver != 'GTiff':
+        raise HyBIGError(f'Input file type not supported: {src_ds.driver}')
 
 
-def get_destination(grid_parameters: GridParams, n_bands: int) -> ndarray:
+def get_destination(grid_parameters: GridParams, n_bands: int) -> NDArray:
     """Initialize an array for writing an output raster."""
     return np.zeros(
         (n_bands, grid_parameters['height'], grid_parameters['width']), dtype='uint8'
@@ -546,14 +704,15 @@ def get_destination(grid_parameters: GridParams, n_bands: int) -> ndarray:
 
 
 def write_georaster_as_browse(
-    data_array: DataArray,
-    raster: ndarray,
+    raster: NDArray,
+    src_crs: rasterio.CRS,
+    src_transform: rasterio.Affine,
     color_map: dict | None,
     grid_parameters: GridParams,
-    driver='PNG',
-    out_file_name='outfile.png',
-    out_world_name='outfile.pgw',
-    logger=Logger,
+    logger: Logger,
+    driver: str = 'PNG',
+    out_file_name: str | Path = 'outfile.png',
+    out_world_name: str | Path = 'outfile.pgw',
 ) -> None:
     """Write raster data to output file.
 
@@ -570,7 +729,7 @@ def write_georaster_as_browse(
         dst_nodata = DST_NODATA
     else:
         # for banded data set each band's destination nodata to zero (TRANSPARENT).
-        dst_nodata = int(TRANSPARENT)
+        dst_nodata = TRANSPARENT
 
     creation_options = {
         **grid_parameters,
@@ -588,8 +747,8 @@ def write_georaster_as_browse(
             reproject(
                 source=raster[dim, :, :],
                 destination=dest_array[dim, :, :],
-                src_transform=data_array.rio.transform(),
-                src_crs=data_array.rio.crs,
+                src_transform=src_transform,
+                src_crs=src_crs,
                 dst_transform=grid_parameters['transform'],
                 dst_crs=grid_parameters['crs'],
                 dst_nodata=dst_nodata,

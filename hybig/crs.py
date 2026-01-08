@@ -11,11 +11,8 @@ Format object.
 """
 
 from harmony_service_lib.message import SRS
-from pyproj.crs import CRS as pyCRS
-
-# pylint: disable-next=no-name-in-module
-from rasterio.crs import CRS
-from xarray import DataArray
+from pyproj import CRS as pyCRS
+from rasterio import CRS, DatasetReader
 
 from hybig.exceptions import HyBIGValueError
 
@@ -29,7 +26,7 @@ PREFERRED_CRS = {
 }
 
 
-def choose_target_crs(srs: SRS, data_array: DataArray) -> CRS:
+def choose_target_crs(srs: SRS, src_ds: DatasetReader) -> CRS:
     """Return the target CRS for the output image.
 
     If a harmony message defines a SRS, we use that as the target ouptut CRS.
@@ -39,7 +36,7 @@ def choose_target_crs(srs: SRS, data_array: DataArray) -> CRS:
     """
     if srs is not None:
         return choose_crs_from_srs(srs)
-    return choose_crs_from_metadata(data_array)
+    return choose_crs_from_metadata(src_ds)
 
 
 def choose_crs_from_srs(srs: SRS):
@@ -54,11 +51,13 @@ def choose_crs_from_srs(srs: SRS):
 
     """
     try:
-        if srs.epsg is not None and srs.epsg != '':
-            return CRS.from_string(srs.epsg)
-        if srs.wkt is not None and srs.wkt != '':
-            return CRS.from_string(srs.wkt)
-        return CRS.from_string(srs.proj4)
+        # harmony defines properties for classes in a way that type checkers
+        # can't pick up on, so we use type: ignore to suppress it
+        if srs.epsg is not None and srs.epsg != '':  # type: ignore
+            return CRS.from_string(srs.epsg)  # type: ignore
+        if srs.wkt is not None and srs.wkt != '':  # type: ignore
+            return CRS.from_string(srs.wkt)  # type: ignore
+        return CRS.from_string(srs.proj4)  # type: ignore
     except Exception as exception:
         raise HyBIGValueError(f'Bad input SRS: {str(exception)}') from exception
 
@@ -70,11 +69,11 @@ def is_preferred_crs(crs: CRS) -> bool:
     return False
 
 
-def choose_crs_from_metadata(data_array: DataArray) -> CRS | None:
+def choose_crs_from_metadata(src_ds: DatasetReader) -> CRS | None:
     """Determine the best CRS based on input metadata."""
-    if is_preferred_crs(data_array.rio.crs):
-        return data_array.rio.crs
-    return choose_best_crs_from_metadata(data_array.rio.crs)
+    if is_preferred_crs(src_ds.crs):
+        return src_ds.crs
+    return choose_best_crs_from_metadata(src_ds.crs)
 
 
 def choose_best_crs_from_metadata(crs: CRS) -> CRS:

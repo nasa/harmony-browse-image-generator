@@ -12,7 +12,6 @@ from harmony_service_lib.message import Message as HarmonyMessage
 from harmony_service_lib.message import Source as HarmonySource
 from numpy.testing import assert_array_equal, assert_equal
 from osgeo_utils.auxiliary.color_palette import ColorPalette
-from PIL import Image
 from rasterio import Affine
 from rasterio.crs import CRS
 from rasterio.io import DatasetReader, DatasetWriter
@@ -25,7 +24,6 @@ from hybig.browse import (
     convert_singleband_to_raster,
     create_browse,
     create_browse_imagery,
-    get_color_map_from_image,
     get_tiled_filename,
     output_image_file,
     output_world_file,
@@ -598,41 +596,6 @@ class TestBrowse(TestCase):
             excepted.exception.message,
             'Cannot create image from 5 band image. Expecting 3 or 4 bands.',
         )
-
-    def test_get_color_map_from_image(self):
-        """PIL Image yields a color_map
-
-        A palette from an PIL Image is correctly turned into a colormap
-        writable by rasterio.
-
-        """
-        # random image with values of 0 to 4.
-        image_data = self.random.integers(5, size=(5, 6), dtype='uint8')
-        # fmt: off
-        palette_sequence = [
-            255, 0, 0, 255,
-            0, 255, 0, 255,
-            0, 0, 255, 255,
-            225, 100, 25, 25,
-            0, 0, 0, 0
-        ]
-        # fmt: on
-        test_image = Image.fromarray(image_data)
-        test_image.putpalette(palette_sequence, rawmode='RGBA')
-
-        expected_color_map = {
-            **{
-                0: (255, 0, 0, 255),
-                1: (0, 255, 0, 255),
-                2: (0, 0, 255, 255),
-                3: (225, 100, 25, 25),
-                4: (0, 0, 0, 0),
-            },
-            **{idx: (0, 0, 0, 255) for idx in range(5, 256)},
-        }
-
-        actual_color_map = get_color_map_from_image(test_image)
-        self.assertDictEqual(expected_color_map, actual_color_map)
 
     def test_get_color_palette_map_exists_source_does_not(self):
         ds = Mock(DatasetReader)
