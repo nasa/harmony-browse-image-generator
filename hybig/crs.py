@@ -10,9 +10,10 @@ Format object.
 
 """
 
+import rasterio
 from harmony_service_lib.message import SRS
 from pyproj import CRS as pyCRS
-from rasterio import CRS, DatasetReader
+from rasterio.io import DatasetReader
 
 from hybig.exceptions import HyBIGValueError
 
@@ -26,7 +27,7 @@ PREFERRED_CRS = {
 }
 
 
-def choose_target_crs(srs: SRS, src_ds: DatasetReader) -> CRS:
+def choose_target_crs(srs: SRS | None, src_ds: DatasetReader) -> rasterio.CRS:
     """Return the target CRS for the output image.
 
     If a harmony message defines a SRS, we use that as the target ouptut CRS.
@@ -54,29 +55,29 @@ def choose_crs_from_srs(srs: SRS):
         # harmony defines properties for classes in a way that type checkers
         # can't pick up on, so we use type: ignore to suppress it
         if srs.epsg is not None and srs.epsg != '':  # type: ignore
-            return CRS.from_string(srs.epsg)  # type: ignore
+            return rasterio.CRS.from_string(srs.epsg)  # type: ignore
         if srs.wkt is not None and srs.wkt != '':  # type: ignore
-            return CRS.from_string(srs.wkt)  # type: ignore
-        return CRS.from_string(srs.proj4)  # type: ignore
+            return rasterio.CRS.from_string(srs.wkt)  # type: ignore
+        return rasterio.CRS.from_string(srs.proj4)  # type: ignore
     except Exception as exception:
         raise HyBIGValueError(f'Bad input SRS: {str(exception)}') from exception
 
 
-def is_preferred_crs(crs: CRS) -> bool:
-    """Returns true if the input CRS is preferred by GIBS."""
+def is_preferred_crs(crs: rasterio.CRS) -> bool:
+    """Returns true if the input rasterio.CRS is preferred by GIBS."""
     if crs.to_string() in PREFERRED_CRS.values():
         return True
     return False
 
 
-def choose_crs_from_metadata(src_ds: DatasetReader) -> CRS | None:
+def choose_crs_from_metadata(src_ds: DatasetReader) -> rasterio.CRS | None:
     """Determine the best CRS based on input metadata."""
     if is_preferred_crs(src_ds.crs):
         return src_ds.crs
     return choose_best_crs_from_metadata(src_ds.crs)
 
 
-def choose_best_crs_from_metadata(crs: CRS) -> CRS:
+def choose_best_crs_from_metadata(crs: rasterio.CRS) -> rasterio.CRS:
     """Determine the best preferred CRS based on the input CRS.
 
     We are targeting GIBS which has three preferred CRSs a Northern Polar
@@ -102,12 +103,12 @@ def choose_best_crs_from_metadata(crs: CRS) -> CRS:
     projection_params = pyCRS(crs).to_dict()
 
     if projection_params.get('proj', None) == 'longlat':
-        return CRS.from_string(PREFERRED_CRS['global'])
+        return rasterio.CRS.from_string(PREFERRED_CRS['global'])
 
     if projection_params.get('lat_0', 0.0) >= 80:
-        return CRS.from_string(PREFERRED_CRS['north'])
+        return rasterio.CRS.from_string(PREFERRED_CRS['north'])
 
     if projection_params.get('lat_0', 0.0) <= -80:
-        return CRS.from_string(PREFERRED_CRS['south'])
+        return rasterio.CRS.from_string(PREFERRED_CRS['south'])
 
-    return CRS.from_string(PREFERRED_CRS['global'])
+    return rasterio.CRS.from_string(PREFERRED_CRS['global'])

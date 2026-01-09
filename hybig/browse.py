@@ -16,7 +16,6 @@ from osgeo_utils.auxiliary.color_palette import ColorPalette
 from rasterio.io import DatasetReader
 from rasterio.warp import Resampling, reproject, transform_bounds
 from rasterio.windows import Window
-from xarray import DataArray
 
 from hybig.browse_utility import get_harmony_message_from_params
 from hybig.color_utility import (
@@ -158,7 +157,7 @@ def create_browse_imagery(
     out_world_file = output_world_file(Path(input_file_path), driver=output_driver)
 
     try:
-        with rasterio.open(input_file_path, chunks='auto') as src_ds:
+        with rasterio.open(input_file_path) as src_ds:
             validate_file_type(src_ds)
             validate_file_crs(src_ds)
 
@@ -227,14 +226,20 @@ def process_tile(
     src_crs = src_ds.crs
     src_transform = src_ds.window_transform(src_window)
 
+    dst_nodata: int | np.uint8
+
     if band_count == 1:
         if output_driver == 'JPEG':
             raster, color_map = convert_singleband_to_rgb(tile_source, color_palette)
+            dst_nodata = TRANSPARENT  # Not really used for JPEG
         else:
-            raster, color_map = convert_singleband_to_raster(tile_source, color_palette)
+            raster, color_map, dst_nodata = convert_singleband_to_raster(
+                tile_source, color_palette
+            )
     else:
-        raster = convert_mulitband_to_raster(tile_source)
+        raster = convert_multiband_to_raster(tile_source)
         color_map = None
+        dst_nodata = TRANSPARENT
         if output_driver == 'JPEG':
             raster = raster[0:3, :, :]
 
@@ -243,6 +248,7 @@ def process_tile(
         src_crs,
         src_transform,
         color_map,
+        dst_nodata,
         grid_params,
         logger,
         driver=output_driver,
@@ -343,7 +349,7 @@ def calculate_source_window(
         return Window(col_off, row_off, win_width, win_height)  # type: ignore
 
     except Exception:
-        # If calculation fails, return None to fall back to reading full raster
+        # If calculation fails, return None
         return None
 
 
@@ -359,7 +365,6 @@ def read_window_with_mask_and_scale(
     if bands is None:
         bands = list(range(1, src_ds.count + 1))
 
-    # Read the raw data
     data = src_ds.read(bands, window=window)
 
     # Convert to float for NaN support
@@ -367,37 +372,28 @@ def read_window_with_mask_and_scale(
 
     # Apply masking and scaling per band
     for i, band_idx in enumerate(bands):
-        band_data = data[i]
+        band_data = data[i]  # note that this passes by reference
 
         # Get nodata value for this band
         nodata = src_ds.nodatavals[band_idx - 1]  # nodatavals is 0-indexed
 
         # Mask nodata values
         if nodata is not None:
-            if np.isnan(nodata):
-                mask = np.isnan(band_data)
-            else:
-                mask = band_data == nodata
+            mask = np.isnan(band_data) if np.isnan(nodata) else (band_data == nodata)
             band_data[mask] = np.nan
 
-        scale = 1.0
-        offset = 0.0
-        try:
-            scale = src_ds.scales[band_idx - 1]
-            offset = src_ds.offsets[band_idx - 1]
-        except Exception:
-            pass
+        scale = (src_ds.scales or [None])[band_idx - 1] or 1.0
+        offset = (src_ds.offsets or [None])[band_idx - 1] or 0.0
 
+        # Apply scale/offset to non-NaN values
         if scale != 1.0 or offset != 0.0:
-            # Only apply to non-NaN values
             valid_mask = ~np.isnan(band_data)
             band_data[valid_mask] = band_data[valid_mask] * scale + offset
 
-        data[i] = band_data
     return data
 
 
-def convert_mulitband_to_raster(data_array: NDArray) -> NDArray[np.uint8]:
+def convert_multiband_to_raster(data_array: NDArray) -> NDArray[np.uint8]:
     """Convert multiband to a raster image.
 
     Return a 4-band raster, where the alpha layer is presumed to be the missing
@@ -426,42 +422,24 @@ def convert_mulitband_to_raster(data_array: NDArray) -> NDArray[np.uint8]:
 
 
 def convert_to_uint8(bands: NDArray, dtype: str | None) -> NDArray[np.uint8]:
-    """Convert Banded data with NaNs (missing) into a uint8 data cube.
+    """Convert banded data with NaNs (missing) into a uint8 data cube."""
+    max_val = np.nanmax(bands)
 
-    Nearly all of the time this will simply pass through the data coercing it
-    back into unsigned ints and setting the missing values to 0 that will be
-    masked as transparent in the output png.
+    # previously this used scaled.filled(0) which only works on masked arrays
+    if dtype != 'uint8' and max_val > 255:
+        min_val = np.nanmin(bands)
+        # Normalize to 0-255 range
+        with np.errstate(invalid='ignore'):  # Suppress NaN warnings
+            scaled = (bands - min_val) / (max_val - min_val) * 255.0
+        return np.nan_to_num(np.around(scaled), nan=0).astype('uint8')
 
-    There is a some small non-zero chance that the input RGB image was 16-bit
-    and if any of the values exceed 255, we must normalize all of input data to
-    the range 0-255.
-
-    """
-
-    if dtype != 'uint8' and np.nanmax(bands) > 255:
-        norm = Normalize(vmin=np.nanmin(bands), vmax=np.nanmax(bands))
-        scaled = np.around(norm(bands) * 255.0)
-        raster = scaled.filled(0).astype('uint8')
-    else:
-        raster = np.nan_to_num(bands).astype('uint8')
-
-    return raster
-
-
-def original_dtype(data_array: DataArray) -> str | None:
-    """Return the original input data's type.
-
-    rastero_open retains the input dtype in the encoding dictionary and is used
-    to understand what kind of casts are safe.
-
-    """
-    return data_array.encoding.get('dtype') or data_array.encoding.get('rasterio_dtype')
+    return np.nan_to_num(bands, nan=0).astype('uint8')
 
 
 def convert_singleband_to_raster(
     data_array: NDArray,
     color_palette: ColorPalette | None = None,
-) -> tuple[NDArray, ColorMap]:
+) -> tuple[NDArray, ColorMap, np.uint8]:
     """Convert input dataset to a 1-band palettized image with colormap.
 
     Uses a palette if provided otherwise returns a greyscale image.
@@ -471,20 +449,23 @@ def convert_singleband_to_raster(
     return scale_paletted_1band(data_array, color_palette)
 
 
-def scale_grey_1band(data_array: NDArray) -> tuple[NDArray, ColorMap]:
+def scale_grey_1band(data_array: NDArray) -> tuple[NDArray, ColorMap, np.uint8]:
     """Normalize input array and return scaled data with greyscale ColorMap."""
     band = data_array[0, :, :]
-    norm = Normalize(vmin=np.nanmin(band), vmax=np.nanmax(band))
 
     # Scale input data from 0 to 254
-    normalized_data = np.array(norm(band)) * 254.0
+    norm = Normalize(vmin=np.nanmin(band), vmax=np.nanmax(band))
+    normalized_data = norm(band) * 254.0
 
-    # Set any missing to missing
-    normalized_data[np.isnan(band)] = NODATA_IDX
+    # Set any missing (nan) to palette's NODATA_IDX
+    result = np.round(normalized_data)
+    result[np.isnan(band)] = NODATA_IDX
 
-    grey_colormap = greyscale_colormap()
-    raster_data = np.expand_dims(np.round(normalized_data).data, 0)
-    return np.array(raster_data, dtype='uint8'), grey_colormap
+    return (
+        result.astype('uint8')[np.newaxis, :, :],
+        greyscale_colormap(),
+        np.uint8(NODATA_IDX),
+    )
 
 
 def convert_singleband_to_rgb(
@@ -504,18 +485,41 @@ def convert_singleband_to_rgb(
 def scale_grey_1band_to_rgb(data_array: NDArray) -> tuple[NDArray, None]:
     """Normalize input array and return as 3-band RGB grayscale image."""
     band = data_array[0, :, :]
+
+    # Scale input data from 0 to 254. Note that this means nodata and
+    # the valid data min will occupy the same color level
     norm = Normalize(vmin=np.nanmin(band), vmax=np.nanmax(band))
+    normalized_data = norm(band) * 254.0
 
-    # Scale input data from 0 to 254 (palettized data is 254-level quantized)
-    normalized_data = np.array(norm(band)) * 254.0
-
-    # Set any missing to 0 (black), no transparency
+    # Set any missing (nan) to 0 black
     normalized_data[np.isnan(band)] = 0
 
     grey_data = np.round(normalized_data).astype('uint8')
-    rgb_data = np.stack([grey_data, grey_data, grey_data], axis=0)
+    return np.stack([grey_data, grey_data, grey_data], axis=0), None
 
-    return rgb_data, None
+
+def prepare_palette_colors(
+    palette: ColorPalette, with_alpha: bool = True
+) -> tuple[list[tuple], tuple, int | None]:
+    """Extract colors and nodata handling from a palette.
+
+    Returns:
+        Tuple of (colors_list, nodata_color, nodata_index_or_none)
+    """
+    colors = [
+        palette.color_to_color_entry(value, with_alpha=with_alpha)
+        for value in palette.pal.values()
+    ]
+
+    nodata_color = (0, 0, 0, 0) if with_alpha else (0, 0, 0)
+    nodata_index = None
+
+    if palette.ndv is not None:
+        nodata_color = palette.color_to_color_entry(palette.ndv, with_alpha=with_alpha)
+        if palette.ndv in palette.pal.values():
+            nodata_index = list(palette.pal.values()).index(palette.ndv)
+
+    return colors, nodata_color, nodata_index
 
 
 def scale_paletted_1band_to_rgb(
@@ -524,16 +528,10 @@ def scale_paletted_1band_to_rgb(
     """Scale a 1-band image with palette into RGB image for JPEG output."""
     band = data_array[0, :, :]
     levels = list(palette.pal.keys())
-    colors = [
-        palette.color_to_color_entry(value, with_alpha=True)
-        for value in palette.pal.values()
-    ]
-    norm = BoundaryNorm(levels, len(levels) - 1)
+    colors, nodata_color, _ = prepare_palette_colors(palette, with_alpha=False)
+    colors_array = np.array(colors, dtype='uint8')
 
-    # handle palette no data value
-    nodata_color = (0, 0, 0)
-    if palette.ndv is not None:
-        nodata_color = palette.color_to_color_entry(palette.ndv, with_alpha=True)
+    norm = BoundaryNorm(levels, len(levels) - 1)
 
     # Store NaN mask before normalization
     nan_mask = np.isnan(band)
@@ -541,71 +539,57 @@ def scale_paletted_1band_to_rgb(
     # Replace NaN with first level to avoid issues during normalization
     band_clean = np.where(nan_mask, levels[0], band)
 
-    # Apply normalization to get palette indices
-    indexed_band = norm(band_clean)
+    # Get palette indices and clip to valid range
+    indexed_band = np.clip(norm(band_clean), 0, len(colors) - 1).astype(int)
 
-    # Clip indices to valid range [0, len(colors)-1]
-    indexed_band = np.clip(indexed_band, 0, len(colors) - 1)
+    # Vectorized color lookup
+    rgb_array = colors_array[indexed_band].transpose(2, 0, 1)
 
-    # Create RGB output array
-    height, width = band.shape
-    rgb_array = np.zeros((3, height, width), dtype='uint8')
-
-    # Apply colors based on palette indices
-    for i, color in enumerate(colors):
-        mask = indexed_band == i
-        rgb_array[0, mask] = color[0]  # Red
-        rgb_array[1, mask] = color[1]  # Green
-        rgb_array[2, mask] = color[2]  # Blue
-
-    # Handle NaN/nodata values (overwrite any color assignment)
+    # Handle nodata (overwrite any color assignment)
     if nan_mask.any():
         rgb_array[0, nan_mask] = nodata_color[0]
         rgb_array[1, nan_mask] = nodata_color[1]
         rgb_array[2, nan_mask] = nodata_color[2]
 
-    return rgb_array, None
+    return np.ascontiguousarray(rgb_array), None
 
 
 def scale_paletted_1band(
     data_array: NDArray, palette: ColorPalette
-) -> tuple[NDArray, ColorMap]:
+) -> tuple[NDArray, ColorMap, np.uint8]:
     """Scale a 1-band image with palette into modified image and associated color_map.
 
     Use the palette's levels and values, transform the input data_array into
-    the correct levels indexed from 0-255 return the scaled array along side of
+    the correct levels indexed from 0-255 return the scaled array alongside
     a colormap corresponding to the new levels.
 
     Values below the minimum palette level are clipped to the lowest color.
     Values above the maximum palette level are clipped to the highest color.
     Only NaN values are mapped to the nodata index.
+
+    Returns:
+        Tuple of (raster_data, color_map, nodata_index)
     """
-    global DST_NODATA
-    # print(data_array)
     band = data_array[0, :, :]
     levels = list(palette.pal.keys())
-    colors = [
-        palette.color_to_color_entry(value, with_alpha=True)
-        for value in palette.pal.values()
-    ]
-    norm = BoundaryNorm(levels, len(levels) - 1)
+    colors, nodata_color, existing_nodata_idx = prepare_palette_colors(
+        palette, with_alpha=True
+    )
 
-    # handle palette no data value
-    nodata_color = (0, 0, 0, 0)
-    if palette.ndv is not None:
-        nodata_color = palette.color_to_color_entry(palette.ndv, with_alpha=True)
-        # Check if nodata color already exists in palette
-        if palette.ndv in palette.pal.values():
-            DST_NODATA = np.uint8(list(palette.pal.values()).index(palette.ndv))
-            # Don't add nodata_color; it's already in colors
-        else:
-            # Nodata not in palette, add it at the beginning
-            DST_NODATA = np.uint8(0)
-            colors = [nodata_color, *colors]
+    # Determine where nodata sits in the final colormap
+    if existing_nodata_idx is not None:
+        # Don't add nodata_color; it's already in colors
+        dst_nodata = np.uint8(existing_nodata_idx)
+    elif palette.ndv is not None:
+        # Nodata not in palette, add it at the beginning
+        dst_nodata = np.uint8(0)
+        colors = [nodata_color, *colors]
     else:
         # if there is no ndv, add one to the end of the colormap
-        DST_NODATA = np.uint8(len(colors))
+        dst_nodata = np.uint8(len(colors))
         colors = [*colors, nodata_color]
+
+    norm = BoundaryNorm(levels, len(levels) - 1)
 
     nan_mask = np.isnan(band)
     if band.flags.writeable:
@@ -616,23 +600,24 @@ def scale_paletted_1band(
     scaled_band = norm(band_clean)
 
     # Apply offset and clip to valid palette range
-    if DST_NODATA == 0:
+    if dst_nodata == 0:
         # boundary norm indexes [0, levels) by default, so if the NODATA index is 0,
         # all the palette indices need to be incremented by 1.
         scaled_band = scaled_band + 1
         np.clip(scaled_band, 1, len(colors) - 1, out=scaled_band)
     else:
-        # Palette occupies indices 0 to DST_NODATA-1
-        np.clip(scaled_band, 0, DST_NODATA - 1, out=scaled_band)
+        # Palette occupies indices 0 to dst_nodata-1
+        np.clip(scaled_band, 0, dst_nodata - 1, out=scaled_band)
 
     # Only set NaN values to nodata index
-    scaled_band[nan_mask] = DST_NODATA
+    scaled_band[nan_mask] = dst_nodata
 
     del nan_mask
     del band_clean
 
     color_map = colormap_from_colors(colors)
-    return scaled_band.data.astype('uint8')[np.newaxis, :, :], color_map
+    raster = scaled_band.data.astype('uint8')[np.newaxis, :, :]
+    return raster, color_map, dst_nodata
 
 
 def image_driver(mime: str) -> str:
@@ -647,7 +632,7 @@ def get_aux_xml_filename(image_filename: Path) -> Path:
     return image_filename.with_suffix(image_filename.suffix + '.aux.xml')
 
 
-def get_tiled_filename(input_file: Path, locator: dict | None = None) -> Path:
+def get_tiled_filename(input_file: Path, locator: dict[str, int] | None = None) -> Path:
     """Add a column, row identifier to the output files.
 
     Only update if there is a valid locator dict.
@@ -708,6 +693,7 @@ def write_georaster_as_browse(
     src_crs: rasterio.CRS,
     src_transform: rasterio.Affine,
     color_map: dict | None,
+    dst_nodata: int | np.uint8,
     grid_parameters: GridParams,
     logger: Logger,
     driver: str = 'PNG',
@@ -723,14 +709,6 @@ def write_georaster_as_browse(
     """
     n_bands = raster.shape[0]
 
-    if color_map is not None:
-        # DST_NODATA is a global that was set earlier in scale_grey_1band or
-        # scale_paletted_1band
-        dst_nodata = DST_NODATA
-    else:
-        # for banded data set each band's destination nodata to zero (TRANSPARENT).
-        dst_nodata = TRANSPARENT
-
     creation_options = {
         **grid_parameters,
         'driver': driver,
@@ -738,7 +716,7 @@ def write_georaster_as_browse(
         'count': n_bands,
     }
 
-    dest_array = get_destination(grid_parameters, n_bands)
+    dst_array = get_destination(grid_parameters, n_bands)
 
     logger.info(f'Create output image with options: {creation_options}')
 
@@ -746,16 +724,16 @@ def write_georaster_as_browse(
         for dim in range(0, n_bands):
             reproject(
                 source=raster[dim, :, :],
-                destination=dest_array[dim, :, :],
+                destination=dst_array[dim, :, :],
                 src_transform=src_transform,
                 src_crs=src_crs,
                 dst_transform=grid_parameters['transform'],
                 dst_crs=grid_parameters['crs'],
-                dst_nodata=dst_nodata,
+                dst_nodata=int(dst_nodata),
                 resampling=Resampling.nearest,
             )
 
-        dst_raster.write(dest_array)
+        dst_raster.write(dst_array)
         if color_map is not None:
             dst_raster.write_colormap(1, color_map)
 

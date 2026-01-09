@@ -7,18 +7,18 @@ from unittest import TestCase
 from unittest.mock import call, patch
 
 import numpy as np
+import rasterio
 from harmony_service_lib.exceptions import ForbiddenException
 from harmony_service_lib.message import Message
 from harmony_service_lib.util import config
 from pystac import Catalog
 from rasterio.transform import array_bounds, from_bounds
 from rasterio.warp import Resampling
-from rioxarray import open_rasterio
 
 from harmony_service.adapter import BrowseImageGeneratorAdapter
 from harmony_service.exceptions import HyBIGServiceError
 from hybig.browse import (
-    convert_mulitband_to_raster,
+    convert_multiband_to_raster,
 )
 from tests.utilities import Granule, create_stac
 
@@ -194,16 +194,16 @@ class TestAdapter(TestCase):
         # input CRS is preferred 4326,
         # Scale Extent from icd
         # dimensions from input data
-        rio_data_array = open_rasterio(self.red_tif_fixture)
+        rio_data_array = rasterio.open(self.red_tif_fixture)
         left, bottom, right, top = array_bounds(
-            rio_data_array.rio.width,
-            rio_data_array.rio.height,
-            rio_data_array.rio.transform(),
+            rio_data_array.shape[0],
+            rio_data_array.shape[1],
+            rio_data_array.transform,
         )
         image_scale_extent = {'xmin': left, 'ymin': bottom, 'xmax': right, 'ymax': top}
 
-        expected_width = round((right - left) / rio_data_array.rio.transform().a)
-        expected_height = round((top - bottom) / -rio_data_array.rio.transform().e)
+        expected_width = round((right - left) / rio_data_array.transform.a)
+        expected_height = round((top - bottom) / -rio_data_array.transform.e)
         expected_transform = from_bounds(
             image_scale_extent['xmin'],
             image_scale_extent['ymin'],
@@ -216,14 +216,14 @@ class TestAdapter(TestCase):
         expected_params = {
             'width': expected_width,
             'height': expected_height,
-            'crs': rio_data_array.rio.crs,
+            'crs': rio_data_array.crs,
             'transform': expected_transform,
             'driver': 'JPEG',
             'dtype': 'uint8',
             'dst_nodata': 255,
             'count': 3,
         }
-        raster = convert_mulitband_to_raster(rio_data_array)
+        raster = convert_multiband_to_raster(rio_data_array.read())
 
         dest = np.full(
             (expected_params['height'], expected_params['width']),
@@ -235,8 +235,8 @@ class TestAdapter(TestCase):
             call(
                 source=raster[0, :, :],
                 destination=dest,
-                src_transform=rio_data_array.rio.transform(),
-                src_crs=rio_data_array.rio.crs,
+                src_transform=rio_data_array.transform,
+                src_crs=rio_data_array.crs,
                 dst_transform=expected_params['transform'],
                 dst_crs=expected_params['crs'],
                 dst_nodata=expected_params['dst_nodata'],
@@ -245,8 +245,8 @@ class TestAdapter(TestCase):
             call(
                 source=raster[1, :, :],
                 destination=dest,
-                src_transform=rio_data_array.rio.transform(),
-                src_crs=rio_data_array.rio.crs,
+                src_transform=rio_data_array.transform,
+                src_crs=rio_data_array.crs,
                 dst_transform=expected_params['transform'],
                 dst_crs=expected_params['crs'],
                 dst_nodata=expected_params['dst_nodata'],
@@ -255,8 +255,8 @@ class TestAdapter(TestCase):
             call(
                 source=raster[2, :, :],
                 destination=dest,
-                src_transform=rio_data_array.rio.transform(),
-                src_crs=rio_data_array.rio.crs,
+                src_transform=rio_data_array.transform,
+                src_crs=rio_data_array.crs,
                 dst_transform=expected_params['transform'],
                 dst_crs=expected_params['crs'],
                 dst_nodata=expected_params['dst_nodata'],
@@ -429,16 +429,16 @@ class TestAdapter(TestCase):
         # input CRS is preferred 4326,
         # Scale Extent from icd
         # dimensions from input data
-        rio_data_array = open_rasterio(self.red_tif_fixture)
+        rio_data_array = rasterio.open(self.red_tif_fixture)
         left, bottom, right, top = array_bounds(
-            rio_data_array.rio.width,
-            rio_data_array.rio.height,
-            rio_data_array.rio.transform(),
+            rio_data_array.shape[0],
+            rio_data_array.shape[1],
+            rio_data_array.transform,
         )
         image_scale_extent = {'xmin': left, 'ymin': bottom, 'xmax': right, 'ymax': top}
 
-        expected_width = round((right - left) / rio_data_array.rio.transform().a)
-        expected_height = round((top - bottom) / -rio_data_array.rio.transform().e)
+        expected_width = round((right - left) / rio_data_array.transform.a)
+        expected_height = round((top - bottom) / -rio_data_array.transform.e)
         expected_transform = from_bounds(
             image_scale_extent['xmin'],
             image_scale_extent['ymin'],
@@ -451,14 +451,14 @@ class TestAdapter(TestCase):
         expected_params = {
             'width': expected_width,
             'height': expected_height,
-            'crs': rio_data_array.rio.crs,
+            'crs': rio_data_array.crs,
             'transform': expected_transform,
             'driver': 'PNG',
             'dtype': 'uint8',
             'dst_nodata': 0,
             'count': 3,
         }
-        raster = convert_mulitband_to_raster(rio_data_array)
+        raster = convert_multiband_to_raster(rio_data_array.read())
 
         dest = np.full(
             (expected_params['height'], expected_params['width']),
@@ -470,8 +470,8 @@ class TestAdapter(TestCase):
             call(
                 source=raster[band, :, :],
                 destination=dest,
-                src_transform=rio_data_array.rio.transform(),
-                src_crs=rio_data_array.rio.crs,
+                src_transform=rio_data_array.transform,
+                src_crs=rio_data_array.crs,
                 dst_transform=expected_params['transform'],
                 dst_crs=expected_params['crs'],
                 dst_nodata=expected_params['dst_nodata'],

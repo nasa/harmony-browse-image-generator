@@ -18,7 +18,8 @@ from hybig.exceptions import (
     HyBIGNoColorInformation,
 )
 
-ColorMap = dict[uint8, tuple[uint8, uint8, uint8, uint8]]
+# Can be tuple[uint8 * 4] for rgba or tuple[uint8 * 3] for rgb
+ColorMap = dict[uint8, tuple]
 
 # Constants for output PNG images
 # Applied to transparent pixels where alpha < 255
@@ -141,6 +142,7 @@ def all_black_color_map() -> ColorMap:
 def colormap_from_colors(
     colors: list[tuple[int, int, int, int] | tuple[int, int, int]],
 ) -> ColorMap:
+    """Return a ColorMap object from a list of colors read from a color map."""
     color_map = {}
     for idx, rgba in enumerate(colors):
         color_map[uint8(idx)] = rgba
@@ -148,6 +150,7 @@ def colormap_from_colors(
 
 
 def greyscale_colormap() -> ColorMap:
+    """Return a simple greyscale ColorMap."""
     color_map = {}
     for idx in range(255):
         color_map[uint8(idx)] = (uint8(idx), uint8(idx), uint8(idx), OPAQUE)

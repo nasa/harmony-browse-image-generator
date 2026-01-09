@@ -5,12 +5,13 @@ from shutil import rmtree
 from tempfile import TemporaryDirectory
 from textwrap import dedent
 from unittest import TestCase
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
+import rasterio
 from affine import Affine
 from harmony_service_lib.message import SRS
 from rasterio.crs import CRS
-from rioxarray import open_rasterio
+from rasterio.io import DatasetReader
 
 from hybig.crs import (
     PREFERRED_CRS,
@@ -84,11 +85,9 @@ WKT_EPSG_6050 = dedent(
 class TestCrs(TestCase):
     """A class that tests the crs module."""
 
-    @classmethod
     def setUp(self):
         self.temp_dir = Path(TemporaryDirectory().name)
 
-    @classmethod
     def tearDown(self):
         if self.temp_dir.exists():
             rmtree(self.temp_dir)
@@ -97,14 +96,16 @@ class TestCrs(TestCase):
         """Test SRS has an epsg code."""
         expected_CRS = CRS.from_epsg(6932)
         test_srs = SRS({'epsg': 'EPSG:6932'})
-        actual_CRS = choose_target_crs(test_srs, None)
+        ds = Mock(DatasetReader)
+        actual_CRS = choose_target_crs(test_srs, ds)
         self.assertEqual(expected_CRS, actual_CRS)
 
     def test_choose_target_crs_with_wkt_from_harmony_message(self):
         """Test SRS has wkt string."""
         expected_CRS = CRS.from_epsg(6050)
         test_srs = SRS({'wkt': WKT_EPSG_6050})
-        actual_CRS = choose_target_crs(test_srs, None)
+        ds = Mock(DatasetReader)
+        actual_CRS = choose_target_crs(test_srs, ds)
         self.assertEqual(expected_CRS, actual_CRS)
 
     def test_choose_target_crs_with_proj4_from_harmony_message_and_empty_epsg(self):
@@ -119,14 +120,16 @@ class TestCrs(TestCase):
                 'epsg': '',
             }
         )
-        actual_CRS = choose_target_crs(test_srs, None)
+        ds = Mock(DatasetReader)
+        actual_CRS = choose_target_crs(test_srs, ds)
         self.assertEqual(expected_CRS, actual_CRS)
 
     def test_choose_target_crs_with_invalid_SRS_from_harmony_message(self):
         """Test SRS does not have epsg, wkt or proj4 string."""
-        test_srs_is_json = {'how': 'did this happen?'}
+        test_srs_is_json = SRS({'how': 'did this happen?'})
+        ds = Mock(DatasetReader)
         with self.assertRaisesRegex(HyBIGValueError, 'Bad input SRS'):
-            choose_target_crs(test_srs_is_json, None)
+            choose_target_crs(test_srs_is_json, ds)
 
     @patch('hybig.crs.choose_crs_from_metadata')
     def test_choose_target_harmony_message_has_crs_but_no_srs(self, mock_choose_fxn):
@@ -137,10 +140,10 @@ class TestCrs(TestCase):
 
         """
         test_srs = None
-        in_dataset = {'test': 'object'}
+        ds = Mock(DatasetReader)
 
-        choose_target_crs(test_srs, in_dataset)
-        mock_choose_fxn.assert_called_once_with(in_dataset)
+        choose_target_crs(test_srs, ds)
+        mock_choose_fxn.assert_called_once_with(ds)
 
     def test_choose_target_crs_with_preferred_metadata_north(self):
         """Check that preferred metadata for northern projection is found."""
@@ -152,7 +155,7 @@ class TestCrs(TestCase):
             transform=Affine(25000.0, 0.0, -3850000.0, 0.0, -25000.0, 5850000.0),
             dtype='uint16',
         ) as tmp_file:
-            with open_rasterio(tmp_file) as rio_data_array:
+            with rasterio.open(tmp_file) as rio_data_array:
                 actual_CRS = choose_target_crs(None, rio_data_array)
 
                 self.assertEqual(expected_CRS, actual_CRS)
@@ -166,7 +169,7 @@ class TestCrs(TestCase):
             transform=Affine.scale(500, 300),
             dtype='uint16',
         ) as tmp_file:
-            with open_rasterio(tmp_file) as rio_data_array:
+            with rasterio.open(tmp_file) as rio_data_array:
                 actual_CRS = choose_target_crs(None, rio_data_array)
 
                 self.assertEqual(expected_CRS, actual_CRS)
@@ -178,7 +181,7 @@ class TestCrs(TestCase):
             count=3,
             crs=CRS.from_proj4('+proj=longlat +datum=WGS84 +no_defs +type=crs'),
         ) as tmp_file:
-            with open_rasterio(tmp_file) as rio_data_array:
+            with rasterio.open(tmp_file) as rio_data_array:
                 actual_CRS = choose_target_crs(None, rio_data_array)
 
                 self.assertEqual(expected_CRS, actual_CRS)
@@ -190,7 +193,7 @@ class TestCrs(TestCase):
         input_CRS = CRS.from_wkt(WKT_EPSG_3411)
 
         with rasterio_test_file(crs=input_CRS) as tmp_file:
-            with open_rasterio(tmp_file) as rio_data_array:
+            with rasterio.open(tmp_file) as rio_data_array:
                 actual_CRS = choose_target_crs(None, rio_data_array)
                 self.assertEqual(expected_CRS, actual_CRS)
 
@@ -201,8 +204,8 @@ class TestCrs(TestCase):
         input_CRS = CRS.from_string(ease_grid_2_south)
 
         with rasterio_test_file(crs=input_CRS) as tmp_file:
-            with open_rasterio(tmp_file) as rio_data_array:
-                actual_CRS = choose_best_crs_from_metadata(rio_data_array.rio.crs)
+            with rasterio.open(tmp_file) as rio_data_array:
+                actual_CRS = choose_best_crs_from_metadata(rio_data_array.crs)
                 self.assertEqual(expected_CRS, actual_CRS)
 
     def test_choose_target_crs_from_metadata_global(self):
@@ -212,8 +215,8 @@ class TestCrs(TestCase):
         input_CRS = CRS.from_string(ease_grid_2_global)
 
         with rasterio_test_file(crs=input_CRS) as tmp_file:
-            with open_rasterio(tmp_file) as rio_data_array:
-                actual_CRS = choose_best_crs_from_metadata(rio_data_array.rio.crs)
+            with rasterio.open(tmp_file) as rio_data_array:
+                actual_CRS = choose_best_crs_from_metadata(rio_data_array.crs)
                 self.assertEqual(expected_CRS, actual_CRS)
 
     def test_multiple_crs_from_metadata(self):

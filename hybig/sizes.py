@@ -12,6 +12,7 @@ from collections import namedtuple
 from typing import TypedDict
 
 import numpy as np
+import rasterio
 from affine import Affine
 from harmony_service_lib.message import Message
 from harmony_service_lib.message_utility import (
@@ -20,7 +21,6 @@ from harmony_service_lib.message_utility import (
     has_scale_sizes,
 )
 from rasterio import DatasetReader
-from rasterio.crs import CRS
 from rasterio.transform import AffineTransformer, from_bounds, from_origin
 from rasterio.warp import transform_bounds
 
@@ -34,7 +34,7 @@ class GridParams(TypedDict):
 
     height: int
     width: int
-    crs: CRS
+    crs: rasterio.CRS
     transform: Affine
 
 
@@ -130,7 +130,7 @@ def get_target_grid_parameters(message: Message, src_ds: DatasetReader) -> GridP
 
 
 def choose_scale_extent(
-    message: Message, dst_crs: CRS, src_ds: DatasetReader
+    message: Message, dst_crs: rasterio.CRS, src_ds: DatasetReader
 ) -> ScaleExtent:
     """Return the scaleExtent for the target image.
 
@@ -168,7 +168,10 @@ def choose_scale_extent(
 
 
 def choose_target_dimensions(
-    message: Message, src_ds: DatasetReader, scale_extent: ScaleExtent, target_crs: CRS
+    message: Message,
+    src_ds: DatasetReader,
+    scale_extent: ScaleExtent,
+    target_crs: rasterio.CRS,
 ) -> Dimensions:
     """This selects or computes the target Dimensions.
 
@@ -195,7 +198,7 @@ def choose_target_dimensions(
     elif has_scale_sizes(message):
         dimensions = compute_target_dimensions(
             scale_extent,
-            message.format.scaleSize.x,
+            message.format.scaleSize.x,  # type: ignore
             message.format.scaleSize.y,  # type: ignore
         )
     else:
@@ -205,7 +208,7 @@ def choose_target_dimensions(
 
 
 def get_rasterio_parameters(
-    crs: CRS, scale_extent: ScaleExtent, dimensions: Dimensions
+    crs: rasterio.CRS, scale_extent: ScaleExtent, dimensions: Dimensions
 ) -> GridParams:
     """Convert the grid into rasterio consumable format.
 
@@ -329,12 +332,12 @@ def needs_tiling(grid_parameters: GridParams) -> bool:
 
     From discussion, this limit is set to 8192*8192 cells.
     """
-    MAX_UNTILED_GRIDCELLS = 8192 * 8192
-    return grid_parameters['height'] * grid_parameters['width'] > MAX_UNTILED_GRIDCELLS
+    max_untiled_gridcells = 8192 * 8192
+    return grid_parameters['height'] * grid_parameters['width'] > max_untiled_gridcells
 
 
 def best_guess_target_dimensions(
-    src_ds: DatasetReader, scale_extent: ScaleExtent, target_crs: CRS
+    src_ds: DatasetReader, scale_extent: ScaleExtent, target_crs: rasterio.CRS
 ) -> Dimensions:
     """Return best guess for output image dimensions.
 
@@ -355,7 +358,7 @@ def best_guess_target_dimensions(
 
 
 def resolution_in_target_crs_units(
-    src_ds: DatasetReader, target_crs: CRS
+    src_ds: DatasetReader, target_crs: rasterio.CRS
 ) -> tuple[float, float]:
     """Return the x and y target resolutions
 

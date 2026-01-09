@@ -4,6 +4,13 @@ HyBIG follows semantic versioning. All notable changes to this project will be
 documented in this file. The format is based on [Keep a
 Changelog](http://keepachangelog.com/en/1.0.0/).
 
+## [unreleased]
+
+### Changed
+
+* Refactored code be more memory efficient, reducing peak memory usage when processing large granules by about 90% at no performance hit. This is accomplished by fundamentally changing the way data is read, doing away with rioxarray and instead using rasterio directly. The DatasetReader allows for windowed reads into the source data, at the expense of having to reimplement the mask_and_scale functionality that is provided by rioxarray.
+* Minor changes related to resolving tech debt and code quality improvements throughout.
+
 ## [v2.5.1] - 2026-01-06
 
 ### Changed
