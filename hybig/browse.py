@@ -226,12 +226,11 @@ def process_tile(
     src_crs = src_ds.crs
     src_transform = src_ds.window_transform(src_window)
 
-    dst_nodata: int | np.uint8
+    dst_nodata = TRANSPARENT
 
     if band_count == 1:
         if output_driver == 'JPEG':
             raster, color_map = convert_singleband_to_rgb(tile_source, color_palette)
-            dst_nodata = TRANSPARENT  # Not really used for JPEG
         else:
             raster, color_map, dst_nodata = convert_singleband_to_raster(
                 tile_source, color_palette
@@ -239,7 +238,6 @@ def process_tile(
     else:
         raster = convert_multiband_to_raster(tile_source)
         color_map = None
-        dst_nodata = TRANSPARENT
         if output_driver == 'JPEG':
             raster = raster[0:3, :, :]
 
@@ -584,10 +582,16 @@ def scale_paletted_1band(
         # Nodata not in palette, add it at the beginning
         dst_nodata = np.uint8(0)
         colors = [nodata_color, *colors]
+        # This check is done explicitly since some colormaps may be <256 elements
+        if len(colors) > 256:
+            colors = colors[:-1]
     else:
         # if there is no ndv, add one to the end of the colormap
         dst_nodata = np.uint8(len(colors))
         colors = [*colors, nodata_color]
+        # This check is done explicitly since some colormaps may be <256 elements
+        if len(colors) > 256:
+            colors = [*colors[:-2], nodata_color]
 
     norm = BoundaryNorm(levels, len(levels) - 1)
 
