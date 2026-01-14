@@ -12,20 +12,16 @@ from harmony_service_lib.message import Message as HarmonyMessage
 from harmony_service_lib.message import Source as HarmonySource
 from numpy.testing import assert_array_equal, assert_equal
 from osgeo_utils.auxiliary.color_palette import ColorPalette
-from PIL import Image
 from rasterio import Affine
 from rasterio.crs import CRS
 from rasterio.io import DatasetReader, DatasetWriter
-from rasterio.transform import array_bounds
 from rasterio.warp import Resampling
-from xarray import DataArray
 
 from hybig.browse import (
-    convert_mulitband_to_raster,
+    convert_multiband_to_raster,
     convert_singleband_to_raster,
     create_browse,
     create_browse_imagery,
-    get_color_map_from_image,
     get_tiled_filename,
     output_image_file,
     output_world_file,
@@ -149,27 +145,24 @@ class TestBrowse(TestCase):
 
     @patch('hybig.browse.reproject')
     @patch('rasterio.open')
-    @patch('hybig.browse.open_rasterio')
-    def test_create_browse_imagery_with_mocks(
-        self, rioxarray_open_mock, rasterio_open_mock, reproject_mock
-    ):
+    def test_create_browse_imagery_with_mocks(self, rasterio_open_mock, reproject_mock):
         file_transform = Affine(90.0, 0.0, -180.0, 0.0, -45.0, 90.0)
-        da_mock = MagicMock(DataArray)
-        in_dataset_mock = Mock(DatasetReader)
-        da_mock.rio._manager.acquire.return_value = in_dataset_mock
+        ds = Mock(spec=DatasetReader)
 
-        dest_write_mock = Mock(DatasetWriter)
+        dest_write_mock = Mock(spec=DatasetWriter)
 
-        da_mock.__getitem__.return_value = self.data
-        in_dataset_mock.driver = 'GTiff'
-        da_mock.rio.height = 4
-        da_mock.rio.width = 4
-        da_mock.rio.transform.return_value = file_transform
-        da_mock.rio.crs = CRS.from_string('EPSG:4326')
-        da_mock.rio.count = 1
-        in_dataset_mock.colormap = Mock(side_effect=ValueError)
-
-        da_mock.rio.transform_bounds.return_value = array_bounds(4, 4, file_transform)
+        ds.read.return_value = self.data[np.newaxis, :, :]
+        ds.driver = 'GTiff'
+        ds.shape = (4, 4)
+        ds.transform = file_transform
+        ds.crs = CRS.from_string('EPSG:4326')
+        ds.count = 1
+        ds.colormap = Mock(side_effect=ValueError)
+        ds.bounds = (-180.0, -90.0, 180.0, 90.0)
+        ds.window_transform = Mock(return_value=file_transform)
+        ds.nodatavals = (255,)
+        ds.scales = (1,)
+        ds.offsets = (0,)
 
         expected_raster = np.array(
             [
@@ -183,23 +176,32 @@ class TestBrowse(TestCase):
             dtype='uint8',
         )
 
-        rioxarray_open_mock.return_value.__enter__.side_effect = [
-            da_mock,
-        ]
         rasterio_open_mock.return_value.__enter__.side_effect = [
+            ds,
             dest_write_mock,
         ]
 
         message = HarmonyMessage({'format': {'mime': 'JPEG'}})
 
-        # Act to run the test
-        out_file_list = create_browse_imagery(
-            message,
-            self.tmp_dir / 'input_file_path',
-            HarmonySource({}),
-            None,
-            self.logger,
-        )
+        # More detailed traceback for this test since it's end-to-end
+        try:
+            out_file_list = create_browse_imagery(
+                message,
+                str(self.tmp_dir / 'input_file_path'),
+                HarmonySource({}),
+                None,
+                self.logger,
+            )
+        except HyBIGError as e:
+            import traceback
+
+            print('\n=== Full Traceback ===')
+            traceback.print_exc()
+            print('\n=== Exception Chain ===')
+            print(f'HyBIGError: {e}')
+            if e.__cause__:
+                print(f'Caused by: {type(e.__cause__).__name__}: {e.__cause__}')
+            raise
 
         # Ensure tiling logic was not called:
         self.assertEqual(len(out_file_list), 1)
@@ -207,7 +209,7 @@ class TestBrowse(TestCase):
         actual_image, actual_world, actual_aux = out_file_list[0]
 
         target_transform = Affine(90.0, 0.0, -180.0, 0.0, -45.0, 90.0)
-        dest = np.zeros((da_mock.rio.height, da_mock.rio.width), dtype='uint8')
+        dest = np.zeros((ds.shape[0], ds.shape[1]), dtype='uint8')
 
         # For JPEG output with 1-band input, we convert to RGB, so we reproject 3 bands
         self.assertEqual(reproject_mock.call_count, 3)
@@ -218,7 +220,7 @@ class TestBrowse(TestCase):
                 source=expected_raster[0, :, :],
                 destination=dest,
                 src_transform=file_transform,
-                src_crs=da_mock.rio.crs,
+                src_crs=ds.crs,
                 dst_transform=target_transform,
                 dst_crs=CRS.from_string('EPSG:4326'),
                 dst_nodata=0,  # TRANSPARENT for RGB data
@@ -228,7 +230,7 @@ class TestBrowse(TestCase):
                 source=expected_raster[0, :, :],
                 destination=dest,
                 src_transform=file_transform,
-                src_crs=da_mock.rio.crs,
+                src_crs=ds.crs,
                 dst_transform=target_transform,
                 dst_crs=CRS.from_string('EPSG:4326'),
                 dst_nodata=0,  # TRANSPARENT for RGB data
@@ -238,7 +240,7 @@ class TestBrowse(TestCase):
                 source=expected_raster[0, :, :],
                 destination=dest,
                 src_transform=file_transform,
-                src_crs=da_mock.rio.crs,
+                src_crs=ds.crs,
                 dst_transform=target_transform,
                 dst_crs=CRS.from_string('EPSG:4326'),
                 dst_nodata=0,  # TRANSPARENT for RGB data
@@ -295,7 +297,8 @@ class TestBrowse(TestCase):
         """Tests scale_grey_1band."""
         return_data = np.copy(self.data).astype('float64')
         return_data[0][1] = np.nan
-        ds = DataArray(return_data).expand_dims('band')
+        return_data = return_data[np.newaxis, :, :]
+        # ds = DataArray(return_data).expand_dims('band')
 
         expected_raster = np.array(
             [
@@ -308,12 +311,10 @@ class TestBrowse(TestCase):
             ],
             dtype='uint8',
         )
-        actual_raster, _ = convert_singleband_to_raster(ds, None)
+        actual_raster, _, _ = convert_singleband_to_raster(return_data, None)
         assert_array_equal(expected_raster, actual_raster, strict=True)
 
     def test_convert_singleband_to_raster_with_colormap(self):
-        ds = DataArray(self.data).expand_dims('band')
-
         expected_raster = np.array(
             [
                 [  # singleband paletted
@@ -334,14 +335,17 @@ class TestBrowse(TestCase):
         }
         # Read down: red, yellow, green, blue
         image_palette = convert_colormap_to_palette(self.colormap)
-        actual_raster, actual_palette = convert_singleband_to_raster(ds, image_palette)
+        # functional equivalent of DataArray().expand_dims("bands")
+        actual_raster, actual_palette, _ = convert_singleband_to_raster(
+            self.data[np.newaxis, :, :], image_palette
+        )
         assert_array_equal(expected_raster, actual_raster, strict=True)
         assert_equal(expected_palette, actual_palette)
 
     def test_convert_singleband_to_raster_with_colormap_and_bad_data(self):
         data_array = np.array(self.data, dtype='float')
         data_array[0, 0] = np.nan
-        ds = DataArray(data_array).expand_dims('band')
+        data_array = data_array[np.newaxis, :, :]
         nv_color = (10, 20, 30, 40)
 
         # Read the image down: red, yellow, green, blue
@@ -367,7 +371,9 @@ class TestBrowse(TestCase):
         colormap = {**self.colormap, 'nv': nv_color}
 
         image_palette = convert_colormap_to_palette(colormap)
-        actual_raster, actual_palette = convert_singleband_to_raster(ds, image_palette)
+        actual_raster, actual_palette, _ = convert_singleband_to_raster(
+            data_array, image_palette
+        )
         assert_array_equal(expected_raster, actual_raster, strict=True)
         assert_equal(expected_palette, actual_palette)
 
@@ -376,11 +382,7 @@ class TestBrowse(TestCase):
         bad_data = np.copy(self.data).astype('float64')
         bad_data[1][1] = np.nan
         bad_data[1][2] = np.nan
-        ds = DataArray(
-            np.stack([self.data, bad_data, self.data]),
-            dims=('band', 'y', 'x'),
-        )
-        ds.encoding = {'dtype': 'uint16'}
+        data_array = np.stack([self.data, bad_data, self.data]).astype('float64')
 
         expected_raster = np.array(
             [
@@ -412,8 +414,8 @@ class TestBrowse(TestCase):
             dtype='uint8',
         )
 
-        actual_raster = convert_mulitband_to_raster(ds)
-        assert_array_equal(expected_raster, actual_raster.data, strict=True)
+        actual_raster = convert_multiband_to_raster(data_array)
+        assert_array_equal(expected_raster, actual_raster, strict=True)
 
     def test_convert_uint8_3_multiband_to_raster(self):
         """Ensure valid data is unchanged when input is uint8."""
@@ -426,11 +428,7 @@ class TestBrowse(TestCase):
             ]
         ).astype('float32')
 
-        ds = DataArray(
-            np.stack([scale_data, scale_data, scale_data]),
-            dims=('band', 'y', 'x'),
-        )
-        ds.encoding = {'dtype': 'uint8'}
+        data_array = np.stack([scale_data, scale_data, scale_data]).astype('float64')
 
         expected_data = scale_data.copy()
         expected_data[1][1] = 0
@@ -451,14 +449,11 @@ class TestBrowse(TestCase):
             dtype='uint8',
         )
 
-        actual_raster = convert_mulitband_to_raster(ds)
-        assert_array_equal(expected_raster, actual_raster.data, strict=True)
+        actual_raster = convert_multiband_to_raster(data_array)
+        assert_array_equal(expected_raster, actual_raster, strict=True)
 
     def test_convert_4_multiband_uint8_to_raster(self):
         """4-band 'uint8' images are returned unchanged."""
-        ds = Mock(DataArray)
-        ds.rio.count = 4
-
         r_data = np.array(
             [
                 [10, 200, 30, 40],
@@ -474,20 +469,15 @@ class TestBrowse(TestCase):
         a_data = np.ones_like(r_data) * 255
         a_data[0, 0] = 0
 
-        to_numpy_result = np.stack([r_data, g_data, b_data, a_data])
+        data_array = np.stack([r_data, g_data, b_data, a_data])
 
-        ds.to_numpy.return_value = to_numpy_result
+        expected_raster = data_array
 
-        expected_raster = to_numpy_result
-
-        actual_raster = convert_mulitband_to_raster(ds)
-        assert_array_equal(expected_raster, actual_raster.data, strict=True)
+        actual_raster = convert_multiband_to_raster(data_array)
+        assert_array_equal(expected_raster, actual_raster, strict=True)
 
     def test_convert_4_multiband_uint16_to_raster(self):
         """4-band 'uint16' images are scaled if their range exceeds 255."""
-        ds = Mock(DataArray)
-        ds.rio.count = 4
-
         r_data = np.array(
             [
                 [10, 200, 300, 400],
@@ -502,23 +492,19 @@ class TestBrowse(TestCase):
         a_data = np.ones_like(self.data) * OPAQUE
         a_data[0, 0] = TRANSPARENT
 
-        to_numpy_result = np.stack([r_data, g_data, b_data, a_data])
-
-        ds.to_numpy.return_value = to_numpy_result
+        data_array = np.stack([r_data, g_data, b_data, a_data])
 
         # expect the input data to have the data values from 0 to 400 to be
         # scaled into the range 0 to 255.
         expected_raster = np.around(
-            np.interp(to_numpy_result, (0, 400), (0.0, 1.0)) * 255.0
+            np.interp(data_array, (0, 400), (0.0, 1.0)) * 255.0
         ).astype('uint8')
 
-        actual_raster = convert_mulitband_to_raster(ds)
-        assert_array_equal(expected_raster, actual_raster.data, strict=True)
+        actual_raster = convert_multiband_to_raster(data_array)
+        assert_array_equal(expected_raster, actual_raster, strict=True)
 
     def test_convert_4_multiband_masked_to_raster(self):
         """4-band images are returned with nan -> 0"""
-        ds = Mock(DataArray)
-        ds.rio.count = 4
         nan = np.nan
         input_array = np.array(
             [
@@ -549,7 +535,6 @@ class TestBrowse(TestCase):
             ],
             dtype=np.float32,
         )
-        ds.to_numpy.return_value = input_array
 
         expected_raster = np.array(
             [
@@ -581,58 +566,19 @@ class TestBrowse(TestCase):
             dtype=np.uint8,
         )
 
-        actual_raster = convert_mulitband_to_raster(ds)
-        assert_array_equal(expected_raster.data, actual_raster.data, strict=True)
+        actual_raster = convert_multiband_to_raster(input_array)
+        assert_array_equal(expected_raster, actual_raster, strict=True)
 
     def test_convert_5_multiband_to_raster(self):
-        ds = Mock(DataArray)
-        ds.rio.count = 5
-        ds.to_numpy.return_value = np.stack(
-            [self.data, self.data, self.data, self.data, self.data]
-        )
+        data_array = np.stack([self.data, self.data, self.data, self.data, self.data])
 
         with self.assertRaises(HyBIGError) as excepted:
-            convert_mulitband_to_raster(ds)
+            convert_multiband_to_raster(data_array)
 
         self.assertEqual(
             excepted.exception.message,
             'Cannot create image from 5 band image. Expecting 3 or 4 bands.',
         )
-
-    def test_get_color_map_from_image(self):
-        """PIL Image yields a color_map
-
-        A palette from an PIL Image is correctly turned into a colormap
-        writable by rasterio.
-
-        """
-        # random image with values of 0 to 4.
-        image_data = self.random.integers(5, size=(5, 6), dtype='uint8')
-        # fmt: off
-        palette_sequence = [
-            255, 0, 0, 255,
-            0, 255, 0, 255,
-            0, 0, 255, 255,
-            225, 100, 25, 25,
-            0, 0, 0, 0
-        ]
-        # fmt: on
-        test_image = Image.fromarray(image_data)
-        test_image.putpalette(palette_sequence, rawmode='RGBA')
-
-        expected_color_map = {
-            **{
-                0: (255, 0, 0, 255),
-                1: (0, 255, 0, 255),
-                2: (0, 0, 255, 255),
-                3: (225, 100, 25, 25),
-                4: (0, 0, 0, 0),
-            },
-            **{idx: (0, 0, 0, 255) for idx in range(5, 256)},
-        }
-
-        actual_color_map = get_color_map_from_image(test_image)
-        self.assertDictEqual(expected_color_map, actual_color_map)
 
     def test_get_color_palette_map_exists_source_does_not(self):
         ds = Mock(DatasetReader)
@@ -706,19 +652,19 @@ class TestBrowse(TestCase):
 
     def test_validate_file_crs_valid(self):
         """Valid file should return None."""
-        da = Mock(DataArray)
-        da.rio.crs = CRS.from_epsg(4326)
+        ds = Mock(DatasetReader)
+        ds.crs = CRS.from_epsg(4326)
         try:
-            validate_file_crs(da)
+            validate_file_crs(ds)
         except Exception:
             self.fail('Valid file threw unexpected exception.')
 
     def test_validate_file_crs_missing(self):
         """Invalid file should raise exception."""
-        da = Mock(DataArray)
-        da.rio.crs = None
+        ds = Mock(DatasetReader)
+        ds.crs = None
         with self.assertRaisesRegex(HyBIGError, 'Input geotiff must have defined CRS.'):
-            validate_file_crs(da)
+            validate_file_crs(ds)
 
     def test_validate_file_type_valid(self):
         """Validation should not raise exception."""
@@ -790,7 +736,8 @@ class TestBrowse(TestCase):
                 [-100, 0, 150, 250],
             ]
         ).astype('float64')
-        ds = DataArray(data_with_underflow).expand_dims('band')
+        # functional equivalent of DataArray().expand_dims("bands")
+        data_with_underflow = data_with_underflow[np.newaxis, :, :]
 
         # Expected: underflow values (-50, 50, 0, -100) should map to index 0
         # which is the lowest color (red at value 100)
@@ -807,7 +754,7 @@ class TestBrowse(TestCase):
         )
 
         image_palette = convert_colormap_to_palette(self.colormap)
-        actual_raster, _ = scale_paletted_1band(ds, image_palette)
+        actual_raster, _, _ = scale_paletted_1band(data_with_underflow, image_palette)
         assert_array_equal(expected_raster, actual_raster, strict=True)
 
     def test_scale_paletted_1band_clips_overflow_values(self):
@@ -824,7 +771,8 @@ class TestBrowse(TestCase):
                 [300, 350, 400, 800],
             ]
         ).astype('float64')
-        ds = DataArray(data_with_overflow).expand_dims('band')
+        # functional equivalent of DataArray().expand_dims("bands")
+        data_with_overflow = data_with_overflow[np.newaxis, :, :]
 
         # Expected: overflow values (500, 600, 1000, 800) should map to index 3
         # which is the highest color (blue at value 400)
@@ -841,7 +789,7 @@ class TestBrowse(TestCase):
         )
 
         image_palette = convert_colormap_to_palette(self.colormap)
-        actual_raster, _ = scale_paletted_1band(ds, image_palette)
+        actual_raster, _, _ = scale_paletted_1band(data_with_overflow, image_palette)
         assert_array_equal(expected_raster, actual_raster, strict=True)
 
     def test_scale_paletted_1band_with_nan_and_clipping(self):
@@ -857,7 +805,8 @@ class TestBrowse(TestCase):
                 [-100, 250, np.nan, 800],
             ]
         ).astype('float64')
-        ds = DataArray(data_mixed).expand_dims('band')
+        # functional equivalent of DataArray().expand_dims("bands")
+        data_mixed = data_mixed[np.newaxis, :, :]
 
         # Expected: NaN -> 4 (nodata), underflow -> 0, overflow -> 3
         expected_raster = np.array(
@@ -873,7 +822,9 @@ class TestBrowse(TestCase):
         )
 
         image_palette = convert_colormap_to_palette(self.colormap)
-        actual_raster, actual_palette = scale_paletted_1band(ds, image_palette)
+        actual_raster, actual_palette, _ = scale_paletted_1band(
+            data_mixed, image_palette
+        )
         assert_array_equal(expected_raster, actual_raster, strict=True)
 
         # Verify nodata color is transparent
@@ -891,10 +842,11 @@ class TestBrowse(TestCase):
                 [100, 200, 300, 400],
             ]
         ).astype('float64')
-        ds = DataArray(data_with_underflow).expand_dims('band')
+        # functional equivalent of DataArray().expand_dims("bands")
+        data_with_underflow = data_with_underflow[np.newaxis, :, :]
 
         image_palette = convert_colormap_to_palette(self.colormap)
-        actual_rgb, _ = scale_paletted_1band_to_rgb(ds, image_palette)
+        actual_rgb, _ = scale_paletted_1band_to_rgb(data_with_underflow, image_palette)
 
         # Values -50 and 50 should get red color (255, 0, 0)
         # which is the lowest color in the palette
@@ -917,10 +869,11 @@ class TestBrowse(TestCase):
                 [300, 400, 800, 1500],
             ]
         ).astype('float64')
-        ds = DataArray(data_with_overflow).expand_dims('band')
+        # functional equivalent of DataArray().expand_dims("bands")
+        data_with_overflow = data_with_overflow[np.newaxis, :, :]
 
         image_palette = convert_colormap_to_palette(self.colormap)
-        actual_rgb, _ = scale_paletted_1band_to_rgb(ds, image_palette)
+        actual_rgb, _ = scale_paletted_1band_to_rgb(data_with_overflow, image_palette)
 
         # Values 500, 600, 1000, 800, 1500 should get blue color (0, 0, 255)
         # which is the highest color in the palette
@@ -945,10 +898,11 @@ class TestBrowse(TestCase):
                 [50, 200, np.nan, 1000],
             ]
         ).astype('float64')
-        ds = DataArray(data_mixed).expand_dims('band')
+        # functional equivalent of DataArray().expand_dims("bands")
+        data_mixed = data_mixed[np.newaxis, :, :]
 
         image_palette = convert_colormap_to_palette(self.colormap)
-        actual_rgb, _ = scale_paletted_1band_to_rgb(ds, image_palette)
+        actual_rgb, _ = scale_paletted_1band_to_rgb(data_mixed, image_palette)
 
         # NaN should map to nodata color (0, 0, 0)
         self.assertEqual(actual_rgb[0, 0, 0], 0)  # Red for NaN at (0,0)

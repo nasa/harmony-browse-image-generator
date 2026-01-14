@@ -18,15 +18,16 @@ from hybig.exceptions import (
     HyBIGNoColorInformation,
 )
 
-ColorMap = dict[uint8, tuple[uint8, uint8, uint8, uint8]]
+# Can be tuple[uint8 * 4] for rgba or tuple[uint8 * 3] for rgb
+ColorMap = dict[uint8, tuple]
 
 # Constants for output PNG images
 # Applied to transparent pixels where alpha < 255
 TRANSPARENT = uint8(0)
 OPAQUE = uint8(255)
 # Applied to off grid areas during reprojection
-NODATA_RGBA = (0, 0, 0, 0)
-NODATA_IDX = 255
+NODATA_RGBA = (uint8(0), uint8(0), uint8(0), TRANSPARENT)
+NODATA_IDX = OPAQUE
 
 
 def remove_alpha(raster: np.ndarray) -> tuple[np.ndarray, np.ndarray | None]:
@@ -68,8 +69,8 @@ def get_color_palette_from_item(item: Item) -> ColorPalette | None:
 
 
 def get_color_palette(
-    dataset: DatasetReader,
-    source: HarmonySource = None,
+    src_ds: DatasetReader,
+    source: HarmonySource,
     item_color_palette: ColorPalette | None = None,
 ) -> ColorPalette | None:
     """Get a color palette for the single band image
@@ -90,9 +91,9 @@ def get_color_palette(
         return get_remote_palette_from_source(source)
     except HyBIGNoColorInformation:
         try:
-            ds_cmap = dataset.colormap(1)
+            ds_cmap = src_ds.colormap(1)
             # very defensive since this function is not documented in rasterio
-            ndv_tuple: tuple[float, ...] = dataset.get_nodatavals()
+            ndv_tuple: tuple[float, ...] = src_ds.get_nodatavals()
             if ndv_tuple is not None and len(ndv_tuple) > 0:
                 # this service only supports one ndv, so just use the first one
                 # (usually the only one)
@@ -104,17 +105,18 @@ def get_color_palette(
             return None
 
 
-def get_remote_palette_from_source(source: HarmonySource) -> dict:
+def get_remote_palette_from_source(source: HarmonySource) -> ColorPalette:
     """Get a colormap from a remote url
 
     Checks the HarmonySource object for a URL to download a color map for the
     input raster.
 
     """
+    remote_colortable_url = ''
     try:
-        if len(source.variables) != 1:
+        if len(source.variables) != 1:  # type: ignore
             raise TypeError('Palette must come from a single variable')
-        variable = source.variables[0]
+        variable = source.variables[0]  # type: ignore
         remote_colortable_url = next(
             r_url.url
             for r_url in variable.relatedUrls
@@ -134,22 +136,24 @@ def get_remote_palette_from_source(source: HarmonySource) -> dict:
 
 def all_black_color_map() -> ColorMap:
     """Return a full length rgba color map with all black values."""
-    return {idx: (0, 0, 0, 255) for idx in range(256)}
+    return {uint8(idx): (uint8(0), uint8(0), uint8(0), OPAQUE) for idx in range(256)}
 
 
 def colormap_from_colors(
-    colors: list[tuple[uint8, uint8, uint8, uint8]],
+    colors: list[tuple[int, int, int, int] | tuple[int, int, int]],
 ) -> ColorMap:
+    """Return a ColorMap object from a list of colors read from a color map."""
     color_map = {}
     for idx, rgba in enumerate(colors):
-        color_map[idx] = rgba
+        color_map[uint8(idx)] = rgba
     return color_map
 
 
 def greyscale_colormap() -> ColorMap:
+    """Return a simple greyscale ColorMap."""
     color_map = {}
     for idx in range(255):
-        color_map[idx] = (idx, idx, idx, 255)
+        color_map[uint8(idx)] = (uint8(idx), uint8(idx), uint8(idx), OPAQUE)
     color_map[NODATA_IDX] = NODATA_RGBA
     return color_map
 

@@ -12,6 +12,7 @@ from collections import namedtuple
 from typing import TypedDict
 
 import numpy as np
+import rasterio
 from affine import Affine
 from harmony_service_lib.message import Message
 from harmony_service_lib.message_utility import (
@@ -19,11 +20,9 @@ from harmony_service_lib.message_utility import (
     has_scale_extents,
     has_scale_sizes,
 )
-
-# pylint: disable-next=no-name-in-module
-from rasterio.crs import CRS
+from rasterio import DatasetReader
 from rasterio.transform import AffineTransformer, from_bounds, from_origin
-from xarray import DataArray
+from rasterio.warp import transform_bounds
 
 from hybig.crs import (
     choose_target_crs,
@@ -35,7 +34,7 @@ class GridParams(TypedDict):
 
     height: int
     width: int
-    crs: CRS
+    crs: rasterio.CRS
     transform: Affine
 
 
@@ -109,7 +108,7 @@ epsg_3413_resolutions = [
 epsg_3031_resolutions = epsg_3413_resolutions
 
 
-def get_target_grid_parameters(message: Message, data_array: DataArray) -> GridParams:
+def get_target_grid_parameters(message: Message, src_ds: DatasetReader) -> GridParams:
     """Get the output image parameters.
 
     This computes the target grid of the ouptut image. The grid is defined by
@@ -122,16 +121,16 @@ def get_target_grid_parameters(message: Message, data_array: DataArray) -> GridP
     - Computed parameters attempt to generate GIBS suitable images.
 
     """
-    target_crs = choose_target_crs(message.format.srs, data_array)
-    target_scale_extent = choose_scale_extent(message, target_crs, data_array)
+    target_crs = choose_target_crs(message.format.srs, src_ds)
+    target_scale_extent = choose_scale_extent(message, target_crs, src_ds)
     target_dimensions = choose_target_dimensions(
-        message, data_array, target_scale_extent, target_crs
+        message, src_ds, target_scale_extent, target_crs
     )
     return get_rasterio_parameters(target_crs, target_scale_extent, target_dimensions)
 
 
 def choose_scale_extent(
-    message: Message, target_crs: CRS, data_array: DataArray
+    message: Message, dst_crs: rasterio.CRS, src_ds: DatasetReader
 ) -> ScaleExtent:
     """Return the scaleExtent for the target image.
 
@@ -145,26 +144,34 @@ def choose_scale_extent(
         # These values must be in the target_crs projection.
         scale_extent = ScaleExtent(
             {
-                'xmin': message.format.scaleExtent.x.min,
-                'ymin': message.format.scaleExtent.y.min,
-                'xmax': message.format.scaleExtent.x.max,
-                'ymax': message.format.scaleExtent.y.max,
+                'xmin': message.format.scaleExtent.x.min,  # type: ignore
+                'ymin': message.format.scaleExtent.y.min,  # type: ignore
+                'xmax': message.format.scaleExtent.x.max,  # type: ignore
+                'ymax': message.format.scaleExtent.y.max,  # type: ignore
             }
         )
     else:
-        left, bottom, right, top = data_array.rio.transform_bounds(target_crs)
+        left, bottom, right, top = transform_bounds(src_ds.crs, dst_crs, *src_ds.bounds)
 
         # Correct for antimeridian crossing.
         if left > right:
             right = right + 360
         scale_extent = ScaleExtent(
-            {'xmin': left, 'ymin': bottom, 'xmax': right, 'ymax': top}
+            {
+                'xmin': left,
+                'ymin': min(bottom, top),
+                'xmax': right,
+                'ymax': max(bottom, top),
+            }
         )
     return scale_extent
 
 
 def choose_target_dimensions(
-    message: Message, data_array: DataArray, scale_extent: ScaleExtent, target_crs: CRS
+    message: Message,
+    src_ds: DatasetReader,
+    scale_extent: ScaleExtent,
+    target_crs: rasterio.CRS,
 ) -> Dimensions:
     """This selects or computes the target Dimensions.
 
@@ -186,20 +193,22 @@ def choose_target_dimensions(
     """
     if has_dimensions(message):
         dimensions = Dimensions(
-            {'height': message.format.height, 'width': message.format.width}
+            {'height': message.format.height, 'width': message.format.width}  # type: ignore
         )
     elif has_scale_sizes(message):
         dimensions = compute_target_dimensions(
-            scale_extent, message.format.scaleSize.x, message.format.scaleSize.y
+            scale_extent,
+            message.format.scaleSize.x,  # type: ignore
+            message.format.scaleSize.y,  # type: ignore
         )
     else:
-        dimensions = best_guess_target_dimensions(data_array, scale_extent, target_crs)
+        dimensions = best_guess_target_dimensions(src_ds, scale_extent, target_crs)
 
     return dimensions
 
 
 def get_rasterio_parameters(
-    crs: CRS, scale_extent: ScaleExtent, dimensions: Dimensions
+    crs: rasterio.CRS, scale_extent: ScaleExtent, dimensions: Dimensions
 ) -> GridParams:
     """Convert the grid into rasterio consumable format.
 
@@ -323,12 +332,12 @@ def needs_tiling(grid_parameters: GridParams) -> bool:
 
     From discussion, this limit is set to 8192*8192 cells.
     """
-    MAX_UNTILED_GRIDCELLS = 8192 * 8192
-    return grid_parameters['height'] * grid_parameters['width'] > MAX_UNTILED_GRIDCELLS
+    max_untiled_gridcells = 8192 * 8192
+    return grid_parameters['height'] * grid_parameters['width'] > max_untiled_gridcells
 
 
 def best_guess_target_dimensions(
-    data_array: DataArray, scale_extent: ScaleExtent, target_crs: CRS
+    src_ds: DatasetReader, scale_extent: ScaleExtent, target_crs: rasterio.CRS
 ) -> Dimensions:
     """Return best guess for output image dimensions.
 
@@ -344,12 +353,12 @@ def best_guess_target_dimensions(
     else:
         resolution_list = epsg_3413_resolutions
 
-    x_res, y_res = resolution_in_target_crs_units(data_array, target_crs)
+    x_res, y_res = resolution_in_target_crs_units(src_ds, target_crs)
     return guess_dimensions(x_res, y_res, scale_extent, resolution_list)
 
 
 def resolution_in_target_crs_units(
-    data_array: DataArray, target_crs: CRS
+    src_ds: DatasetReader, target_crs: rasterio.CRS
 ) -> tuple[float, float]:
     """Return the x and y target resolutions
 
@@ -361,17 +370,17 @@ def resolution_in_target_crs_units(
     the user has not supplied any input parameters and we are trying to
     determine the dimensions for the output image.
     """
-    if data_array.rio.crs.is_projected == target_crs.is_projected:
-        x_res = data_array.rio.transform().a
-        y_res = abs(data_array.rio.transform().e)
+    if src_ds.crs.is_projected == target_crs.is_projected:
+        x_res = src_ds.transform.a
+        y_res = abs(src_ds.transform.e)
     elif target_crs.is_projected:
         # transform from latlon to meters
-        x_res = data_array.rio.transform().a * METERS_PER_DEGREE
-        y_res = abs(data_array.rio.transform().e) * METERS_PER_DEGREE
+        x_res = src_ds.transform.a * METERS_PER_DEGREE
+        y_res = abs(src_ds.transform.e) * METERS_PER_DEGREE
     else:
         # transform from meters to lat/lon
-        x_res = data_array.rio.transform().a / METERS_PER_DEGREE
-        y_res = abs(data_array.rio.transform().e) / METERS_PER_DEGREE
+        x_res = src_ds.transform.a / METERS_PER_DEGREE
+        y_res = abs(src_ds.transform.e) / METERS_PER_DEGREE
 
     return x_res, y_res
 
@@ -418,14 +427,14 @@ def compute_target_dimensions(
 
 def find_closest_resolution(
     resolutions: list[float], resolution_info: list[ResolutionInfo]
-) -> ResolutionInfo | None:
+) -> ResolutionInfo:
     """Return closest match to GIBS preferred Resolution Info.
 
     Cycle through all input resolutions and return the resolution_info that has
     the smallest absolute difference to any of the input resolutions.
 
     """
-    best_info = None
+    best_info = resolution_info[0]
     smallest_diff = np.inf
     for res in resolutions:
         for info in resolution_info:

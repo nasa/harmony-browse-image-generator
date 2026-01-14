@@ -213,7 +213,7 @@ class TestColorUtility(TestCase):
         item_palette = convert_colormap_to_palette(self.colormap)
         expected_palette = item_palette
 
-        actual_palette = get_color_palette({}, {}, item_palette)
+        actual_palette = get_color_palette(ds, HarmonySource({}), item_palette)
         self.assertEqual(expected_palette, actual_palette)
         get_remote_palette_from_source_mock.assert_not_called()
         ds.colormap.assert_not_called()
@@ -327,15 +327,21 @@ class TestColorUtility(TestCase):
         # that matches one of our colormap keys
         ds.get_nodatavals.return_value = (100,)
 
-        actual_palette = get_color_palette(ds, None, None)
+        actual_palette = get_color_palette(ds, HarmonySource({}), None)
 
         get_remote_palette_from_source_mock.assert_called_once()
         ds.colormap.assert_called_once_with(1)
         ds.get_nodatavals.assert_called_once()
 
+        self.assertIsNotNone(actual_palette)
         # Compare the actual and expected palettes
-        self.assertEqual(actual_palette.get_color(200), encode_color(0, 255, 0, 255))
-        self.assertEqual(actual_palette.get_color('nv'), encode_color(255, 0, 0, 255))
+        if actual_palette is not None:
+            self.assertEqual(
+                actual_palette.get_color(200), encode_color(0, 255, 0, 255)
+            )
+            self.assertEqual(
+                actual_palette.get_color('nv'), encode_color(255, 0, 0, 255)
+            )
 
     def test_convert_colormap_to_palette_3bands(self):
         input_colormap = {
