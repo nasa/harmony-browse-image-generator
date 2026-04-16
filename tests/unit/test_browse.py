@@ -25,6 +25,8 @@ from hybig.browse import (
     get_tiled_filename,
     output_image_file,
     output_world_file,
+    process_tile,
+    read_window_with_mask_and_scale,
     validate_file_crs,
     validate_file_type,
 )
@@ -36,6 +38,7 @@ from hybig.color_utility import (
     palette_from_remote_colortable,
 )
 from hybig.exceptions import HyBIGError
+from hybig.sizes import GridParams
 from tests.unit.utility import rasterio_test_file
 
 
@@ -292,6 +295,170 @@ class TestBrowse(TestCase):
             (self.tmp_dir / 'input_file_path.jpg.aux.xml').resolve(),
             actual_aux.resolve(),
         )
+
+    def test_read_window_with_mask_and_scale_passes_out_shape(self):
+        """Test that the out_shape parameter is forwarded to src_ds.read."""
+        ds = Mock(spec=DatasetReader)
+        window = MagicMock()
+        ds.read.return_value = np.ones((1, 2, 4), dtype='float64')
+        ds.count = 1
+        ds.nodatavals = (None,)
+        ds.scales = (1,)
+        ds.offsets = (0,)
+
+        out_shape = (1, 2, 4)
+        result = read_window_with_mask_and_scale(ds, window, out_shape=out_shape)
+
+        ds.read.assert_called_once_with([1], window=window, out_shape=out_shape)
+        self.assertEqual(result.shape, (1, 2, 4))
+
+    def test_read_window_with_mask_and_scale_without_out_shape(self):
+        """Test that without out_shape, src_ds.read is called without it."""
+        ds = Mock(spec=DatasetReader)
+        window = MagicMock()
+        ds.read.return_value = np.ones((1, 4, 4), dtype='float64')
+        ds.count = 1
+        ds.nodatavals = (None,)
+        ds.scales = (1,)
+        ds.offsets = (0,)
+
+        result = read_window_with_mask_and_scale(ds, window)
+
+        ds.read.assert_called_once_with([1], window=window)
+        self.assertEqual(result.shape, (1, 4, 4))
+
+    @patch('hybig.browse.reproject')
+    @patch('rasterio.open')
+    def test_process_tile_downsamples_read_for_coarser_output(
+        self, rasterio_open_mock, reproject_mock
+    ):
+        """Test process_tile reads at output resolution when output is coarser
+        than source.
+
+        This is the memory fix: a 36000x18000 source with a 1280x2560 output
+        should not load the full-resolution source into memory.
+        """
+        # Source: 1° pixels, 10x10
+        src_affine = Affine(1.0, 0.0, -5.0, 0.0, -1.0, 5.0)
+        ds = Mock(spec=DatasetReader)
+        ds.crs = CRS.from_string('EPSG:4326')
+        ds.transform = src_affine
+        ds.shape = (10, 10)
+        ds.count = 1
+        ds.nodatavals = (None,)
+        ds.scales = (1,)
+        ds.offsets = (0,)
+        # Return data at the downsampled (2x2) size
+        ds.read.return_value = np.array([[[0, 100], [200, 255]]], dtype='float64')
+        ds.window_transform.return_value = src_affine
+
+        dest_write_mock = Mock(spec=DatasetWriter)
+        rasterio_open_mock.return_value.__enter__.return_value = dest_write_mock
+
+        # Output: 5° pixels, 2x2 — coarser than source
+        out_affine = Affine(5.0, 0.0, -5.0, 0.0, -5.0, 5.0)
+        grid_params = GridParams(
+            {
+                'height': 2,
+                'width': 2,
+                'crs': CRS.from_string('EPSG:4326'),
+                'transform': out_affine,
+            }
+        )
+
+        process_tile(
+            ds,
+            grid_params,
+            None,
+            'PNG',
+            self.tmp_dir / 'output.png',
+            self.tmp_dir / 'output.pgw',
+            self.logger,
+        )
+
+        # Source window covers the full 10x10 source (with buffer, clamped).
+        # read_width  = min(10, round(10 * 1.0 / 5.0)) = 2
+        # read_height = min(10, round(10 * 1.0 / 5.0)) = 2
+        ds.read.assert_called_once()
+        read_kwargs = ds.read.call_args.kwargs
+        self.assertIn('out_shape', read_kwargs)
+        _bands, read_height, read_width = read_kwargs['out_shape']
+        self.assertEqual(read_width, 2)
+        self.assertEqual(read_height, 2)
+
+        # src_transform passed to reproject must have 5° pixel size (scaled from 1°)
+        self.assertEqual(reproject_mock.call_count, 1)
+        actual_src_transform = reproject_mock.call_args.kwargs['src_transform']
+        self.assertAlmostEqual(actual_src_transform.a, 5.0)
+        self.assertAlmostEqual(abs(actual_src_transform.e), 5.0)
+        self.assertAlmostEqual(actual_src_transform.c, -5.0)  # origin unchanged
+
+    @patch('hybig.browse.reproject')
+    @patch('rasterio.open')
+    def test_process_tile_full_res_when_resolutions_match(
+        self, rasterio_open_mock, reproject_mock
+    ):
+        """Test process_tile reads at full resolution when source matches
+        output resolution.
+        """
+        src_affine = Affine(90.0, 0.0, -180.0, 0.0, -45.0, 90.0)
+        ds = Mock(spec=DatasetReader)
+        ds.crs = CRS.from_string('EPSG:4326')
+        ds.transform = src_affine
+        ds.shape = (4, 4)
+        ds.count = 1
+        ds.nodatavals = (None,)
+        ds.scales = (1,)
+        ds.offsets = (0,)
+        ds.read.return_value = np.array(
+            [
+                [
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                    [0, 85, 170, 255],
+                ]
+            ],
+            dtype='float64',
+        )
+        ds.window_transform.return_value = src_affine
+
+        dest_write_mock = Mock(spec=DatasetWriter)
+        rasterio_open_mock.return_value.__enter__.return_value = dest_write_mock
+
+        # Output: same 90°/45° pixels as source — no downsampling expected
+        grid_params = GridParams(
+            {
+                'height': 4,
+                'width': 4,
+                'crs': CRS.from_string('EPSG:4326'),
+                'transform': src_affine,
+            }
+        )
+
+        process_tile(
+            ds,
+            grid_params,
+            None,
+            'PNG',
+            self.tmp_dir / 'output.png',
+            self.tmp_dir / 'output.pgw',
+            self.logger,
+        )
+
+        # read_width  = min(4, round(4 * 90/90)) = 4  (no downsampling)
+        # read_height = min(4, round(4 * 45/45)) = 4
+        ds.read.assert_called_once()
+        read_kwargs = ds.read.call_args.kwargs
+        self.assertIn('out_shape', read_kwargs)
+        _bands, read_height, read_width = read_kwargs['out_shape']
+        self.assertEqual(read_width, 4)
+        self.assertEqual(read_height, 4)
+
+        # src_transform should be unchanged (scale factor of 1.0)
+        self.assertEqual(reproject_mock.call_count, 1)
+        actual_src_transform = reproject_mock.call_args.kwargs['src_transform']
+        self.assertEqual(actual_src_transform, src_affine)
 
     def test_convert_singleband_to_raster_without_colortable(self):
         """Tests scale_grey_1band."""
