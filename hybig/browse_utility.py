@@ -18,6 +18,7 @@ def get_harmony_message_from_params(params: dict | None) -> HarmonyMessage:
     scale_size = params.get('scale_size', None)
     height = params.get('height', None)
     width = params.get('width', None)
+    interp = params.get('interpolation', None)
 
     return HarmonyMessage(
         {
@@ -29,6 +30,7 @@ def get_harmony_message_from_params(params: dict | None) -> HarmonyMessage:
                 'scaleSize': scale_size,
                 'height': height,
                 'width': width,
+                'interpolation': interp,
             },
         }
     )

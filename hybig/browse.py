@@ -2,7 +2,7 @@
 
 import re
 from itertools import zip_longest
-from logging import Logger, getLogger
+from logging import Logger, LoggerAdapter, getLogger
 from pathlib import Path
 
 import numpy as np
@@ -35,6 +35,7 @@ from hybig.sizes import (
     get_target_grid_parameters,
 )
 
+type HarmonyLogger = Logger | LoggerAdapter[Logger]
 DST_NODATA = NODATA_IDX
 
 
@@ -42,7 +43,7 @@ def create_browse(
     source_tiff: str,
     params: dict | None = None,
     palette: str | ColorPalette | None = None,
-    logger: Logger | None = None,
+    logger: HarmonyLogger | None = None,
 ) -> list[tuple[Path, Path, Path]]:
     """Create browse imagery from an input geotiff.
 
@@ -78,7 +79,10 @@ def create_browse(
 
             height: [int | None], height of the output image in gridcells.
 
-            width: [int | none], width of the output image in gridcells.
+            width: [int | None], width of the output image in gridcells.
+
+            interpolation: [str | None], interpolation method used during reprojection
+                options are nearest (default), bilinear, bicubic, average,
 
         palette: [str | ColorPalette | none], either a URL to a remote color palette
              that is fetched and loaded or a ColorPalette object used to color
@@ -143,7 +147,7 @@ def create_browse_imagery(
     input_file_path: str,
     source: HarmonySource,
     item_color_palette: ColorPalette | None,
-    logger: Logger,
+    logger: HarmonyLogger,
 ) -> list[tuple[Path, Path, Path]]:
     """Create browse image from input geotiff.
 
@@ -210,7 +214,7 @@ def process_tile(
     output_driver: str,
     out_file_name: Path,
     out_world_name: Path,
-    logger: Logger,
+    logger: HarmonyLogger,
 ) -> None:
     """Read a region from the source dataset, convert raster, and write output."""
     band_count = src_ds.count
@@ -724,7 +728,7 @@ def write_georaster_as_browse(
     color_map: dict | None,
     dst_nodata: int | np.uint8,
     grid_parameters: GridParams,
-    logger: Logger,
+    logger: HarmonyLogger,
     driver: str = 'PNG',
     out_file_name: str | Path = 'outfile.png',
     out_world_name: str | Path = 'outfile.pgw',

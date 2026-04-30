@@ -23,7 +23,7 @@ def get_tiled_file_extension(file_name: Path) -> str:
     """
     ext_pattern = r'(\.r\d+c\d+)?\.(png|jpg|pgw|jgw|txt)(.aux.xml)?'
     match = re.search(ext_pattern, file_name.name)
-    return match.group()
+    return match.group() if match else ''
 
 
 def get_asset_name(name: str, url: str) -> str:

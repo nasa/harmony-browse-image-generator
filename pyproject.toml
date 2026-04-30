@@ -3,21 +3,20 @@ name = "hybig-py"
 dynamic = ["dependencies", "version"]
 
 authors = [
+  {name="Jacqueline Ryan", email="Jacqueline.Ryan@jpl.nasa.gov"},
   {name="Matt Savoie", email="savoie@colorado.edu"},
   {name="Owen Littlejohns", email="owen.m.littlejohns@nasa.gov"},
-  {name="Jacqueline Ryan", email="Jacqueline.Ryan@jpl.nasa.gov"},
   {name="Mauricio Hess-Flores", email="Mauricio.A.Hess.Flores@jpl.nasa.gov"},
 ]
 
 maintainers = [
   {name="Jacqueline Ryan", email="Jacqueline.Ryan@jpl.nasa.gov"},
-  {name="Mauricio Hess-Flores", email="Mauricio.A.Hess.Flores@jpl.nasa.gov"},
 ]
 
 description = "Python package designed to produce browse imagery compatible with NASA's Global Image Browse Services (GIBS)."
 
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: Apache Software License",

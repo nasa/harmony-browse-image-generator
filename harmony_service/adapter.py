@@ -9,6 +9,7 @@ Global Imagery Browse Services (GIBS) compatible browse imagery.
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Any
 
 from harmony_service_lib import BaseHarmonyAdapter
 from harmony_service_lib.message import Source as HarmonySource
@@ -24,7 +25,7 @@ from harmony_service_lib.util import (
     generate_output_filename,
     stage,
 )
-from pystac import Asset, Catalog, Item
+from pystac import Asset, Item
 
 from harmony_service.exceptions import HyBIGInvalidMessageError, HyBIGServiceError
 from harmony_service.utilities import (
@@ -39,7 +40,7 @@ from hybig.color_utility import get_color_palette_from_item
 class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
     """HyBIG extension to the harmony-service-lib BaseHarmonyAdapter."""
 
-    def invoke(self) -> Catalog:
+    def invoke(self) -> tuple[Any, Any]:
         """Adds validation to process_item based invocations."""
         self.validate_message()
         return super().invoke()
