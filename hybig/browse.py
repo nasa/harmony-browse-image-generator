@@ -184,7 +184,7 @@ def create_browse_imagery(
                 tiled_out_aux_xml_file = get_aux_xml_filename(tiled_out_image_file)
                 logger.info(f'out image file: {tiled_out_image_file}: {tile_location}')
 
-                process_tile(
+                if process_tile(
                     src_ds,
                     grid_params,
                     color_palette,
@@ -192,10 +192,14 @@ def create_browse_imagery(
                     tiled_out_image_file,
                     tiled_out_world_file,
                     logger,
-                )
-                processed_files.append(
-                    (tiled_out_image_file, tiled_out_world_file, tiled_out_aux_xml_file)
-                )
+                ):
+                    processed_files.append(
+                        (
+                            tiled_out_image_file,
+                            tiled_out_world_file,
+                            tiled_out_aux_xml_file,
+                        )
+                    )
 
     except Exception as exception:
         raise HyBIGError(str(exception)) from exception
@@ -211,15 +215,18 @@ def process_tile(
     out_file_name: Path,
     out_world_name: Path,
     logger: Logger,
-) -> None:
-    """Read a region from the source dataset, convert raster, and write output."""
+) -> bool:
+    """Read a region from the source dataset, convert raster, and write output.
+
+    Returns True if output files were created, False if the tile was skipped.
+    """
     band_count = src_ds.count
 
     src_window = calculate_source_window(src_ds, grid_params)
 
     # Tile is outside source bounds
     if src_window is None:
-        return
+        return False
 
     # Compute downsampled read dimensions: read at output resolution rather than
     # full source resolution, avoiding loading the entire source into memory when
@@ -240,6 +247,13 @@ def process_tile(
     tile_source = read_window_with_mask_and_scale(
         src_ds, src_window, out_shape=(band_count, read_height, read_width)
     )
+
+    # Skip tile if source window contains only NaN (no valid data)
+    if np.all(np.isnan(tile_source)):
+        logger.info(f'Skipping all-NaN tile: {out_file_name}')
+        del tile_source
+        return False
+
     src_crs = src_ds.crs
     # Adjust the window transform to reflect the downsampled pixel size.
     window_transform = src_ds.window_transform(src_window)
@@ -278,6 +292,8 @@ def process_tile(
     # Explicit cleanup
     del raster
     del tile_source
+
+    return True
 
 
 def calculate_source_window(

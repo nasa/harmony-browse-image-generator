@@ -296,6 +296,47 @@ class TestBrowse(TestCase):
             actual_aux.resolve(),
         )
 
+    @patch('rasterio.open')
+    def test_create_browse_imagery_excludes_all_nan_tiles(self, rasterio_open_mock):
+        """Test that all-NaN tiles are excluded from the returned file list.
+
+        When every pixel in the source window is NaN, process_tile should skip
+        writing output for that tile and it should not appear in the returned
+        list of (image, world, aux_xml) tuples.
+        """
+        file_transform = Affine(90.0, 0.0, -180.0, 0.0, -45.0, 90.0)
+        ds = Mock(spec=DatasetReader)
+        ds.read.return_value = np.full((1, 4, 4), np.nan, dtype='float64')
+        ds.driver = 'GTiff'
+        ds.shape = (4, 4)
+        ds.transform = file_transform
+        ds.crs = CRS.from_string('EPSG:4326')
+        ds.count = 1
+        ds.colormap = Mock(side_effect=ValueError)
+        ds.bounds = (-180.0, -90.0, 180.0, 90.0)
+        ds.window_transform = Mock(return_value=file_transform)
+        ds.nodatavals = (None,)
+        ds.scales = (1,)
+        ds.offsets = (0,)
+
+        rasterio_open_mock.return_value.__enter__.return_value = ds
+
+        message = HarmonyMessage({'format': {'mime': 'image/png'}})
+        mock_logger = MagicMock(spec=Logger)
+
+        out_file_list = create_browse_imagery(
+            message,
+            str(self.tmp_dir / 'input_file_path'),
+            HarmonySource({}),
+            None,
+            mock_logger,
+        )
+
+        self.assertEqual(len(out_file_list), 0)
+        mock_logger.info.assert_any_call(
+            f'Skipping all-NaN tile: {self.tmp_dir / "input_file_path.png"}'
+        )
+
     def test_read_window_with_mask_and_scale_passes_out_shape(self):
         """Test that the out_shape parameter is forwarded to src_ds.read."""
         ds = Mock(spec=DatasetReader)
@@ -366,7 +407,7 @@ class TestBrowse(TestCase):
             }
         )
 
-        process_tile(
+        result = process_tile(
             ds,
             grid_params,
             None,
@@ -375,6 +416,8 @@ class TestBrowse(TestCase):
             self.tmp_dir / 'output.pgw',
             self.logger,
         )
+
+        self.assertTrue(result)
 
         # Source window covers the full 10x10 source (with buffer, clamped).
         # read_width  = min(10, round(10 * 1.0 / 5.0)) = 2
@@ -436,7 +479,7 @@ class TestBrowse(TestCase):
             }
         )
 
-        process_tile(
+        result = process_tile(
             ds,
             grid_params,
             None,
@@ -445,6 +488,8 @@ class TestBrowse(TestCase):
             self.tmp_dir / 'output.pgw',
             self.logger,
         )
+
+        self.assertTrue(result)
 
         # read_width  = min(4, round(4 * 90/90)) = 4  (no downsampling)
         # read_height = min(4, round(4 * 45/45)) = 4
@@ -459,6 +504,54 @@ class TestBrowse(TestCase):
         self.assertEqual(reproject_mock.call_count, 1)
         actual_src_transform = reproject_mock.call_args.kwargs['src_transform']
         self.assertEqual(actual_src_transform, src_affine)
+
+    @patch('rasterio.open')
+    def test_process_tile_returns_false_for_all_nan_window(self, rasterio_open_mock):
+        """Test process_tile returns False and skips output for all-NaN windows.
+
+        If the portion of the source dataset that overlaps a tile contains only
+        NaN values (no valid data), the tile should be skipped: no output image
+        or world file is written, the logger records the skip, and the function
+        returns False.
+        """
+        src_affine = Affine(90.0, 0.0, -180.0, 0.0, -45.0, 90.0)
+        ds = Mock(spec=DatasetReader)
+        ds.crs = CRS.from_string('EPSG:4326')
+        ds.transform = src_affine
+        ds.shape = (4, 4)
+        ds.count = 1
+        ds.nodatavals = (None,)
+        ds.scales = (1,)
+        ds.offsets = (0,)
+        ds.read.return_value = np.full((1, 4, 4), np.nan, dtype='float64')
+        ds.window_transform.return_value = src_affine
+
+        mock_logger = MagicMock(spec=Logger)
+
+        grid_params = GridParams(
+            {
+                'height': 4,
+                'width': 4,
+                'crs': CRS.from_string('EPSG:4326'),
+                'transform': src_affine,
+            }
+        )
+
+        result = process_tile(
+            ds,
+            grid_params,
+            None,
+            'PNG',
+            self.tmp_dir / 'output.png',
+            self.tmp_dir / 'output.pgw',
+            mock_logger,
+        )
+
+        self.assertFalse(result)
+        rasterio_open_mock.assert_not_called()
+        mock_logger.info.assert_called_with(
+            f'Skipping all-NaN tile: {self.tmp_dir / "output.png"}'
+        )
 
     def test_convert_singleband_to_raster_without_colortable(self):
         """Tests scale_grey_1band."""
