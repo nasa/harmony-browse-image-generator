@@ -4,9 +4,12 @@ HyBIG follows semantic versioning. All notable changes to this project will be
 documented in this file. The format is based on [Keep a
 Changelog](http://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [2.7.0] - 2026-05-11
+
+### Changed
 
 * [GITC-8962](https://bugs.earthdata.nasa.gov/browse/GITC-8962): Memory and performance optimization for reading data from source when width and height or scale size parameters are not the full resolution of the data.
+* [GITC-9016](https://bugs.earthdata.nasa.gov/browse/GITC-9016): Skip outputting tiles that contain all-NaN pixels as a bug fix and performance optimization.
 
 ## [v2.6.2] - 2026-04-14
 
