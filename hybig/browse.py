@@ -228,59 +228,10 @@ def process_tile(
     if src_window is None:
         return False
 
-    # Compute downsampled read dimensions: read at output resolution rather than
-    # full source resolution, avoiding loading the entire source into memory when
-    # the output is much smaller than the source (e.g. height=1280, width=2560).
-    """
-    #
-    # The read size is driven by how many destination cells the source window
-    # maps to, not by a raw src/dst pixel-size ratio: those pixel sizes may be in
-    # different units (e.g. degrees for EPSG:4326 vs meters for EPSG:3413), and
-    # dividing across units collapses the window to 1x1. Instead, project the
-    # window's bounds into the destination CRS and divide by the destination
-    # pixel size, so both quantities share units.
-    win_width = int(src_window.width)
-    win_height = int(src_window.height)
-
-    win_bounds = src_ds.window_bounds(src_window)  # (l, b, r, t) in src CRS
-    dst_left, dst_bottom, dst_right, dst_top = transform_bounds(
-        src_ds.crs, grid_params['crs'], *win_bounds
-    )
-
-    dst_pixel_x = abs(grid_params['transform'].a)
-    dst_pixel_y = abs(grid_params['transform'].e)
-
-    target_width = max(1, round((dst_right - dst_left) / dst_pixel_x))
-    target_height = max(1, round((dst_top - dst_bottom) / dst_pixel_y))
-
-    # Cap at full window size so we never upsample during the read.
-    read_width = min(win_width, target_width)
-    read_height = min(win_height, target_height)
-
-    # Explicitly load a subset of ds at the target resolution
-    tile_source = read_window_with_mask_and_scale(
-        src_ds, src_window, out_shape=(band_count, read_height, read_width)
-    )
-
-    # Skip tile if source window contains only NaN (no valid data)
-    if np.all(np.isnan(tile_source)):
-        logger.info(f'Skipping all-NaN tile: {out_file_name}')
-        del tile_source
-        return False
-
-    src_crs = src_ds.crs
-    # Adjust the window transform to reflect the downsampled pixel size. The scale
-    # factors are the ratio of native to downsampled read dimensions, collapsing
-    # to (1, 1) when no downsampling occurred.
-    window_transform = src_ds.window_transform(src_window)
-    src_transform = window_transform * Affine.scale(
-        win_width / read_width,
-        win_height / read_height,
-    )
-    """
     read_width = int(src_window.width)
     read_height = int(src_window.height)
-    # Explicitly load a subset of ds at the target resolution
+
+    # Explicitly load a subset of the dataset needed for the browse image tile
     tile_source = read_window_with_mask_and_scale(
         src_ds, src_window, out_shape=(band_count, read_height, read_width)
     )
