@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import rasterio
-from affine import Affine, dumpsw
+from affine import dumpsw
 from harmony_service_lib.message import Message as HarmonyMessage
 from harmony_service_lib.message import Source as HarmonySource
 from matplotlib.colors import BoundaryNorm, Normalize
@@ -228,22 +228,10 @@ def process_tile(
     if src_window is None:
         return False
 
-    # Compute downsampled read dimensions: read at output resolution rather than
-    # full source resolution, avoiding loading the entire source into memory when
-    # the output is much smaller than the source (e.g. height=1280, width=2560).
-    src_pixel_x = abs(src_ds.transform.a)
-    src_pixel_y = abs(src_ds.transform.e)
-    dst_pixel_x = abs(grid_params['transform'].a)
-    dst_pixel_y = abs(grid_params['transform'].e)
+    read_width = int(src_window.width)
+    read_height = int(src_window.height)
 
-    win_height = int(src_window.height)
-    win_width = int(src_window.width)
-
-    # Cap at full window size so we never upsample during the read.
-    read_width = min(win_width, max(1, round(win_width * src_pixel_x / dst_pixel_x)))
-    read_height = min(win_height, max(1, round(win_height * src_pixel_y / dst_pixel_y)))
-
-    # Explicitly load a subset of ds at the target resolution
+    # Explicitly load a subset of the dataset needed for the browse image tile
     tile_source = read_window_with_mask_and_scale(
         src_ds, src_window, out_shape=(band_count, read_height, read_width)
     )
@@ -255,11 +243,7 @@ def process_tile(
         return False
 
     src_crs = src_ds.crs
-    # Adjust the window transform to reflect the downsampled pixel size.
-    window_transform = src_ds.window_transform(src_window)
-    src_transform = window_transform * Affine.scale(
-        win_width / read_width, win_height / read_height
-    )
+    src_transform = src_ds.window_transform(src_window)
 
     dst_nodata = TRANSPARENT
 

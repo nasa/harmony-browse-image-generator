@@ -4,6 +4,14 @@ HyBIG follows semantic versioning. All notable changes to this project will be
 documented in this file. The format is based on [Keep a
 Changelog](http://keepachangelog.com/en/1.0.0/).
 
+## [2.8.0] - 2026-07-17
+
+* [GITC-9047](https://bugs.earthdata.nasa.gov/browse/GITC-9047): Updated adapter code to now log a message when a request produces no data, but not throw a service error. Previously, jobs with no output would produce this error: `WorkItem failed: nasa/harmony-browse-image-generator:2.7.0: list index out of range`
+* [GITC-9048](https://bugs.earthdata.nasa.gov/browse/GITC-9048): Fixed a bug where some granules fail to process due to an inverted latitude coordinate system.
+* [GITC-9148](https://bugs.earthdata.nasa.gov/browse/GITC-9148): Removed an "optimization" when reading from the source data that caused an unintended bug when reprojecting some types of data from EPSG:4326 to EPSG:3413. The consequence of removing this code is that requests for downsampled browse images will use more memory, but this is not a common mode for HyBIG.
+* Update harmony-service-lib to 3.0 and pillow to 12.3.0
+
+
 ## [2.7.0] - 2026-05-11
 
 ### Changed

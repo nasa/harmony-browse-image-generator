@@ -151,7 +151,18 @@ def choose_scale_extent(
             }
         )
     else:
-        left, bottom, right, top = transform_bounds(src_ds.crs, dst_crs, *src_ds.bounds)
+        # Normalize the source bounds before transforming. Some inputs have a
+        # flipped (south-up) geotransform with a positive Y resolution, which
+        # makes src_ds.bounds report top < bottom. transform_bounds requires a
+        # properly ordered box (min/max), otherwise PROJ raises
+        # "latitude max < latitude min."
+        src_left = min(src_ds.bounds.left, src_ds.bounds.right)
+        src_right = max(src_ds.bounds.left, src_ds.bounds.right)
+        src_bottom = min(src_ds.bounds.bottom, src_ds.bounds.top)
+        src_top = max(src_ds.bounds.bottom, src_ds.bounds.top)
+        left, bottom, right, top = transform_bounds(
+            src_ds.crs, dst_crs, src_left, src_bottom, src_right, src_top
+        )
 
         # Correct for antimeridian crossing.
         if left > right:

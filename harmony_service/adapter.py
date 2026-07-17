@@ -121,7 +121,13 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
                 # image_file_list is a list of tuples (image, world, auxiliary)
                 # we need to stage them each individually, and then add their final
                 # locations to a list before creating the stac item.
-                item_assets = []
+                item_assets: list[tuple[str, str, str]] = []
+
+                if not image_file_list:
+                    # If output is empty, log an error message but don't throw an
+                    # Exception, just return an empty stac item
+                    self.logger.error('No output assets produced from HyBIG call.')
+                    return self.create_output_stac_item(item, item_assets)
 
                 for (
                     browse_image_name,

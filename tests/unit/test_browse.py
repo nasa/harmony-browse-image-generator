@@ -13,6 +13,7 @@ from harmony_service_lib.message import Source as HarmonySource
 from numpy.testing import assert_array_equal, assert_equal
 from osgeo_utils.auxiliary.color_palette import ColorPalette
 from rasterio import Affine
+from rasterio.coords import BoundingBox
 from rasterio.crs import CRS
 from rasterio.io import DatasetReader, DatasetWriter
 from rasterio.warp import Resampling
@@ -161,7 +162,7 @@ class TestBrowse(TestCase):
         ds.crs = CRS.from_string('EPSG:4326')
         ds.count = 1
         ds.colormap = Mock(side_effect=ValueError)
-        ds.bounds = (-180.0, -90.0, 180.0, 90.0)
+        ds.bounds = BoundingBox(-180.0, -90.0, 180.0, 90.0)
         ds.window_transform = Mock(return_value=file_transform)
         ds.nodatavals = (255,)
         ds.scales = (1,)
@@ -313,7 +314,7 @@ class TestBrowse(TestCase):
         ds.crs = CRS.from_string('EPSG:4326')
         ds.count = 1
         ds.colormap = Mock(side_effect=ValueError)
-        ds.bounds = (-180.0, -90.0, 180.0, 90.0)
+        ds.bounds = BoundingBox(-180.0, -90.0, 180.0, 90.0)
         ds.window_transform = Mock(return_value=file_transform)
         ds.nodatavals = (None,)
         ds.scales = (1,)
@@ -367,74 +368,6 @@ class TestBrowse(TestCase):
 
         ds.read.assert_called_once_with([1], window=window)
         self.assertEqual(result.shape, (1, 4, 4))
-
-    @patch('hybig.browse.reproject')
-    @patch('rasterio.open')
-    def test_process_tile_downsamples_read_for_coarser_output(
-        self, rasterio_open_mock, reproject_mock
-    ):
-        """Test process_tile reads at output resolution when output is coarser
-        than source.
-
-        This is the memory fix: a 36000x18000 source with a 1280x2560 output
-        should not load the full-resolution source into memory.
-        """
-        # Source: 1° pixels, 10x10
-        src_affine = Affine(1.0, 0.0, -5.0, 0.0, -1.0, 5.0)
-        ds = Mock(spec=DatasetReader)
-        ds.crs = CRS.from_string('EPSG:4326')
-        ds.transform = src_affine
-        ds.shape = (10, 10)
-        ds.count = 1
-        ds.nodatavals = (None,)
-        ds.scales = (1,)
-        ds.offsets = (0,)
-        # Return data at the downsampled (2x2) size
-        ds.read.return_value = np.array([[[0, 100], [200, 255]]], dtype='float64')
-        ds.window_transform.return_value = src_affine
-
-        dest_write_mock = Mock(spec=DatasetWriter)
-        rasterio_open_mock.return_value.__enter__.return_value = dest_write_mock
-
-        # Output: 5° pixels, 2x2 — coarser than source
-        out_affine = Affine(5.0, 0.0, -5.0, 0.0, -5.0, 5.0)
-        grid_params = GridParams(
-            {
-                'height': 2,
-                'width': 2,
-                'crs': CRS.from_string('EPSG:4326'),
-                'transform': out_affine,
-            }
-        )
-
-        result = process_tile(
-            ds,
-            grid_params,
-            None,
-            'PNG',
-            self.tmp_dir / 'output.png',
-            self.tmp_dir / 'output.pgw',
-            self.logger,
-        )
-
-        self.assertTrue(result)
-
-        # Source window covers the full 10x10 source (with buffer, clamped).
-        # read_width  = min(10, round(10 * 1.0 / 5.0)) = 2
-        # read_height = min(10, round(10 * 1.0 / 5.0)) = 2
-        ds.read.assert_called_once()
-        read_kwargs = ds.read.call_args.kwargs
-        self.assertIn('out_shape', read_kwargs)
-        _bands, read_height, read_width = read_kwargs['out_shape']
-        self.assertEqual(read_width, 2)
-        self.assertEqual(read_height, 2)
-
-        # src_transform passed to reproject must have 5° pixel size (scaled from 1°)
-        self.assertEqual(reproject_mock.call_count, 1)
-        actual_src_transform = reproject_mock.call_args.kwargs['src_transform']
-        self.assertAlmostEqual(actual_src_transform.a, 5.0)
-        self.assertAlmostEqual(abs(actual_src_transform.e), 5.0)
-        self.assertAlmostEqual(actual_src_transform.c, -5.0)  # origin unchanged
 
     @patch('hybig.browse.reproject')
     @patch('rasterio.open')
