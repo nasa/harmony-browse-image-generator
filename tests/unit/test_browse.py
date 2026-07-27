@@ -5,7 +5,7 @@ import tempfile
 from logging import Logger, getLogger
 from pathlib import Path
 from unittest import TestCase
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import numpy as np
 from harmony_service_lib.message import Message as HarmonyMessage
@@ -215,78 +215,32 @@ class TestBrowse(TestCase):
         actual_image, actual_world, actual_aux = out_file_list[0]
 
         target_transform = Affine(90.0, 0.0, -180.0, 0.0, -45.0, 90.0)
-        dest = np.zeros((ds.shape[0], ds.shape[1]), dtype='uint8')
 
-        # For JPEG output with 1-band input, we convert to RGB, so we reproject 3 bands
-        self.assertEqual(reproject_mock.call_count, 3)
+        # For JPEG output with 1-band input, we convert to a 3-band RGB raster
+        # and reproject all bands in a single call.
+        self.assertEqual(reproject_mock.call_count, 1)
 
-        # For RGB output, we expect 3 calls (one per band) with TRANSPARENT nodata
-        expected_calls = [
-            call(
-                source=expected_raster[0, :, :],
-                destination=dest,
-                src_transform=file_transform,
-                src_crs=ds.crs,
-                dst_transform=target_transform,
-                dst_crs=CRS.from_string('EPSG:4326'),
-                dst_nodata=0,  # TRANSPARENT for RGB data
-                resampling=Resampling.nearest,
-            ),
-            call(
-                source=expected_raster[0, :, :],
-                destination=dest,
-                src_transform=file_transform,
-                src_crs=ds.crs,
-                dst_transform=target_transform,
-                dst_crs=CRS.from_string('EPSG:4326'),
-                dst_nodata=0,  # TRANSPARENT for RGB data
-                resampling=Resampling.nearest,
-            ),
-            call(
-                source=expected_raster[0, :, :],
-                destination=dest,
-                src_transform=file_transform,
-                src_crs=ds.crs,
-                dst_transform=target_transform,
-                dst_crs=CRS.from_string('EPSG:4326'),
-                dst_nodata=0,  # TRANSPARENT for RGB data
-                resampling=Resampling.nearest,
-            ),
-        ]
+        # The 3 RGB bands are identical copies of the greyscale band.
+        expected_source = np.concatenate(
+            [expected_raster, expected_raster, expected_raster], axis=0
+        )
+        # reproject is mocked, so the destination is left as the zeros
+        # allocated by get_destination.
+        expected_destination = np.zeros((3, ds.shape[0], ds.shape[1]), dtype='uint8')
 
-        for actual_call, expected_call in zip(
-            reproject_mock.call_args_list, expected_calls
-        ):
-            np.testing.assert_array_equal(
-                actual_call.kwargs['source'],
-                expected_call.kwargs['source'],
-                strict=True,
-            )
-            np.testing.assert_array_equal(
-                actual_call.kwargs['destination'],
-                expected_call.kwargs['destination'],
-                strict=True,
-            )
-            self.assertEqual(
-                actual_call.kwargs['src_transform'],
-                expected_call.kwargs['src_transform'],
-            )
-            self.assertEqual(
-                actual_call.kwargs['src_crs'], expected_call.kwargs['src_crs']
-            )
-            self.assertEqual(
-                actual_call.kwargs['dst_transform'],
-                expected_call.kwargs['dst_transform'],
-            )
-            self.assertEqual(
-                actual_call.kwargs['dst_crs'], expected_call.kwargs['dst_crs']
-            )
-            self.assertEqual(
-                actual_call.kwargs['dst_nodata'], expected_call.kwargs['dst_nodata']
-            )
-            self.assertEqual(
-                actual_call.kwargs['resampling'], expected_call.kwargs['resampling']
-            )
+        actual_call = reproject_mock.call_args
+        np.testing.assert_array_equal(
+            actual_call.kwargs['source'], expected_source, strict=True
+        )
+        np.testing.assert_array_equal(
+            actual_call.kwargs['destination'], expected_destination, strict=True
+        )
+        self.assertEqual(actual_call.kwargs['src_transform'], file_transform)
+        self.assertEqual(actual_call.kwargs['src_crs'], ds.crs)
+        self.assertEqual(actual_call.kwargs['dst_transform'], target_transform)
+        self.assertEqual(actual_call.kwargs['dst_crs'], CRS.from_string('EPSG:4326'))
+        self.assertEqual(actual_call.kwargs['dst_nodata'], 0)  # TRANSPARENT
+        self.assertEqual(actual_call.kwargs['resampling'], Resampling.nearest)
 
         self.assertEqual(
             (self.tmp_dir / 'input_file_path.jpg').resolve(), actual_image.resolve()

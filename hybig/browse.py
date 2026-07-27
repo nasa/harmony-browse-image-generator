@@ -390,8 +390,10 @@ def read_window_with_mask_and_scale(
     else:
         data = src_ds.read(bands, window=window)
 
-    # Convert to float for NaN support
-    data = data.astype('float64')
+    # Convert to float for NaN support. float32 halves the footprint of this
+    # (often largest) working array versus float64 while providing ample
+    # precision for 8-bit browse output.
+    data = data.astype('float32')
 
     # Apply masking and scaling per band
     for i, band_idx in enumerate(bands):
@@ -408,10 +410,11 @@ def read_window_with_mask_and_scale(
         scale = (src_ds.scales or [None])[band_idx - 1] or 1.0
         offset = (src_ds.offsets or [None])[band_idx - 1] or 0.0
 
-        # Apply scale/offset to non-NaN values
+        # Apply scale/offset in place. NaN fill stays NaN through the affine
+        # transform, so there is no need to allocate a validity mask.
         if scale != 1.0 or offset != 0.0:
-            valid_mask = ~np.isnan(band_data)
-            band_data[valid_mask] = band_data[valid_mask] * scale + offset
+            band_data *= scale
+            band_data += offset
 
     return data
 
@@ -437,26 +440,41 @@ def convert_multiband_to_raster(data_array: NDArray) -> NDArray[np.uint8]:
 
     # Input NaNs in any of the RGB bands are made transparent.
     nan_mask = np.isnan(data_array).any(axis=0)
-    nan_alpha = np.where(nan_mask, TRANSPARENT, OPAQUE)
 
-    raster = convert_to_uint8(data_array, str(data_array.dtype))
+    # Preallocate the 4-band output and fill it in place to avoid the extra
+    # full-size copy that np.concatenate would make.
+    raster = np.empty((4, *data_array.shape[1:]), dtype=np.uint8)
+    raster[:3] = convert_to_uint8(data_array, str(data_array.dtype))
+    alpha = raster[3]
+    alpha.fill(OPAQUE)
+    alpha[nan_mask] = TRANSPARENT
 
-    return np.concatenate((raster, nan_alpha[None, ...]), axis=0)
+    return raster
 
 
 def convert_to_uint8(bands: NDArray, dtype: str | None) -> NDArray[np.uint8]:
-    """Convert banded data with NaNs (missing) into a uint8 data cube."""
+    """Convert banded data with NaNs (missing) into a uint8 data cube.
+
+    Floating point input is normalized in place to avoid allocating full-size
+    temporaries; callers pass an owned array that is not reused afterwards.
+    """
     max_val = np.nanmax(bands)
 
     # previously this used scaled.filled(0) which only works on masked arrays
     if dtype != 'uint8' and max_val > 255:
         min_val = np.nanmin(bands)
+        # Integer input cannot host in-place division; float input (the
+        # production path) is normalized in place with no extra allocation.
+        if not np.issubdtype(bands.dtype, np.floating):
+            bands = bands.astype('float32')
         # Normalize to 0-255 range
         with np.errstate(invalid='ignore'):  # Suppress NaN warnings
-            scaled = (bands - min_val) / (max_val - min_val) * 255.0
-        return np.nan_to_num(np.around(scaled), nan=0).astype('uint8')
+            bands -= min_val
+            bands /= max_val - min_val
+            bands *= 255.0
+            np.around(bands, out=bands)
 
-    return np.nan_to_num(bands, nan=0).astype('uint8')
+    return np.nan_to_num(bands, nan=0, copy=False).astype('uint8')
 
 
 def convert_singleband_to_raster(
@@ -779,17 +797,18 @@ def write_georaster_as_browse(
 
     dst_array = get_destination(grid_parameters, n_bands)
 
-    for dim in range(0, n_bands):
-        reproject(
-            source=raster[dim, :, :],
-            destination=dst_array[dim, :, :],
-            src_transform=src_transform,
-            src_crs=src_crs,
-            dst_transform=grid_parameters['transform'],
-            dst_crs=grid_parameters['crs'],
-            dst_nodata=int(dst_nodata),
-            resampling=Resampling.nearest,
-        )
+    # Reproject all bands in a single call. reproject accepts (bands, rows,
+    # cols) arrays, which avoids the per-band GDAL setup overhead of a loop.
+    reproject(
+        source=raster,
+        destination=dst_array,
+        src_transform=src_transform,
+        src_crs=src_crs,
+        dst_transform=grid_parameters['transform'],
+        dst_crs=grid_parameters['crs'],
+        dst_nodata=int(dst_nodata),
+        resampling=Resampling.nearest,
+    )
 
     # Skip tiles that turned out empty once mapped onto the actual footprint.
     if reprojected_output_is_empty(dst_array, dst_nodata, color_map):
