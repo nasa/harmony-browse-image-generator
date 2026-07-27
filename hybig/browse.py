@@ -390,10 +390,8 @@ def read_window_with_mask_and_scale(
     else:
         data = src_ds.read(bands, window=window)
 
-    # Convert to float for NaN support. float32 halves the footprint of this
-    # (often largest) working array versus float64 while providing ample
-    # precision for 8-bit browse output.
-    data = data.astype('float32')
+    # Convert to float for NaN support
+    data = data.astype('float64')
 
     # Apply masking and scaling per band
     for i, band_idx in enumerate(bands):
