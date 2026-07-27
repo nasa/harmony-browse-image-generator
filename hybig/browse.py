@@ -260,7 +260,7 @@ def process_tile(
         if output_driver == 'JPEG':
             raster = raster[0:3, :, :]
 
-    write_georaster_as_browse(
+    written = write_georaster_as_browse(
         raster,
         src_crs,
         src_transform,
@@ -277,7 +277,7 @@ def process_tile(
     del raster
     del tile_source
 
-    return True
+    return written
 
 
 def calculate_source_window(
@@ -717,6 +717,33 @@ def get_destination(grid_parameters: GridParams, n_bands: int) -> NDArray:
     )
 
 
+def reprojected_output_is_empty(
+    dst_array: NDArray, dst_nodata: int | np.uint8, color_map: dict | None
+) -> bool:
+    """Return True when no source data landed in the reprojected tile.
+
+    ``reproject`` fills every destination cell that no source pixel maps onto
+    with ``dst_nodata``. When *every* cell holds ``dst_nodata`` the tile is
+    blank and should not be written.
+
+    This is deliberately checked against the reprojected destination rather
+    than the source read window. The read window is a buffered, axis-aligned
+    superset of the tile footprint, so it can hold valid data that reprojects
+    entirely outside the tile -- data that falls only in the 10% read buffer,
+    in the overshoot of a curved reprojected boundary (e.g. polar
+    stereographic), or across an antimeridian seam. A source-side check would
+    keep those tiles even though they render blank.
+
+    Emptiness is only unambiguous for outputs that carry an alpha channel or a
+    palette index (single-band paletted PNG, or 4-band RGBA). A 3-band
+    RGB/JPEG tile has no way to distinguish "no data" from legitimately black
+    imagery, so it is never treated as empty.
+    """
+    if color_map is not None or dst_array.shape[0] == 4:
+        return bool(np.all(dst_array == int(dst_nodata)))
+    return False
+
+
 def write_georaster_as_browse(
     raster: NDArray,
     src_crs: rasterio.CRS,
@@ -728,12 +755,17 @@ def write_georaster_as_browse(
     driver: str = 'PNG',
     out_file_name: str | Path = 'outfile.png',
     out_world_name: str | Path = 'outfile.pgw',
-) -> None:
-    """Write raster data to output file.
+) -> bool:
+    """Reproject the raster to the target grid and write it as a browse image.
 
-    Writes the raster to an output file using metadata from the original
-    source, and over-riding some values based on the input message and derived
-    grid_parameters, doing a nearest neighbor resampling to the target grid.
+    Reprojects the raster to the target grid (metadata derived from the
+    original source and overridden by the input message and grid_parameters)
+    using nearest neighbor resampling.
+
+    If the reprojected tile is empty -- every cell is the fill value, meaning
+    no source data mapped into the tile footprint -- no files are written and
+    False is returned. Otherwise the image and its world file are written and
+    True is returned.
 
     """
     n_bands = raster.shape[0]
@@ -747,24 +779,31 @@ def write_georaster_as_browse(
 
     dst_array = get_destination(grid_parameters, n_bands)
 
+    for dim in range(0, n_bands):
+        reproject(
+            source=raster[dim, :, :],
+            destination=dst_array[dim, :, :],
+            src_transform=src_transform,
+            src_crs=src_crs,
+            dst_transform=grid_parameters['transform'],
+            dst_crs=grid_parameters['crs'],
+            dst_nodata=int(dst_nodata),
+            resampling=Resampling.nearest,
+        )
+
+    # Skip tiles that turned out empty once mapped onto the actual footprint.
+    if reprojected_output_is_empty(dst_array, dst_nodata, color_map):
+        logger.info(f'Skipping empty reprojected tile: {out_file_name}')
+        return False
+
     logger.info(f'Create output image with options: {creation_options}')
 
     with rasterio.open(out_file_name, 'w', **creation_options) as dst_raster:
-        for dim in range(0, n_bands):
-            reproject(
-                source=raster[dim, :, :],
-                destination=dst_array[dim, :, :],
-                src_transform=src_transform,
-                src_crs=src_crs,
-                dst_transform=grid_parameters['transform'],
-                dst_crs=grid_parameters['crs'],
-                dst_nodata=int(dst_nodata),
-                resampling=Resampling.nearest,
-            )
-
         dst_raster.write(dst_array)
         if color_map is not None:
             dst_raster.write_colormap(1, color_map)
 
     with open(out_world_name, 'w', encoding='UTF-8') as out_wd:
         out_wd.write(dumpsw(creation_options['transform']))
+
+    return True

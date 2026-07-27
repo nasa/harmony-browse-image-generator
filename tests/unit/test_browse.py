@@ -28,8 +28,10 @@ from hybig.browse import (
     output_world_file,
     process_tile,
     read_window_with_mask_and_scale,
+    reprojected_output_is_empty,
     validate_file_crs,
     validate_file_type,
+    write_georaster_as_browse,
 )
 from hybig.color_utility import (
     OPAQUE,
@@ -485,6 +487,118 @@ class TestBrowse(TestCase):
         mock_logger.info.assert_called_with(
             f'Skipping all-NaN tile: {self.tmp_dir / "output.png"}'
         )
+
+    def test_reprojected_output_is_empty(self):
+        """Test reprojected_output_is_empty across output types."""
+        # Paletted single-band: every cell holds the fill index -> empty.
+        color_map = {np.uint8(0): (0, 0, 0, 0), np.uint8(1): (255, 0, 0, 255)}
+        all_fill = np.full((1, 4, 4), 3, dtype='uint8')
+        self.assertTrue(reprojected_output_is_empty(all_fill, 3, color_map))
+
+        # Paletted single-band: one valid cell -> not empty.
+        one_valid = all_fill.copy()
+        one_valid[0, 0, 0] = 1
+        self.assertFalse(reprojected_output_is_empty(one_valid, 3, color_map))
+
+        # RGBA: all bands equal the fill (TRANSPARENT) -> empty.
+        rgba = np.zeros((4, 4, 4), dtype='uint8')
+        self.assertTrue(reprojected_output_is_empty(rgba, TRANSPARENT, None))
+
+        # RGBA: an opaque alpha somewhere -> not empty.
+        rgba[3, 0, 0] = OPAQUE
+        self.assertFalse(reprojected_output_is_empty(rgba, TRANSPARENT, None))
+
+        # 3-band RGB (JPEG, no alpha or index) -> never treated as empty.
+        rgb = np.zeros((3, 4, 4), dtype='uint8')
+        self.assertFalse(reprojected_output_is_empty(rgb, TRANSPARENT, None))
+
+    @patch('hybig.browse.reproject')
+    def test_write_georaster_skips_empty_reprojected_tile(self, reproject_mock):
+        """A tile that is all fill after reprojection writes no files.
+
+        The source read window is a buffered superset of the tile footprint, so
+        it can contain valid data that maps entirely outside the tile. When
+        that happens every reprojected cell is the fill value; no image or
+        world file should be written and the function returns False.
+        """
+
+        def fill_with_nodata(*_args, **kwargs):
+            kwargs['destination'][...] = kwargs['dst_nodata']
+
+        reproject_mock.side_effect = fill_with_nodata
+
+        raster = np.ones((1, 4, 4), dtype='uint8')
+        color_map = {np.uint8(idx): (0, 0, 0, 0) for idx in range(5)}
+        grid_params = GridParams(
+            {
+                'height': 4,
+                'width': 4,
+                'crs': CRS.from_string('EPSG:4326'),
+                'transform': Affine(90.0, 0.0, -180.0, 0.0, -45.0, 90.0),
+            }
+        )
+        out_image = self.tmp_dir / 'empty.png'
+        out_world = self.tmp_dir / 'empty.pgw'
+        mock_logger = MagicMock(spec=Logger)
+
+        result = write_georaster_as_browse(
+            raster,
+            CRS.from_string('EPSG:4326'),
+            Affine.identity(),
+            color_map,
+            4,
+            grid_params,
+            mock_logger,
+            driver='PNG',
+            out_file_name=out_image,
+            out_world_name=out_world,
+        )
+
+        self.assertFalse(result)
+        self.assertFalse(out_image.exists())
+        self.assertFalse(out_world.exists())
+        mock_logger.info.assert_called_with(
+            f'Skipping empty reprojected tile: {out_image}'
+        )
+
+    @patch('hybig.browse.reproject')
+    def test_write_georaster_writes_nonempty_reprojected_tile(self, reproject_mock):
+        """A tile with data after reprojection is written and returns True."""
+
+        def fill_with_data(*_args, **kwargs):
+            kwargs['destination'][...] = 1
+
+        reproject_mock.side_effect = fill_with_data
+
+        raster = np.ones((1, 4, 4), dtype='uint8')
+        color_map = {np.uint8(idx): (0, 0, 0, 255) for idx in range(5)}
+        grid_params = GridParams(
+            {
+                'height': 4,
+                'width': 4,
+                'crs': CRS.from_string('EPSG:4326'),
+                'transform': Affine(90.0, 0.0, -180.0, 0.0, -45.0, 90.0),
+            }
+        )
+        out_image = self.tmp_dir / 'data.png'
+        out_world = self.tmp_dir / 'data.pgw'
+
+        result = write_georaster_as_browse(
+            raster,
+            CRS.from_string('EPSG:4326'),
+            Affine.identity(),
+            color_map,
+            4,
+            grid_params,
+            MagicMock(spec=Logger),
+            driver='PNG',
+            out_file_name=out_image,
+            out_world_name=out_world,
+        )
+
+        self.assertTrue(result)
+        self.assertTrue(out_image.exists())
+        self.assertTrue(out_world.exists())
 
     def test_convert_singleband_to_raster_without_colortable(self):
         """Tests scale_grey_1band."""

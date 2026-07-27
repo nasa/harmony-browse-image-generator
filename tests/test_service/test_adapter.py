@@ -384,6 +384,17 @@ class TestAdapter(TestCase):
             expected_manifest_url,
         ]
 
+        def fake_reproject(*args, **kwargs):
+            """Simulate reproject landing data in the tile footprint.
+
+            write_georaster_as_browse now skips tiles that are empty after
+            reprojection, so the mocked reproject must fill the destination
+            with a non-fill value or no output would be produced.
+            """
+            kwargs['destination'][...] = 1
+
+        mock_reproject.side_effect = fake_reproject
+
         message = Message(
             {
                 'accessToken': self.access_token,
@@ -460,10 +471,13 @@ class TestAdapter(TestCase):
         }
         raster = convert_multiband_to_raster(rio_data_array.read())
 
+        # fake_reproject fills each destination band with 1, and call_args
+        # holds live references to those destination arrays, so the expected
+        # destination matches that filled value rather than the initial zeros.
         dest = np.full(
             (expected_params['height'], expected_params['width']),
             dtype='uint8',
-            fill_value=0,
+            fill_value=1,
         )
 
         expected_reproject_calls = [
