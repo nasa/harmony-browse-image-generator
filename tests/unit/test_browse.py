@@ -5,7 +5,7 @@ import tempfile
 from logging import Logger, getLogger
 from pathlib import Path
 from unittest import TestCase
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import numpy as np
 from harmony_service_lib.message import Message as HarmonyMessage
@@ -28,8 +28,10 @@ from hybig.browse import (
     output_world_file,
     process_tile,
     read_window_with_mask_and_scale,
+    reprojected_output_is_empty,
     validate_file_crs,
     validate_file_type,
+    write_georaster_as_browse,
 )
 from hybig.color_utility import (
     OPAQUE,
@@ -213,78 +215,32 @@ class TestBrowse(TestCase):
         actual_image, actual_world, actual_aux = out_file_list[0]
 
         target_transform = Affine(90.0, 0.0, -180.0, 0.0, -45.0, 90.0)
-        dest = np.zeros((ds.shape[0], ds.shape[1]), dtype='uint8')
 
-        # For JPEG output with 1-band input, we convert to RGB, so we reproject 3 bands
-        self.assertEqual(reproject_mock.call_count, 3)
+        # For JPEG output with 1-band input, we convert to a 3-band RGB raster
+        # and reproject all bands in a single call.
+        self.assertEqual(reproject_mock.call_count, 1)
 
-        # For RGB output, we expect 3 calls (one per band) with TRANSPARENT nodata
-        expected_calls = [
-            call(
-                source=expected_raster[0, :, :],
-                destination=dest,
-                src_transform=file_transform,
-                src_crs=ds.crs,
-                dst_transform=target_transform,
-                dst_crs=CRS.from_string('EPSG:4326'),
-                dst_nodata=0,  # TRANSPARENT for RGB data
-                resampling=Resampling.nearest,
-            ),
-            call(
-                source=expected_raster[0, :, :],
-                destination=dest,
-                src_transform=file_transform,
-                src_crs=ds.crs,
-                dst_transform=target_transform,
-                dst_crs=CRS.from_string('EPSG:4326'),
-                dst_nodata=0,  # TRANSPARENT for RGB data
-                resampling=Resampling.nearest,
-            ),
-            call(
-                source=expected_raster[0, :, :],
-                destination=dest,
-                src_transform=file_transform,
-                src_crs=ds.crs,
-                dst_transform=target_transform,
-                dst_crs=CRS.from_string('EPSG:4326'),
-                dst_nodata=0,  # TRANSPARENT for RGB data
-                resampling=Resampling.nearest,
-            ),
-        ]
+        # The 3 RGB bands are identical copies of the greyscale band.
+        expected_source = np.concatenate(
+            [expected_raster, expected_raster, expected_raster], axis=0
+        )
+        # reproject is mocked, so the destination is left as the zeros
+        # allocated by get_destination.
+        expected_destination = np.zeros((3, ds.shape[0], ds.shape[1]), dtype='uint8')
 
-        for actual_call, expected_call in zip(
-            reproject_mock.call_args_list, expected_calls
-        ):
-            np.testing.assert_array_equal(
-                actual_call.kwargs['source'],
-                expected_call.kwargs['source'],
-                strict=True,
-            )
-            np.testing.assert_array_equal(
-                actual_call.kwargs['destination'],
-                expected_call.kwargs['destination'],
-                strict=True,
-            )
-            self.assertEqual(
-                actual_call.kwargs['src_transform'],
-                expected_call.kwargs['src_transform'],
-            )
-            self.assertEqual(
-                actual_call.kwargs['src_crs'], expected_call.kwargs['src_crs']
-            )
-            self.assertEqual(
-                actual_call.kwargs['dst_transform'],
-                expected_call.kwargs['dst_transform'],
-            )
-            self.assertEqual(
-                actual_call.kwargs['dst_crs'], expected_call.kwargs['dst_crs']
-            )
-            self.assertEqual(
-                actual_call.kwargs['dst_nodata'], expected_call.kwargs['dst_nodata']
-            )
-            self.assertEqual(
-                actual_call.kwargs['resampling'], expected_call.kwargs['resampling']
-            )
+        actual_call = reproject_mock.call_args
+        np.testing.assert_array_equal(
+            actual_call.kwargs['source'], expected_source, strict=True
+        )
+        np.testing.assert_array_equal(
+            actual_call.kwargs['destination'], expected_destination, strict=True
+        )
+        self.assertEqual(actual_call.kwargs['src_transform'], file_transform)
+        self.assertEqual(actual_call.kwargs['src_crs'], ds.crs)
+        self.assertEqual(actual_call.kwargs['dst_transform'], target_transform)
+        self.assertEqual(actual_call.kwargs['dst_crs'], CRS.from_string('EPSG:4326'))
+        self.assertEqual(actual_call.kwargs['dst_nodata'], 0)  # TRANSPARENT
+        self.assertEqual(actual_call.kwargs['resampling'], Resampling.nearest)
 
         self.assertEqual(
             (self.tmp_dir / 'input_file_path.jpg').resolve(), actual_image.resolve()
@@ -485,6 +441,118 @@ class TestBrowse(TestCase):
         mock_logger.info.assert_called_with(
             f'Skipping all-NaN tile: {self.tmp_dir / "output.png"}'
         )
+
+    def test_reprojected_output_is_empty(self):
+        """Test reprojected_output_is_empty across output types."""
+        # Paletted single-band: every cell holds the fill index -> empty.
+        color_map = {np.uint8(0): (0, 0, 0, 0), np.uint8(1): (255, 0, 0, 255)}
+        all_fill = np.full((1, 4, 4), 3, dtype='uint8')
+        self.assertTrue(reprojected_output_is_empty(all_fill, 3, color_map))
+
+        # Paletted single-band: one valid cell -> not empty.
+        one_valid = all_fill.copy()
+        one_valid[0, 0, 0] = 1
+        self.assertFalse(reprojected_output_is_empty(one_valid, 3, color_map))
+
+        # RGBA: all bands equal the fill (TRANSPARENT) -> empty.
+        rgba = np.zeros((4, 4, 4), dtype='uint8')
+        self.assertTrue(reprojected_output_is_empty(rgba, TRANSPARENT, None))
+
+        # RGBA: an opaque alpha somewhere -> not empty.
+        rgba[3, 0, 0] = OPAQUE
+        self.assertFalse(reprojected_output_is_empty(rgba, TRANSPARENT, None))
+
+        # 3-band RGB (JPEG, no alpha or index) -> never treated as empty.
+        rgb = np.zeros((3, 4, 4), dtype='uint8')
+        self.assertFalse(reprojected_output_is_empty(rgb, TRANSPARENT, None))
+
+    @patch('hybig.browse.reproject')
+    def test_write_georaster_skips_empty_reprojected_tile(self, reproject_mock):
+        """A tile that is all fill after reprojection writes no files.
+
+        The source read window is a buffered superset of the tile footprint, so
+        it can contain valid data that maps entirely outside the tile. When
+        that happens every reprojected cell is the fill value; no image or
+        world file should be written and the function returns False.
+        """
+
+        def fill_with_nodata(*_args, **kwargs):
+            kwargs['destination'][...] = kwargs['dst_nodata']
+
+        reproject_mock.side_effect = fill_with_nodata
+
+        raster = np.ones((1, 4, 4), dtype='uint8')
+        color_map = {np.uint8(idx): (0, 0, 0, 0) for idx in range(5)}
+        grid_params = GridParams(
+            {
+                'height': 4,
+                'width': 4,
+                'crs': CRS.from_string('EPSG:4326'),
+                'transform': Affine(90.0, 0.0, -180.0, 0.0, -45.0, 90.0),
+            }
+        )
+        out_image = self.tmp_dir / 'empty.png'
+        out_world = self.tmp_dir / 'empty.pgw'
+        mock_logger = MagicMock(spec=Logger)
+
+        result = write_georaster_as_browse(
+            raster,
+            CRS.from_string('EPSG:4326'),
+            Affine.identity(),
+            color_map,
+            4,
+            grid_params,
+            mock_logger,
+            driver='PNG',
+            out_file_name=out_image,
+            out_world_name=out_world,
+        )
+
+        self.assertFalse(result)
+        self.assertFalse(out_image.exists())
+        self.assertFalse(out_world.exists())
+        mock_logger.info.assert_called_with(
+            f'Skipping empty reprojected tile: {out_image}'
+        )
+
+    @patch('hybig.browse.reproject')
+    def test_write_georaster_writes_nonempty_reprojected_tile(self, reproject_mock):
+        """A tile with data after reprojection is written and returns True."""
+
+        def fill_with_data(*_args, **kwargs):
+            kwargs['destination'][...] = 1
+
+        reproject_mock.side_effect = fill_with_data
+
+        raster = np.ones((1, 4, 4), dtype='uint8')
+        color_map = {np.uint8(idx): (0, 0, 0, 255) for idx in range(5)}
+        grid_params = GridParams(
+            {
+                'height': 4,
+                'width': 4,
+                'crs': CRS.from_string('EPSG:4326'),
+                'transform': Affine(90.0, 0.0, -180.0, 0.0, -45.0, 90.0),
+            }
+        )
+        out_image = self.tmp_dir / 'data.png'
+        out_world = self.tmp_dir / 'data.pgw'
+
+        result = write_georaster_as_browse(
+            raster,
+            CRS.from_string('EPSG:4326'),
+            Affine.identity(),
+            color_map,
+            4,
+            grid_params,
+            MagicMock(spec=Logger),
+            driver='PNG',
+            out_file_name=out_image,
+            out_world_name=out_world,
+        )
+
+        self.assertTrue(result)
+        self.assertTrue(out_image.exists())
+        self.assertTrue(out_world.exists())
 
     def test_convert_singleband_to_raster_without_colortable(self):
         """Tests scale_grey_1band."""

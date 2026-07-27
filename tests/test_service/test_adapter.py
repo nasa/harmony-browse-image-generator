@@ -223,78 +223,32 @@ class TestAdapter(TestCase):
             'dst_nodata': 255,
             'count': 3,
         }
+        # JPEG output drops the alpha band and reprojects the 3 RGB bands in a
+        # single call.
         raster = convert_multiband_to_raster(rio_data_array.read())
+        expected_source = raster[0:3, :, :]
 
-        dest = np.full(
-            (expected_params['height'], expected_params['width']),
-            dtype='uint8',
-            fill_value=0,
+        # reproject is mocked, so the destination is left as the zeros
+        # allocated by get_destination.
+        expected_destination = np.zeros(
+            (3, expected_params['height'], expected_params['width']), dtype='uint8'
         )
 
-        expected_reproject_calls = [
-            call(
-                source=raster[0, :, :],
-                destination=dest,
-                src_transform=rio_data_array.transform,
-                src_crs=rio_data_array.crs,
-                dst_transform=expected_params['transform'],
-                dst_crs=expected_params['crs'],
-                dst_nodata=expected_params['dst_nodata'],
-                resampling=Resampling.nearest,
-            ),
-            call(
-                source=raster[1, :, :],
-                destination=dest,
-                src_transform=rio_data_array.transform,
-                src_crs=rio_data_array.crs,
-                dst_transform=expected_params['transform'],
-                dst_crs=expected_params['crs'],
-                dst_nodata=expected_params['dst_nodata'],
-                resampling=Resampling.nearest,
-            ),
-            call(
-                source=raster[2, :, :],
-                destination=dest,
-                src_transform=rio_data_array.transform,
-                src_crs=rio_data_array.crs,
-                dst_transform=expected_params['transform'],
-                dst_crs=expected_params['crs'],
-                dst_nodata=expected_params['dst_nodata'],
-                resampling=Resampling.nearest,
-            ),
-        ]
-
-        self.assertEqual(mock_reproject.call_count, 3)
-        for actual_call, expected_call in zip(
-            mock_reproject.call_args_list, expected_reproject_calls
-        ):
-            np.testing.assert_array_equal(
-                actual_call.kwargs['source'],
-                expected_call.kwargs['source'],
-                strict=True,
-            )
-            np.testing.assert_array_equal(
-                actual_call.kwargs['destination'],
-                expected_call.kwargs['destination'],
-                strict=True,
-            )
-            self.assertEqual(
-                actual_call.kwargs['src_transform'],
-                expected_call.kwargs['src_transform'],
-            )
-            self.assertEqual(
-                actual_call.kwargs['src_crs'], expected_call.kwargs['src_crs']
-            )
-            self.assertEqual(
-                actual_call.kwargs['dst_transform'],
-                expected_call.kwargs['dst_transform'],
-            )
-            self.assertEqual(
-                actual_call.kwargs['dst_crs'], expected_call.kwargs['dst_crs']
-            )
-            self.assertEqual(
-                actual_call.kwargs['resampling'], expected_call.kwargs['resampling']
-            )
+        self.assertEqual(mock_reproject.call_count, 1)
+        actual_call = mock_reproject.call_args
+        np.testing.assert_array_equal(
+            actual_call.kwargs['source'], expected_source, strict=True
+        )
+        np.testing.assert_array_equal(
+            actual_call.kwargs['destination'], expected_destination, strict=True
+        )
+        self.assertEqual(actual_call.kwargs['src_transform'], rio_data_array.transform)
+        self.assertEqual(actual_call.kwargs['src_crs'], rio_data_array.crs)
+        self.assertEqual(
+            actual_call.kwargs['dst_transform'], expected_params['transform']
+        )
+        self.assertEqual(actual_call.kwargs['dst_crs'], expected_params['crs'])
+        self.assertEqual(actual_call.kwargs['resampling'], Resampling.nearest)
 
         # Ensure the browse image and ESRI world file were staged as expected:
         mock_stage.assert_has_calls(
@@ -384,6 +338,17 @@ class TestAdapter(TestCase):
             expected_manifest_url,
         ]
 
+        def fake_reproject(*args, **kwargs):
+            """Simulate reproject landing data in the tile footprint.
+
+            write_georaster_as_browse now skips tiles that are empty after
+            reprojection, so the mocked reproject must fill the destination
+            with a non-fill value or no output would be produced.
+            """
+            kwargs['destination'][...] = 1
+
+        mock_reproject.side_effect = fake_reproject
+
         message = Message(
             {
                 'accessToken': self.access_token,
@@ -458,63 +423,36 @@ class TestAdapter(TestCase):
             'dst_nodata': 0,
             'count': 3,
         }
-        raster = convert_multiband_to_raster(rio_data_array.read())
+        # PNG output reprojects the 4-band RGBA raster in a single call.
+        expected_source = convert_multiband_to_raster(rio_data_array.read())
 
-        dest = np.full(
-            (expected_params['height'], expected_params['width']),
+        # fake_reproject fills the destination with 1, and call_args holds a
+        # live reference to that destination array, so the expected destination
+        # matches the filled value rather than the initial zeros.
+        expected_destination = np.full(
+            (4, expected_params['height'], expected_params['width']),
             dtype='uint8',
-            fill_value=0,
+            fill_value=1,
         )
 
-        expected_reproject_calls = [
-            call(
-                source=raster[band, :, :],
-                destination=dest,
-                src_transform=rio_data_array.transform,
-                src_crs=rio_data_array.crs,
-                dst_transform=expected_params['transform'],
-                dst_crs=expected_params['crs'],
-                dst_nodata=expected_params['dst_nodata'],
-                resampling=Resampling.nearest,
-            )
-            for band in range(4)
-        ]
-
-        self.assertEqual(mock_reproject.call_count, 4)
-        for actual_call, expected_call in zip(
-            mock_reproject.call_args_list, expected_reproject_calls
-        ):
-            np.testing.assert_array_equal(
-                actual_call.kwargs['source'],
-                expected_call.kwargs['source'],
-                strict=True,
-            )
-            np.testing.assert_array_equal(
-                actual_call.kwargs['destination'],
-                expected_call.kwargs['destination'],
-                strict=True,
-            )
-            self.assertEqual(
-                actual_call.kwargs['src_transform'],
-                expected_call.kwargs['src_transform'],
-            )
-            self.assertEqual(
-                actual_call.kwargs['src_crs'], expected_call.kwargs['src_crs']
-            )
-            self.assertEqual(
-                actual_call.kwargs['dst_transform'],
-                expected_call.kwargs['dst_transform'],
-            )
-            self.assertEqual(
-                actual_call.kwargs['dst_crs'], expected_call.kwargs['dst_crs']
-            )
-            self.assertEqual(
-                actual_call.kwargs['dst_nodata'], expected_call.kwargs['dst_nodata']
-            )
-
-            self.assertEqual(
-                actual_call.kwargs['resampling'], expected_call.kwargs['resampling']
-            )
+        self.assertEqual(mock_reproject.call_count, 1)
+        actual_call = mock_reproject.call_args
+        np.testing.assert_array_equal(
+            actual_call.kwargs['source'], expected_source, strict=True
+        )
+        np.testing.assert_array_equal(
+            actual_call.kwargs['destination'], expected_destination, strict=True
+        )
+        self.assertEqual(actual_call.kwargs['src_transform'], rio_data_array.transform)
+        self.assertEqual(actual_call.kwargs['src_crs'], rio_data_array.crs)
+        self.assertEqual(
+            actual_call.kwargs['dst_transform'], expected_params['transform']
+        )
+        self.assertEqual(actual_call.kwargs['dst_crs'], expected_params['crs'])
+        self.assertEqual(
+            actual_call.kwargs['dst_nodata'], expected_params['dst_nodata']
+        )
+        self.assertEqual(actual_call.kwargs['resampling'], Resampling.nearest)
 
         # Ensure the browse image and ESRI world file were staged as expected:
         mock_stage.assert_has_calls(

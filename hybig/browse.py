@@ -260,7 +260,7 @@ def process_tile(
         if output_driver == 'JPEG':
             raster = raster[0:3, :, :]
 
-    write_georaster_as_browse(
+    written = write_georaster_as_browse(
         raster,
         src_crs,
         src_transform,
@@ -277,7 +277,7 @@ def process_tile(
     del raster
     del tile_source
 
-    return True
+    return written
 
 
 def calculate_source_window(
@@ -408,10 +408,11 @@ def read_window_with_mask_and_scale(
         scale = (src_ds.scales or [None])[band_idx - 1] or 1.0
         offset = (src_ds.offsets or [None])[band_idx - 1] or 0.0
 
-        # Apply scale/offset to non-NaN values
+        # Apply scale/offset in place. NaN fill stays NaN through the affine
+        # transform, so there is no need to allocate a validity mask.
         if scale != 1.0 or offset != 0.0:
-            valid_mask = ~np.isnan(band_data)
-            band_data[valid_mask] = band_data[valid_mask] * scale + offset
+            band_data *= scale
+            band_data += offset
 
     return data
 
@@ -437,26 +438,41 @@ def convert_multiband_to_raster(data_array: NDArray) -> NDArray[np.uint8]:
 
     # Input NaNs in any of the RGB bands are made transparent.
     nan_mask = np.isnan(data_array).any(axis=0)
-    nan_alpha = np.where(nan_mask, TRANSPARENT, OPAQUE)
 
-    raster = convert_to_uint8(data_array, str(data_array.dtype))
+    # Preallocate the 4-band output and fill it in place to avoid the extra
+    # full-size copy that np.concatenate would make.
+    raster = np.empty((4, *data_array.shape[1:]), dtype=np.uint8)
+    raster[:3] = convert_to_uint8(data_array, str(data_array.dtype))
+    alpha = raster[3]
+    alpha.fill(OPAQUE)
+    alpha[nan_mask] = TRANSPARENT
 
-    return np.concatenate((raster, nan_alpha[None, ...]), axis=0)
+    return raster
 
 
 def convert_to_uint8(bands: NDArray, dtype: str | None) -> NDArray[np.uint8]:
-    """Convert banded data with NaNs (missing) into a uint8 data cube."""
+    """Convert banded data with NaNs (missing) into a uint8 data cube.
+
+    Floating point input is normalized in place to avoid allocating full-size
+    temporaries; callers pass an owned array that is not reused afterwards.
+    """
     max_val = np.nanmax(bands)
 
     # previously this used scaled.filled(0) which only works on masked arrays
     if dtype != 'uint8' and max_val > 255:
         min_val = np.nanmin(bands)
+        # Integer input cannot host in-place division; float input (the
+        # production path) is normalized in place with no extra allocation.
+        if not np.issubdtype(bands.dtype, np.floating):
+            bands = bands.astype('float32')
         # Normalize to 0-255 range
         with np.errstate(invalid='ignore'):  # Suppress NaN warnings
-            scaled = (bands - min_val) / (max_val - min_val) * 255.0
-        return np.nan_to_num(np.around(scaled), nan=0).astype('uint8')
+            bands -= min_val
+            bands /= max_val - min_val
+            bands *= 255.0
+            np.around(bands, out=bands)
 
-    return np.nan_to_num(bands, nan=0).astype('uint8')
+    return np.nan_to_num(bands, nan=0, copy=False).astype('uint8')
 
 
 def convert_singleband_to_raster(
@@ -717,6 +733,33 @@ def get_destination(grid_parameters: GridParams, n_bands: int) -> NDArray:
     )
 
 
+def reprojected_output_is_empty(
+    dst_array: NDArray, dst_nodata: int | np.uint8, color_map: dict | None
+) -> bool:
+    """Return True when no source data landed in the reprojected tile.
+
+    ``reproject`` fills every destination cell that no source pixel maps onto
+    with ``dst_nodata``. When *every* cell holds ``dst_nodata`` the tile is
+    blank and should not be written.
+
+    This is deliberately checked against the reprojected destination rather
+    than the source read window. The read window is a buffered, axis-aligned
+    superset of the tile footprint, so it can hold valid data that reprojects
+    entirely outside the tile -- data that falls only in the 10% read buffer,
+    in the overshoot of a curved reprojected boundary (e.g. polar
+    stereographic), or across an antimeridian seam. A source-side check would
+    keep those tiles even though they render blank.
+
+    Emptiness is only unambiguous for outputs that carry an alpha channel or a
+    palette index (single-band paletted PNG, or 4-band RGBA). A 3-band
+    RGB/JPEG tile has no way to distinguish "no data" from legitimately black
+    imagery, so it is never treated as empty.
+    """
+    if color_map is not None or dst_array.shape[0] == 4:
+        return bool(np.all(dst_array == int(dst_nodata)))
+    return False
+
+
 def write_georaster_as_browse(
     raster: NDArray,
     src_crs: rasterio.CRS,
@@ -728,12 +771,17 @@ def write_georaster_as_browse(
     driver: str = 'PNG',
     out_file_name: str | Path = 'outfile.png',
     out_world_name: str | Path = 'outfile.pgw',
-) -> None:
-    """Write raster data to output file.
+) -> bool:
+    """Reproject the raster to the target grid and write it as a browse image.
 
-    Writes the raster to an output file using metadata from the original
-    source, and over-riding some values based on the input message and derived
-    grid_parameters, doing a nearest neighbor resampling to the target grid.
+    Reprojects the raster to the target grid (metadata derived from the
+    original source and overridden by the input message and grid_parameters)
+    using nearest neighbor resampling.
+
+    If the reprojected tile is empty -- every cell is the fill value, meaning
+    no source data mapped into the tile footprint -- no files are written and
+    False is returned. Otherwise the image and its world file are written and
+    True is returned.
 
     """
     n_bands = raster.shape[0]
@@ -747,24 +795,32 @@ def write_georaster_as_browse(
 
     dst_array = get_destination(grid_parameters, n_bands)
 
+    # Reproject all bands in a single call. reproject accepts (bands, rows,
+    # cols) arrays, which avoids the per-band GDAL setup overhead of a loop.
+    reproject(
+        source=raster,
+        destination=dst_array,
+        src_transform=src_transform,
+        src_crs=src_crs,
+        dst_transform=grid_parameters['transform'],
+        dst_crs=grid_parameters['crs'],
+        dst_nodata=int(dst_nodata),
+        resampling=Resampling.nearest,
+    )
+
+    # Skip tiles that turned out empty once mapped onto the actual footprint.
+    if reprojected_output_is_empty(dst_array, dst_nodata, color_map):
+        logger.info(f'Skipping empty reprojected tile: {out_file_name}')
+        return False
+
     logger.info(f'Create output image with options: {creation_options}')
 
     with rasterio.open(out_file_name, 'w', **creation_options) as dst_raster:
-        for dim in range(0, n_bands):
-            reproject(
-                source=raster[dim, :, :],
-                destination=dst_array[dim, :, :],
-                src_transform=src_transform,
-                src_crs=src_crs,
-                dst_transform=grid_parameters['transform'],
-                dst_crs=grid_parameters['crs'],
-                dst_nodata=int(dst_nodata),
-                resampling=Resampling.nearest,
-            )
-
         dst_raster.write(dst_array)
         if color_map is not None:
             dst_raster.write_colormap(1, color_map)
 
     with open(out_world_name, 'w', encoding='UTF-8') as out_wd:
         out_wd.write(dumpsw(creation_options['transform']))
+
+    return True

@@ -4,6 +4,12 @@ HyBIG follows semantic versioning. All notable changes to this project will be
 documented in this file. The format is based on [Keep a
 Changelog](http://keepachangelog.com/en/1.0.0/).
 
+## [2.8.1] - 2026-07-28
+
+* [GITC-9248](https://bugs.earthdata.nasa.gov/browse/GITC-9248): Reduced number of output tiles from HyBIG service through a number of optimizations.
+* Minor performance optimizations for large jobs
+
+
 ## [2.8.0] - 2026-07-17
 
 * [GITC-9047](https://bugs.earthdata.nasa.gov/browse/GITC-9047): Updated adapter code to now log a message when a request produces no data, but not throw a service error. Previously, jobs with no output would produce this error: `WorkItem failed: nasa/harmony-browse-image-generator:2.7.0: list index out of range`

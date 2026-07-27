@@ -31,6 +31,7 @@ from hybig.sizes import (
     get_cells_per_tile,
     get_rasterio_parameters,
     get_target_grid_parameters,
+    needs_big_tiles,
     needs_tiling,
     resolution_in_target_crs_units,
 )
@@ -266,11 +267,45 @@ class TestTiling(TestCase):
             )
             self.assertFalse(needs_tiling(grid_parameters))
 
+    def test_needs_big_tiles(self):
+        """Grids larger than 32768*32768 cells use big tiles.
+
+        The threshold is exclusive, so a grid of exactly 32768x32768 cells does
+        not require big tiles.
+        """
+        with self.subTest('At threshold, not big tiles'):
+            grid_parameters = GridParams(
+                {
+                    'height': 32768,
+                    'width': 32768,
+                    'crs': CRS.from_epsg(4326),
+                    'transform': Affine(0.001, 0.0, -180, 0.0, -0.001, 90),
+                }
+            )
+            self.assertFalse(needs_big_tiles(grid_parameters))
+
+        with self.subTest('Above threshold, needs big tiles'):
+            grid_parameters = GridParams(
+                {
+                    'height': 32768,
+                    'width': 32769,
+                    'crs': CRS.from_epsg(4326),
+                    'transform': Affine(0.001, 0.0, -180, 0.0, -0.001, 90),
+                }
+            )
+            self.assertTrue(needs_big_tiles(grid_parameters))
+
     def test_get_cells_per_tile(self):
         """Test how tiles sizes are generated."""
         expected_cells_per_tile = self.CELLS_PER_TILE
         actual_cells_per_tile = get_cells_per_tile()
         self.assertEqual(expected_cells_per_tile, actual_cells_per_tile)
+        self.assertIsInstance(actual_cells_per_tile, int)
+
+    def test_get_cells_per_tile_big_tiles(self):
+        """Big tiles are 8192 cells on a side."""
+        actual_cells_per_tile = get_cells_per_tile(big_tiles=True)
+        self.assertEqual(8192, actual_cells_per_tile)
         self.assertIsInstance(actual_cells_per_tile, int)
 
     def test_compute_tile_boundaries_exact(self):
@@ -408,6 +443,46 @@ class TestTiling(TestCase):
 
         self.assertListEqual(expected_grid_list, actual_grid_list)
         self.assertListEqual(expected_tile_locator, actual_tile_locator)
+
+    def test_create_tile_output_parameters_uses_big_tiles(self):
+        """A grid exceeding the big-tile threshold is split into 8192 tiles.
+
+        A 40000x40000 grid has 1.6e9 cells, above the 32768*32768 (~1.07e9)
+        big-tile threshold, so create_tiled_output_parameters should size tiles
+        at 8192 (not the standard 4096) with a remainder tile at the edges.
+
+        Boundaries per dimension: 0, 8192, 16384, 24576, 32768, 40000
+        -> 5 tiles per dimension (four 8192 tiles and a 7232 remainder),
+        giving a 5x5 = 25 tile grid.
+        """
+        grid_parameters = GridParams(
+            {
+                'width': 40000,
+                'height': 40000,
+                'crs': CRS.from_string(PREFERRED_CRS['global']),
+                'transform': Affine(0.001, 0.0, -180.0, 0.0, -0.001, 90.0),
+            }
+        )
+
+        actual_grid_list, actual_tile_locator = create_tiled_output_parameters(
+            grid_parameters
+        )
+
+        self.assertEqual(len(actual_grid_list), 25)
+        self.assertEqual(len(actual_tile_locator), 25)
+
+        # First tile is a full 8192x8192 big tile.
+        self.assertEqual(actual_grid_list[0]['width'], 8192)
+        self.assertEqual(actual_grid_list[0]['height'], 8192)
+
+        # The widest/tallest tile produced is a big tile, never the 4096 default.
+        self.assertEqual(max(tile['width'] for tile in actual_grid_list), 8192)
+        self.assertEqual(max(tile['height'] for tile in actual_grid_list), 8192)
+
+        # Last tile is the edge remainder: 40000 - (4 * 8192) = 7232.
+        self.assertEqual(actual_grid_list[-1]['width'], 7232)
+        self.assertEqual(actual_grid_list[-1]['height'], 7232)
+        self.assertEqual(actual_tile_locator[-1], {'col': 4, 'row': 4})
 
 
 class TestChooseScaleExtent(TestCase):

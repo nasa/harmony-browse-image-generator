@@ -261,6 +261,8 @@ def create_tiled_output_parameters(
     if not needs_tiling(grid_parameters):
         return [grid_parameters], [None]
 
+    big_tiles = needs_big_tiles(grid_parameters)
+
     crs = grid_parameters['crs']
     full_width = grid_parameters['width']
     full_height = grid_parameters['height']
@@ -268,8 +270,8 @@ def create_tiled_output_parameters(
     resolution_x = transform.a
     resolution_y = np.abs(transform.e)
 
-    cells_per_tile_width = get_cells_per_tile()
-    cells_per_tile_height = get_cells_per_tile()
+    cells_per_tile_width = get_cells_per_tile(big_tiles=big_tiles)
+    cells_per_tile_height = get_cells_per_tile(big_tiles=big_tiles)
 
     width_origins = compute_tile_boundaries(cells_per_tile_width, full_width)
     height_origins = compute_tile_boundaries(cells_per_tile_height, full_height)
@@ -329,12 +331,15 @@ def compute_tile_boundaries(target_size: int, full_size: int) -> list[int]:
     return boundaries
 
 
-def get_cells_per_tile() -> int:
+def get_cells_per_tile(big_tiles: bool = False) -> int:
     """Optimum cells per tile.
 
     From discussions this is chosen to be 4096, so that any image that is tiled
-    will end up with 4096x4096 gridcell tiles.
+    will end up with 4096x4096 gridcell tiles. If the output is especially large,
+    the tiles will be 8192x8192.
     """
+    if big_tiles:
+        return 8192
     return 4096
 
 
@@ -345,6 +350,16 @@ def needs_tiling(grid_parameters: GridParams) -> bool:
     """
     max_untiled_gridcells = 8192 * 8192
     return grid_parameters['height'] * grid_parameters['width'] > max_untiled_gridcells
+
+
+def needs_big_tiles(grid_parameters: GridParams) -> bool:
+    """Returns true if the grid is extra large, such as the polar ends of high-res
+    orbit swath data reprojected into EPSG:4326.
+
+    This limit is set to 32768*32768 cells.
+    """
+    bigtile_threshold = 32768 * 32768
+    return grid_parameters['height'] * grid_parameters['width'] > bigtile_threshold
 
 
 def best_guess_target_dimensions(
