@@ -4,6 +4,11 @@ HyBIG follows semantic versioning. All notable changes to this project will be
 documented in this file. The format is based on [Keep a
 Changelog](http://keepachangelog.com/en/1.0.0/).
 
+## [2.8.2] - 2026-07-30
+
+* Added multithreading to gdalwarp call to improve performance.
+
+
 ## [2.8.1] - 2026-07-28
 
 * [GITC-9248](https://bugs.earthdata.nasa.gov/browse/GITC-9248): Reduced number of output tiles from HyBIG service through a number of optimizations.
