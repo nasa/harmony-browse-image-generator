@@ -19,6 +19,7 @@ from rasterio.io import DatasetReader, DatasetWriter
 from rasterio.warp import Resampling
 
 from hybig.browse import (
+    MAX_WARP_THREADS,
     convert_multiband_to_raster,
     convert_singleband_to_raster,
     create_browse,
@@ -31,6 +32,7 @@ from hybig.browse import (
     reprojected_output_is_empty,
     validate_file_crs,
     validate_file_type,
+    warp_thread_count,
     write_georaster_as_browse,
 )
 from hybig.color_utility import (
@@ -241,6 +243,8 @@ class TestBrowse(TestCase):
         self.assertEqual(actual_call.kwargs['dst_crs'], CRS.from_string('EPSG:4326'))
         self.assertEqual(actual_call.kwargs['dst_nodata'], 0)  # TRANSPARENT
         self.assertEqual(actual_call.kwargs['resampling'], Resampling.nearest)
+        # Reprojection runs multithreaded to speed up large jobs.
+        self.assertEqual(actual_call.kwargs['num_threads'], warp_thread_count())
 
         self.assertEqual(
             (self.tmp_dir / 'input_file_path.jpg').resolve(), actual_image.resolve()
@@ -441,6 +445,12 @@ class TestBrowse(TestCase):
         mock_logger.info.assert_called_with(
             f'Skipping all-NaN tile: {self.tmp_dir / "output.png"}'
         )
+
+    def test_warp_thread_count_is_bounded(self):
+        """Thread count is between 1 and MAX_WARP_THREADS."""
+        count = warp_thread_count()
+        self.assertGreaterEqual(count, 1)
+        self.assertLessEqual(count, MAX_WARP_THREADS)
 
     def test_reprojected_output_is_empty(self):
         """Test reprojected_output_is_empty across output types."""

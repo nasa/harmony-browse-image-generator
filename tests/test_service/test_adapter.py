@@ -19,6 +19,7 @@ from harmony_service.adapter import BrowseImageGeneratorAdapter
 from harmony_service.exceptions import HyBIGServiceError
 from hybig.browse import (
     convert_multiband_to_raster,
+    warp_thread_count,
 )
 from tests.utilities import Granule, create_stac
 
@@ -249,6 +250,7 @@ class TestAdapter(TestCase):
         )
         self.assertEqual(actual_call.kwargs['dst_crs'], expected_params['crs'])
         self.assertEqual(actual_call.kwargs['resampling'], Resampling.nearest)
+        self.assertEqual(actual_call.kwargs['num_threads'], warp_thread_count())
 
         # Ensure the browse image and ESRI world file were staged as expected:
         mock_stage.assert_has_calls(
@@ -453,6 +455,7 @@ class TestAdapter(TestCase):
             actual_call.kwargs['dst_nodata'], expected_params['dst_nodata']
         )
         self.assertEqual(actual_call.kwargs['resampling'], Resampling.nearest)
+        self.assertEqual(actual_call.kwargs['num_threads'], warp_thread_count())
 
         # Ensure the browse image and ESRI world file were staged as expected:
         mock_stage.assert_has_calls(

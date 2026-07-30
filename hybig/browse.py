@@ -1,5 +1,6 @@
 """Module containing core functionality for browse image generation."""
 
+import os
 import re
 from itertools import zip_longest
 from logging import Logger, getLogger
@@ -36,6 +37,32 @@ from hybig.sizes import (
 )
 
 DST_NODATA = NODATA_IDX
+
+# Upper bound on gdalwarp threads, aka rasterio.warp.reproject
+MAX_WARP_THREADS = 8
+
+
+def warp_thread_count() -> int:
+    """Return the thread count to use for GDAL warp/reproject.
+
+    gdalwarp parallelizes the reprojection across output chunks, which is
+    the dominant cost for large jobs but it has minimal impact on memory
+    to multithread.
+
+    The count is the number of CPUs available to the process (uses
+    container CPU limits on Linux based on scheduler affinity), capped at
+    MAX_WARP_THREADS. Operators may override it with the HYBIG_NUM_THREADS
+    environment variable.
+    """
+    # sched_getaffinity checks container cpuset limits but is Linux-only, so
+    # fall back to the reported CPU count on other platforms (local dev)
+    sched_getaffinity = getattr(os, 'sched_getaffinity', None)
+    if sched_getaffinity is not None:
+        available = len(sched_getaffinity(0))
+    else:
+        available = os.cpu_count() or 1
+
+    return max(1, min(available, MAX_WARP_THREADS))
 
 
 def create_browse(
@@ -806,6 +833,7 @@ def write_georaster_as_browse(
         dst_crs=grid_parameters['crs'],
         dst_nodata=int(dst_nodata),
         resampling=Resampling.nearest,
+        num_threads=warp_thread_count(),
     )
 
     # Skip tiles that turned out empty once mapped onto the actual footprint.
