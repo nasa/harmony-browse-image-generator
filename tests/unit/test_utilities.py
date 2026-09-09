@@ -38,6 +38,16 @@ class TestUtilities(TestCase):
             (Path('/tmp/tmp4w/14316c44a.r00c02.jpg'), '.r00c02.jpg'),
             (Path('/tmp/tmp4w/14316c44a.jpg'), '.jpg'),
             (Path('/tmp/tmp4w/14316c44a.jgw'), '.jgw'),
+            # Per-dimension outputs (>4 band inputs) carry a .zNN identifier, which
+            # may appear alone or alongside a tile locator.
+            (Path('/tmp/tmp4w/14316c44a.z03.png'), '.z03.png'),
+            (Path('/tmp/tmp4w/14316c44a.z03.pgw'), '.z03.pgw'),
+            (Path('/tmp/tmp4w/14316c44a.z03.png.aux.xml'), '.z03.png.aux.xml'),
+            (Path('/tmp/tmp4w/14316c44a.z03.r00c02.png'), '.z03.r00c02.png'),
+            (
+                Path('/tmp/tmp4w/14316c44a.z03.r00c02.png.aux.xml'),
+                '.z03.r00c02.png.aux.xml',
+            ),
         ]
         for test_path, expected_extension in test_params:
             actual_extension = get_tiled_file_extension(test_path)
@@ -65,6 +75,20 @@ class TestUtilities(TestCase):
             ),
             (('name', 'https://tmp_bucket/tmp4w/14316c44a.jpg'), 'name'),
             (('name', 'https://tmp_bucket/tmp4w/14316c44a.jgw'), 'name'),
+            # Per-dimension outputs get a dimension (z) identifier so each band's
+            # assets remain distinct, optionally combined with a tile locator.
+            (
+                ('name', 'https://tmp_bucket/tmp4w/14316c44a.z03.png'),
+                'name_z03',
+            ),
+            (
+                ('name', 'https://tmp_bucket/tmp4w/14316c44a.z03.png.aux.xml'),
+                'name_z03',
+            ),
+            (
+                ('name', 'https://tmp_bucket/tmp4w/14316c44a.z03.r00c02.png'),
+                'name_z03_r00c02',
+            ),
         ]
         for test_params, expected_name in test_params:
             actual_name = get_asset_name(*list(test_params))

@@ -17,11 +17,13 @@ KNOWN_MIME_TYPES = {
 def get_tiled_file_extension(file_name: Path) -> str:
     """Return the correct extension to add to a staged file.
 
-    Harmony's generate output filename can drop an extension incorrectly, so we
-    generate the correct one to pass in.
+    The extension captures the optional dimension identifier (``.zNN``, added
+    when a raster with more than 4 bands is written as one image per band) and
+    the optional tile locator (``.rNNcNN``), in the order they appear in the
+    file name, e.g. ``.z03.r00c02.png.aux.xml``.
 
     """
-    ext_pattern = r'(\.r\d+c\d+)?\.(png|jpg|pgw|jgw|txt)(.aux.xml)?'
+    ext_pattern = r'(\.z\d+)?(\.r\d+c\d+)?\.(png|jpg|pgw|jgw|txt)(.aux.xml)?'
     match = re.search(ext_pattern, file_name.name)
     return match.group()
 
@@ -29,15 +31,20 @@ def get_tiled_file_extension(file_name: Path) -> str:
 def get_asset_name(name: str, url: str) -> str:
     """Return the name of the asset.
 
-    For tiled assets, we need to create a unique name beyond just the moniker
-    of data, metadata, or auxiliary in order to store each item in the asset
-    dictionary.
+    For high-dimensional and tiled assets, we need to create a unique name beyond
+    just the moniker of data, metadata, or auxiliary in order to store each item in
+    the asset dictionary. The dimension identifier (``zNN``) and the tile locator
+    (``rNNcNN``) are appended when present, e.g. ``data_z03_r00c02``.
 
     """
-    tiled_pattern = r'\.(r\d+c\d+)\.'
-    tile_id = re.search(tiled_pattern, url)
+    band_id = re.search(r'\.(z\d+)\.', url)
+    if band_id is not None:
+        name = f'{name}_{band_id.groups()[0]}'
+
+    tile_id = re.search(r'\.(r\d+c\d+)\.', url)
     if tile_id is not None:
         name = f'{name}_{tile_id.groups()[0]}'
+
     return name
 
 
