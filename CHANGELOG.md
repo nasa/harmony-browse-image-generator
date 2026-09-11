@@ -4,6 +4,13 @@ HyBIG follows semantic versioning. All notable changes to this project will be
 documented in this file. The format is based on [Keep a
 Changelog](http://keepachangelog.com/en/1.0.0/).
 
+## [2.9.0] - 2026-09-11
+
+### Changed
+
+* [GITC-9345](https://bugs.earthdata.nasa.gov/browse/GITC-9345): Added support for inputs with greater than 4 bands. High-dimensional input data will be split into a separate browse image per band and given the `zNN` suffix. Additionally, two-banded inputs will now be treated as RGB instead of resulting in a service error.
+
+
 ## [2.8.2] - 2026-07-30
 
 * Added multithreading to gdalwarp call to improve performance.
@@ -191,6 +198,12 @@ For more information on internal releases prior to NASA open-source approval,
 see legacy-CHANGELOG.md.
 
 [unreleased]: https://github.com/nasa/harmony-browse-image-generator/
+[v2.9.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.9.0
+[v2.8.2]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.8.2
+[v2.8.1]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.8.1
+[v2.8.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.8.0
+[v2.7.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.7.0
+[v2.6.2]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.6.2
 [v2.6.1]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.6.1
 [v2.6.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.6.0
 [v2.5.1]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.5.1

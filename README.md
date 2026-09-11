@@ -186,6 +186,14 @@ for a color map, which is used if present.
 
 If no color information can be found, grayscale is used.
 
+Multi-banded data with between two and four bands is treated as RGB(A). If an RGBA raster
+is used as an input but the format is `image/jpeg`, then only the first three bands are used.
+
+Input data with more than 4 bands, such as high-dimensional inputs, are split into a separate
+browse image per-band and given the zero-indexed `zNN` suffix. For example if the output is also tiled,
+(see previous section) the filename might look like `VCF5KYR_1991001_001_2018224205008.z05.r01c02.png`,
+where `z05` is the sixth band, row 01 column 02.
+
 ### Defaults
 
 HyBIG tries to provide GIBS-appropriate default values for the browse image
@@ -486,4 +494,3 @@ Guide](https://github.com/nasa/harmony/blob/main/docs/guides/managing-existing-s
 You can reach out to the maintainers of this repository via email:
 
 * Jacqueline.Ryan@jpl.nasa.gov
-* Mauricio.A.Hess.Flores@jpl.nasa.gov

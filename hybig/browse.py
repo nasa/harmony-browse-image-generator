@@ -174,9 +174,15 @@ def create_browse_imagery(
 ) -> list[tuple[Path, Path, Path]]:
     """Create browse image from input geotiff.
 
-    Take input browse image and return a 3-element tuple for the file paths of
-    the output browse image, its associated ESRI world file and the auxilary
-    xml file.
+    Take input browse image and return a list of 3-element tuples for the file
+    paths of the output browse image, its associated ESRI world file and the
+    auxiliary xml file.
+
+    A 1-band raster produces a paletted/greyscale image and a 3- or 4-band
+    raster produces an RGB(A) image. A raster with more than 4 bands is treated
+    as a stack of single-band images: each band is written to its own image (or
+    set of tiles), with a ``.bNN`` band identifier added to the output
+    filenames to keep them distinct.
 
     """
     output_driver = image_driver(message.format.mime)  # type: ignore
@@ -189,12 +195,15 @@ def create_browse_imagery(
             validate_file_crs(src_ds)
 
             band_count = src_ds.count
-            color_palette = None
 
-            if band_count == 1:
+            # Determine how the source bands map onto output image series. 1-4 band
+            # rasters produce a single output series; a raster with
+            # more than 4 bands produces one single-band output series per band.
+            band_groups = get_band_groups(band_count)
+
+            color_palette = None
+            if band_count == 1 or band_count > 4:
                 color_palette = get_color_palette(src_ds, source, item_color_palette)
-            elif band_count not in (3, 4):
-                raise HyBIGError(f'incorrect number of bands for image: {src_ds.count}')
 
             grid_parameters = get_target_grid_parameters(message, src_ds)
             grid_parameter_list, tile_locators = create_tiled_output_parameters(
@@ -203,30 +212,44 @@ def create_browse_imagery(
 
             # A list of (image_path, world_file_path, aux_xml_path)
             processed_files: list[tuple[Path, Path, Path]] = []
-            for grid_params, tile_location in zip_longest(
-                grid_parameter_list, tile_locators
-            ):
-                tiled_out_image_file = get_tiled_filename(out_image_file, tile_location)
-                tiled_out_world_file = get_tiled_filename(out_world_file, tile_location)
-                tiled_out_aux_xml_file = get_aux_xml_filename(tiled_out_image_file)
-                logger.info(f'out image file: {tiled_out_image_file}: {tile_location}')
-
-                if process_tile(
-                    src_ds,
-                    grid_params,
-                    color_palette,
-                    output_driver,
-                    tiled_out_image_file,
-                    tiled_out_world_file,
-                    logger,
+            for band_group in band_groups:
+                group_image_file = get_band_filename(
+                    out_image_file, band_group, band_count
+                )
+                group_world_file = get_band_filename(
+                    out_world_file, band_group, band_count
+                )
+                for grid_params, tile_location in zip_longest(
+                    grid_parameter_list, tile_locators
                 ):
-                    processed_files.append(
-                        (
-                            tiled_out_image_file,
-                            tiled_out_world_file,
-                            tiled_out_aux_xml_file,
-                        )
+                    tiled_out_image_file = get_tiled_filename(
+                        group_image_file, tile_location
                     )
+                    tiled_out_world_file = get_tiled_filename(
+                        group_world_file, tile_location
+                    )
+                    tiled_out_aux_xml_file = get_aux_xml_filename(tiled_out_image_file)
+                    logger.info(
+                        f'out image file: {tiled_out_image_file}: {tile_location}'
+                    )
+
+                    if process_tile(
+                        src_ds,
+                        band_group,
+                        grid_params,
+                        color_palette,
+                        output_driver,
+                        tiled_out_image_file,
+                        tiled_out_world_file,
+                        logger,
+                    ):
+                        processed_files.append(
+                            (
+                                tiled_out_image_file,
+                                tiled_out_world_file,
+                                tiled_out_aux_xml_file,
+                            )
+                        )
 
     except Exception as exception:
         raise HyBIGError(str(exception)) from exception
@@ -236,6 +259,7 @@ def create_browse_imagery(
 
 def process_tile(
     src_ds: DatasetReader,
+    bands: list[int],
     grid_params: GridParams,
     color_palette: ColorPalette | None,
     output_driver: str,
@@ -245,9 +269,13 @@ def process_tile(
 ) -> bool:
     """Read a region from the source dataset, convert raster, and write output.
 
+    ``bands`` is the list of 1-based source band indices to read for this output
+    image. A single-element list produces a paletted/greyscale image; a 3- or
+    4-element list produces an RGB(A) image.
+
     Returns True if output files were created, False if the tile was skipped.
     """
-    band_count = src_ds.count
+    band_count = len(bands)
 
     src_window = calculate_source_window(src_ds, grid_params)
 
@@ -260,7 +288,10 @@ def process_tile(
 
     # Explicitly load a subset of the dataset needed for the browse image tile
     tile_source = read_window_with_mask_and_scale(
-        src_ds, src_window, out_shape=(band_count, read_height, read_width)
+        src_ds,
+        src_window,
+        bands=bands,
+        out_shape=(band_count, read_height, read_width),
     )
 
     # Skip tile if source window contains only NaN (no valid data)
@@ -450,26 +481,32 @@ def convert_multiband_to_raster(data_array: NDArray) -> NDArray[np.uint8]:
     Return a 4-band raster, where the alpha layer is presumed to be the missing
     data mask.
 
-    Convert 3-band data into a 4-band raster by generating an alpha layer from
-    any missing data in the RGB bands.
+    A 2-band input is rendered as red/green RGB: the two bands populate the red
+    and green channels, the blue channel is left empty, and the alpha layer is
+    generated from any missing data in the two bands.
+
+    A 3-band input is converted to a 4-band raster by generating an alpha layer
+    from any missing data in the RGB bands.
 
     """
-    if data_array.shape[0] not in [3, 4]:
+    band_count = data_array.shape[0]
+    if band_count not in [2, 3, 4]:
         raise HyBIGError(
-            f'Cannot create image from {data_array.shape[0]} band image. '
-            'Expecting 3 or 4 bands.'
+            f'Cannot create image from {band_count} band image. '
+            'Expecting 2, 3 or 4 bands.'
         )
 
-    if data_array.shape[0] == 4:
+    if band_count == 4:
         return convert_to_uint8(data_array, str(data_array.dtype))
 
-    # Input NaNs in any of the RGB bands are made transparent.
+    # Input NaNs in any of the populated bands are made transparent.
     nan_mask = np.isnan(data_array).any(axis=0)
 
     # Preallocate the 4-band output and fill it in place to avoid the extra
-    # full-size copy that np.concatenate would make.
-    raster = np.empty((4, *data_array.shape[1:]), dtype=np.uint8)
-    raster[:3] = convert_to_uint8(data_array, str(data_array.dtype))
+    # full-size copy that np.concatenate would make. For a 2-band input the
+    # blue channel is left as its zero fill.
+    raster = np.zeros((4, *data_array.shape[1:]), dtype=np.uint8)
+    raster[:band_count] = convert_to_uint8(data_array, str(data_array.dtype))
     alpha = raster[3]
     alpha.fill(OPAQUE)
     alpha[nan_mask] = TRANSPARENT
@@ -702,6 +739,40 @@ def image_driver(mime: str) -> str:
 def get_aux_xml_filename(image_filename: Path) -> Path:
     """Get aux.xml filenames."""
     return image_filename.with_suffix(image_filename.suffix + '.aux.xml')
+
+
+def get_band_groups(band_count: int) -> list[list[int]]:
+    """Map a source band count onto the output image series to generate.
+
+    A raster with 1, 2, 3, or 4 bands produces a single output image series
+    covering all of its bands (a 2-band raster is rendered as red/green RGB). A
+    raster with more than 4 bands is split so that each band becomes its own
+    single-band output image series.
+
+    Returns a list of band-index groups, where each group is a list of 1-based
+    band indices. Raises HyBIGError for unsupported band counts (e.g. 0).
+    """
+    if band_count in (1, 2, 3, 4):
+        return [list(range(1, band_count + 1))]
+    if band_count > 4:
+        return [[band] for band in range(1, band_count + 1)]
+    raise HyBIGError(f'incorrect number of bands for image: {band_count}')
+
+
+def get_band_filename(
+    input_file: Path, band_group: list[int], total_bands: int
+) -> Path:
+    """Add a dimension identifier to output files when bands are written separately.
+
+    Only rasters with more than 4 bands (dimensions) are split into one image per
+    dimension, so a ``.zNN`` suffix is added in that case to keep the per-band outputs
+    distinct. The suffix is 0-indexed (the first band is ``.z00``). For 1-4 band
+    rasters the filename is returned unchanged.
+    """
+    if total_bands > 4:
+        # band_group holds 1-based band indices; the suffix is 0-indexed.
+        return input_file.with_suffix(f'.z{band_group[0] - 1:02d}{input_file.suffix}')
+    return input_file
 
 
 def get_tiled_filename(input_file: Path, locator: dict[str, int] | None = None) -> Path:

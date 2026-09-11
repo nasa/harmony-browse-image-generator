@@ -24,6 +24,8 @@ from hybig.browse import (
     convert_singleband_to_raster,
     create_browse,
     create_browse_imagery,
+    get_band_filename,
+    get_band_groups,
     get_tiled_filename,
     output_image_file,
     output_world_file,
@@ -81,9 +83,9 @@ class TestBrowse(TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp_dir)
 
-    def test_create_browse_imagery_with_bad_raster(self):
-        """Check that preferred metadata for global projection is found."""
-        two_dimensional_raster = np.array(
+    def test_create_browse_imagery_with_two_band_raster(self):
+        """A 2-band raster produces a single red/green RGB output image."""
+        two_band_raster = np.array(
             [
                 [
                     [0, 104, 198, 255],
@@ -100,56 +102,25 @@ class TestBrowse(TestCase):
             ],
             dtype='uint8',
         )
-        message = HarmonyMessage({'format': {'mime': 'JPEG'}})
-
-        with rasterio_test_file(
-            raster_data=two_dimensional_raster,
-            height=two_dimensional_raster.shape[1],
-            width=two_dimensional_raster.shape[2],
-            count=2,
-        ) as test_tif_filename:
-            with self.assertRaisesRegex(
-                HyBIGError, 'incorrect number of bands for image: 2'
-            ):
-                create_browse_imagery(
-                    message, test_tif_filename, HarmonySource({}), None, self.logger
-                )
-
-    def test_create_browse_imagery_with_single_band_raster(self):
-        """Check that preferred metadata for global projection is found."""
-        two_dimensional_raster = np.array(
-            [
-                [
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                ],
-                [
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                    [0, 104, 198, 255],
-                ],
-            ],
-            dtype='uint8',
-        )
-        message = HarmonyMessage({'format': {'mime': 'JPEG'}})
-
+        message = HarmonyMessage({'format': {'mime': 'image/png'}})
         mock_logger = MagicMock(spec=Logger)
 
         with rasterio_test_file(
-            raster_data=two_dimensional_raster,
-            height=two_dimensional_raster.shape[1],
-            width=two_dimensional_raster.shape[2],
+            raster_data=two_band_raster,
+            height=two_band_raster.shape[1],
+            width=two_band_raster.shape[2],
             count=2,
+            crs=CRS.from_string('EPSG:4326'),
+            transform=Affine(90.0, 0.0, -180.0, 0.0, -45.0, 90.0),
         ) as test_tif_filename:
-            with self.assertRaisesRegex(
-                HyBIGError, 'incorrect number of bands for image: 2'
-            ):
-                create_browse_imagery(
-                    message, test_tif_filename, HarmonySource({}), None, mock_logger
-                )
+            out_file_list = create_browse_imagery(
+                message, test_tif_filename, HarmonySource({}), None, mock_logger
+            )
+
+        # A single, ungrouped/untiled output series (no band identifier).
+        self.assertEqual(len(out_file_list), 1)
+        image_name, _world, _aux = out_file_list[0]
+        self.assertEqual(image_name.name, f'{Path(test_tif_filename).stem}.png')
 
     @patch('hybig.browse.reproject')
     @patch('rasterio.open')
@@ -374,6 +345,7 @@ class TestBrowse(TestCase):
 
         result = process_tile(
             ds,
+            [1],
             grid_params,
             None,
             'PNG',
@@ -432,6 +404,7 @@ class TestBrowse(TestCase):
 
         result = process_tile(
             ds,
+            [1],
             grid_params,
             None,
             'PNG',
@@ -840,6 +813,47 @@ class TestBrowse(TestCase):
         actual_raster = convert_multiband_to_raster(input_array)
         assert_array_equal(expected_raster, actual_raster, strict=True)
 
+    def test_convert_2_multiband_to_raster(self):
+        """2-band input becomes red/green RGBA with an empty blue channel."""
+        red = np.array(
+            [
+                [10, 200, 30, 40],
+                [10, np.nan, np.nan, 40],
+                [10, 200, 30, 40],
+                [10, 200, 30, 40],
+            ]
+        ).astype('float64')
+        green = red.copy()
+
+        data_array = np.stack([red, green]).astype('float64')
+
+        # Red and green carry the (uint8) input; NaN fills to 0. Blue is empty.
+        expected_channel = np.array(
+            [
+                [10, 200, 30, 40],
+                [10, 0, 0, 40],
+                [10, 200, 30, 40],
+                [10, 200, 30, 40],
+            ],
+            dtype='uint8',
+        )
+        empty_blue = np.zeros((4, 4), dtype='uint8')
+        expected_alpha = np.array(
+            [
+                [OPAQUE, OPAQUE, OPAQUE, OPAQUE],
+                [OPAQUE, TRANSPARENT, TRANSPARENT, OPAQUE],
+                [OPAQUE, OPAQUE, OPAQUE, OPAQUE],
+                [OPAQUE, OPAQUE, OPAQUE, OPAQUE],
+            ],
+            dtype='uint8',
+        )
+        expected_raster = np.stack(
+            [expected_channel, expected_channel, empty_blue, expected_alpha]
+        )
+
+        actual_raster = convert_multiband_to_raster(data_array)
+        assert_array_equal(expected_raster, actual_raster, strict=True)
+
     def test_convert_5_multiband_to_raster(self):
         data_array = np.stack([self.data, self.data, self.data, self.data, self.data])
 
@@ -848,7 +862,7 @@ class TestBrowse(TestCase):
 
         self.assertEqual(
             excepted.exception.message,
-            'Cannot create image from 5 band image. Expecting 3 or 4 bands.',
+            'Cannot create image from 5 band image. Expecting 2, 3 or 4 bands.',
         )
 
     def test_get_color_palette_map_exists_source_does_not(self):
@@ -920,6 +934,79 @@ class TestBrowse(TestCase):
             expected_filename = Path('/path/to/some/location.r01c10.png')
             actual_filename = get_tiled_filename(filename, locator)
             self.assertEqual(expected_filename, actual_filename)
+
+    def test_get_band_groups(self):
+        """Bands map onto output series based on the source band count."""
+        with self.subTest('1 band -> single grouped series'):
+            self.assertEqual(get_band_groups(1), [[1]])
+
+        with self.subTest('2 bands -> single grouped series'):
+            self.assertEqual(get_band_groups(2), [[1, 2]])
+
+        with self.subTest('3 bands -> single grouped series'):
+            self.assertEqual(get_band_groups(3), [[1, 2, 3]])
+
+        with self.subTest('4 bands -> single grouped series'):
+            self.assertEqual(get_band_groups(4), [[1, 2, 3, 4]])
+
+        with self.subTest('5 bands -> one single-band series per band'):
+            self.assertEqual(get_band_groups(5), [[1], [2], [3], [4], [5]])
+
+        with self.subTest('0 bands raises'):
+            with self.assertRaisesRegex(
+                HyBIGError, 'incorrect number of bands for image: 0'
+            ):
+                get_band_groups(0)
+
+    def test_get_band_filename(self):
+        filename = Path('/path/to/some/location.png')
+
+        with self.subTest('4 or fewer bands is unchanged'):
+            self.assertEqual(get_band_filename(filename, [1], 4), filename)
+
+        with self.subTest('more than 4 bands adds a 0-indexed identifier'):
+            # band_group holds 1-based indices; band 2 -> 0-indexed suffix .z01
+            self.assertEqual(
+                get_band_filename(filename, [2], 5),
+                Path('/path/to/some/location.z01.png'),
+            )
+
+        with self.subTest('band identifier combines with tile locator'):
+            band_filename = get_band_filename(filename, [2], 5)
+            tiled = get_tiled_filename(band_filename, {'row': 1, 'col': 10})
+            self.assertEqual(tiled, Path('/path/to/some/location.z01.r01c10.png'))
+
+    def test_create_browse_imagery_with_more_than_four_bands(self):
+        """A raster with >4 bands produces one output image series per band."""
+        band_count = 5
+        raster_data = np.tile(
+            np.array([[0, 64, 128, 255]], dtype='uint8'), (band_count, 4, 1)
+        )
+        message = HarmonyMessage({'format': {'mime': 'image/png'}})
+        mock_logger = MagicMock(spec=Logger)
+
+        with rasterio_test_file(
+            raster_data=raster_data,
+            height=4,
+            width=4,
+            count=band_count,
+            crs=CRS.from_string('EPSG:4326'),
+            transform=Affine(90.0, 0.0, -180.0, 0.0, -45.0, 90.0),
+        ) as test_tif_filename:
+            out_file_list = create_browse_imagery(
+                message, test_tif_filename, HarmonySource({}), None, mock_logger
+            )
+
+        # One (image, world, aux) tuple per source band.
+        self.assertEqual(len(out_file_list), band_count)
+
+        image_names = sorted(image.name for image, _world, _aux in out_file_list)
+        input_stem = Path(test_tif_filename).stem
+        # The .zNN suffix is 0-indexed, so a 5-band raster yields .z00 .. .z04.
+        expected_names = sorted(
+            f'{input_stem}.z{band:02d}.png' for band in range(band_count)
+        )
+        self.assertEqual(image_names, expected_names)
 
     def test_validate_file_crs_valid(self):
         """Valid file should return None."""
