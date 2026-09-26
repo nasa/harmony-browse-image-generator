@@ -4,6 +4,14 @@ HyBIG follows semantic versioning. All notable changes to this project will be
 documented in this file. The format is based on [Keep a
 Changelog](http://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Fixed
+
+* Use embedded GeoTIFF palettes when nodata is absent or has no matching palette
+  entry. Reserve a valid transparent index when a full 256-color palette has no
+  nodata entry, instead of wrapping the index to zero.
+
 ## [2.9.0] - 2026-09-11
 
 ### Changed
