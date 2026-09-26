@@ -8,10 +8,12 @@ from unittest import TestCase
 from unittest.mock import MagicMock, Mock, patch
 
 import numpy as np
+import rasterio
 from harmony_service_lib.message import Message as HarmonyMessage
 from harmony_service_lib.message import Source as HarmonySource
 from numpy.testing import assert_array_equal, assert_equal
 from osgeo_utils.auxiliary.color_palette import ColorPalette
+from PIL import Image
 from rasterio import Affine
 from rasterio.coords import BoundingBox
 from rasterio.crs import CRS
@@ -32,6 +34,7 @@ from hybig.browse import (
     process_tile,
     read_window_with_mask_and_scale,
     reprojected_output_is_empty,
+    scale_paletted_1band,
     validate_file_crs,
     validate_file_type,
     warp_thread_count,
@@ -82,6 +85,70 @@ class TestBrowse(TestCase):
 
     def tearDown(self):
         shutil.rmtree(self.tmp_dir)
+
+    def test_full_palette_without_nodata_reserves_a_valid_transparent_index(self):
+        """A 256-entry palette must not wrap its nodata index back to zero."""
+        colors = {value: (value, 255 - value, 20, 255) for value in range(256)}
+        palette = convert_colormap_to_palette(colors)
+        data = np.array([[[0.0, 1.0, 254.0, np.nan]]])
+        raster, color_map, nodata = scale_paletted_1band(data, palette)
+        self.assertEqual(nodata, 255)
+        assert_array_equal(raster, [[[0, 1, 254, 255]]])
+        self.assertEqual(len(color_map), 256)
+        for value in (0, 1, 254):
+            self.assertEqual(color_map[value], colors[value])
+        self.assertEqual(color_map[nodata], (0, 0, 0, 0))
+
+    def test_browse_from_embedded_palette_without_nodata(self):
+        """Read a real GeoTIFF and validate the resulting PNG/JPEG colors."""
+        input_path = self.tmp_dir / 'palette.tif'
+        data = np.ones((1, 16, 16), dtype='uint8')
+        transform = Affine(1.0, 0.0, 0.0, 0.0, -1.0, 16.0)
+        with rasterio.open(
+            input_path,
+            'w',
+            driver='GTiff',
+            height=16,
+            width=16,
+            count=1,
+            dtype='uint8',
+            crs='EPSG:4326',
+            transform=transform,
+        ) as dataset:
+            dataset.write(data)
+            dataset.write_colormap(
+                1,
+                {
+                    0: (255, 0, 0, 255),
+                    1: (0, 255, 0, 255),
+                    2: (0, 0, 255, 255),
+                },
+            )
+        for mime in ('image/png', 'image/jpeg'):
+            with self.subTest(mime=mime):
+                paths = create_browse(
+                    str(input_path),
+                    {
+                        'mime': mime,
+                        'height': 16,
+                        'width': 16,
+                        'crs': {'epsg': 'EPSG:4326'},
+                    },
+                )
+                self.assertEqual(len(paths), 1)
+                image_path, world_path, aux_path = paths[0]
+                self.assertTrue(world_path.is_file())
+                self.assertTrue(aux_path.is_file())
+                with Image.open(image_path) as image:
+                    self.assertEqual(image.size, (16, 16))
+                    pixels = np.asarray(image.convert('RGBA')).astype(int)
+                    expected = np.full((16, 16, 4), (0, 255, 0, 255))
+                    np.testing.assert_allclose(
+                        pixels, expected, atol=2 if 'jpeg' in mime else 0
+                    )
+        with rasterio.open(input_path) as dataset:
+            self.assertIsNone(dataset.nodata)
+            assert_array_equal(dataset.read(), data)
 
     def test_create_browse_imagery_with_two_band_raster(self):
         """A 2-band raster produces a single red/green RGB output image."""

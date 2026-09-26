@@ -343,6 +343,28 @@ class TestColorUtility(TestCase):
                 actual_palette.get_color('nv'), encode_color(255, 0, 0, 255)
             )
 
+    def test_embedded_palette_without_nodata(self):
+        """A valid embedded color map does not require a nodata entry."""
+        for nodatavals in (None, (), (None,), (None, None), (-9999,), (float('nan'),)):
+            with self.subTest(nodatavals=nodatavals):
+                ds = Mock(DatasetReader)
+                ds.colormap.return_value = self.colormap.copy()
+                ds.get_nodatavals.return_value = nodatavals
+                palette = get_color_palette(ds, HarmonySource({}))
+                self.assertIsNotNone(palette)
+                self.assertIsNone(palette.ndv)
+                for value, rgba in self.colormap.items():
+                    self.assertEqual(palette.get_color(value), encode_color(*rgba))
+
+    def test_embedded_palette_preserves_zero_nodata(self):
+        """Zero is a valid color-map key and must not be treated as absent."""
+        ds = Mock(DatasetReader)
+        ds.colormap.return_value = {0: (0, 0, 0, 0), 1: (0, 255, 0, 255)}
+        ds.get_nodatavals.return_value = (0,)
+        palette = get_color_palette(ds, HarmonySource({}))
+        self.assertEqual(palette.ndv, encode_color(0, 0, 0, 0))
+        self.assertEqual(palette.get_color(1), encode_color(0, 255, 0, 255))
+
     def test_convert_colormap_to_palette_3bands(self):
         input_colormap = {
             5: (255, 0, 0),  # red
