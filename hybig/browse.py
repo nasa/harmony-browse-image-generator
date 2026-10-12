@@ -691,12 +691,11 @@ def scale_paletted_1band(
         if len(colors) > 256:
             colors = colors[:-1]
     else:
-        # if there is no ndv, add one to the end of the colormap
-        dst_nodata = np.uint8(len(colors))
-        colors = [*colors, nodata_color]
-        # This check is done explicitly since some colormaps may be <256 elements
-        if len(colors) > 256:
-            colors = [*colors[:-2], nodata_color]
+        # GITC-9678: If there is no ndv, reserve the final entry for a transparent
+        # nodata slot. Cap the palette at 255 real colors first so a full
+        # (or over-full) input palette can't push the index past 255.
+        colors = [*colors[:255], nodata_color]
+        dst_nodata = np.uint8(len(colors) - 1)
 
     norm = BoundaryNorm(levels, len(levels) - 1)
 

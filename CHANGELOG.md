@@ -4,25 +4,32 @@ HyBIG follows semantic versioning. All notable changes to this project will be
 documented in this file. The format is based on [Keep a
 Changelog](http://keepachangelog.com/en/1.0.0/).
 
-## [2.9.0] - 2026-09-11
+## [v2.9.1] - 2026-10-12
+
+### Fixed
+
+* [GITC-9678](https://bugs.earthdata.nasa.gov/browse/GITC-9678): Fixed a bug where a single-band GeoTIFF with an embedded color map but no nodata value raised `HyBIGError: None`. The embedded palette is now used even when its nodata entry is absent or unmapped, mapped nodata values (including zero) are preserved, and PNG output reserves a transparent palette entry in these cases.
+
+
+## [v2.9.0] - 2026-09-11
 
 ### Changed
 
 * [GITC-9345](https://bugs.earthdata.nasa.gov/browse/GITC-9345): Added support for inputs with greater than 4 bands. High-dimensional input data will be split into a separate browse image per band and given the `zNN` suffix. Additionally, two-banded inputs will now be treated as RGB instead of resulting in a service error.
 
 
-## [2.8.2] - 2026-07-30
+## [v2.8.2] - 2026-07-30
 
 * Added multithreading to gdalwarp call to improve performance.
 
 
-## [2.8.1] - 2026-07-28
+## [v2.8.1] - 2026-07-28
 
 * [GITC-9248](https://bugs.earthdata.nasa.gov/browse/GITC-9248): Reduced number of output tiles from HyBIG service through a number of optimizations.
 * Minor performance optimizations for large jobs
 
 
-## [2.8.0] - 2026-07-17
+## [v2.8.0] - 2026-07-17
 
 * [GITC-9047](https://bugs.earthdata.nasa.gov/browse/GITC-9047): Updated adapter code to now log a message when a request produces no data, but not throw a service error. Previously, jobs with no output would produce this error: `WorkItem failed: nasa/harmony-browse-image-generator:2.7.0: list index out of range`
 * [GITC-9048](https://bugs.earthdata.nasa.gov/browse/GITC-9048): Fixed a bug where some granules fail to process due to an inverted latitude coordinate system.
@@ -30,7 +37,7 @@ Changelog](http://keepachangelog.com/en/1.0.0/).
 * Update harmony-service-lib to 3.0 and pillow to 12.3.0
 
 
-## [2.7.0] - 2026-05-11
+## [v2.7.0] - 2026-05-11
 
 ### Changed
 
@@ -198,6 +205,7 @@ For more information on internal releases prior to NASA open-source approval,
 see legacy-CHANGELOG.md.
 
 [unreleased]: https://github.com/nasa/harmony-browse-image-generator/
+[v2.9.1]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.9.1
 [v2.9.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.9.0
 [v2.8.2]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.8.2
 [v2.8.1]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.8.1

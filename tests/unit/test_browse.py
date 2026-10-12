@@ -1189,6 +1189,51 @@ class TestBrowse(TestCase):
         expected_nodata_color = (0, 0, 0, 0)
         self.assertEqual(actual_palette[np.uint8(4)], expected_nodata_color)
 
+    def test_scale_paletted_1band_full_256_color_palette(self):
+        """Test that a full 256-entry palette with no nodata reserves a slot."""
+        from hybig.browse import scale_paletted_1band
+
+        # Full 256-entry palette keyed 0-255, no nodata entry.
+        full_colormap = {idx: (idx, 255 - idx, 0, 255) for idx in range(256)}
+        image_palette = convert_colormap_to_palette(full_colormap)
+
+        data = np.array(
+            [
+                [0, 1, np.nan, 255],
+                [10, 20, 30, 40],
+            ]
+        ).astype('float64')
+        data = data[np.newaxis, :, :]
+
+        actual_raster, actual_palette, dst_nodata = scale_paletted_1band(
+            data, image_palette
+        )
+
+        # Nodata index must be the last reserved slot (255), not 0.
+        self.assertEqual(dst_nodata, np.uint8(255))
+        # The reserved slot is transparent.
+        self.assertEqual(actual_palette[np.uint8(255)], (0, 0, 0, 0))
+        # NaN maps to the reserved nodata index.
+        self.assertEqual(actual_raster[0, 0, 2], 255)
+        # Real values are not shifted off by one (value 0 -> index 0).
+        self.assertEqual(actual_raster[0, 0, 0], 0)
+
+    def test_scale_paletted_1band_oversized_palette(self):
+        """Test a palette with more than 256 entries and no nodata."""
+        from hybig.browse import scale_paletted_1band
+
+        oversized_colormap = {idx: (idx % 256, 0, 0, 255) for idx in range(300)}
+        image_palette = convert_colormap_to_palette(oversized_colormap)
+
+        data = np.array([[0.0, np.nan], [1.0, 2.0]]).astype('float64')
+        data = data[np.newaxis, :, :]
+
+        _, actual_palette, dst_nodata = scale_paletted_1band(data, image_palette)
+
+        self.assertEqual(dst_nodata, np.uint8(255))
+        self.assertLessEqual(len(actual_palette), 256)
+        self.assertEqual(actual_palette[np.uint8(255)], (0, 0, 0, 0))
+
     def test_scale_paletted_1band_to_rgb_clips_underflow_values(self):
         """Test RGB output clips values below palette min to lowest color."""
         from hybig.browse import scale_paletted_1band_to_rgb

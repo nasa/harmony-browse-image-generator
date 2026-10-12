@@ -343,6 +343,71 @@ class TestColorUtility(TestCase):
                 actual_palette.get_color('nv'), encode_color(255, 0, 0, 255)
             )
 
+    @patch('hybig.color_utility.get_remote_palette_from_source')
+    def test_get_color_palette_with_no_nodata_set(
+        self, get_remote_palette_from_source_mock
+    ):
+        """Embedded palette is used when no nodata value is set."""
+        get_remote_palette_from_source_mock.side_effect = HyBIGNoColorInformation(
+            'No color in source'
+        )
+
+        ds = Mock(DatasetReader)
+        test_colormap = {0: (255, 0, 0, 255), 1: (0, 255, 0, 255), 2: (0, 0, 255, 255)}
+        ds.colormap.return_value = test_colormap.copy()
+        ds.get_nodatavals.return_value = (None,)
+
+        actual_palette = get_color_palette(ds, HarmonySource({}), None)
+
+        self.assertIsNotNone(actual_palette)
+        if actual_palette is not None:
+            self.assertEqual(actual_palette.get_color(0), encode_color(255, 0, 0, 255))
+            self.assertEqual(actual_palette.get_color(1), encode_color(0, 255, 0, 255))
+            self.assertEqual(actual_palette.get_color(2), encode_color(0, 0, 255, 255))
+
+    @patch('hybig.color_utility.get_remote_palette_from_source')
+    def test_get_color_palette_with_unmapped_nodata(
+        self, get_remote_palette_from_source_mock
+    ):
+        """Embedded palette is used when the nodata value is not in the colormap."""
+        get_remote_palette_from_source_mock.side_effect = HyBIGNoColorInformation(
+            'No color in source'
+        )
+
+        ds = Mock(DatasetReader)
+        test_colormap = {0: (255, 0, 0, 255), 1: (0, 255, 0, 255)}
+        ds.colormap.return_value = test_colormap.copy()
+        ds.get_nodatavals.return_value = (255,)
+
+        actual_palette = get_color_palette(ds, HarmonySource({}), None)
+
+        self.assertIsNotNone(actual_palette)
+        if actual_palette is not None:
+            self.assertEqual(actual_palette.get_color(0), encode_color(255, 0, 0, 255))
+            self.assertEqual(actual_palette.get_color(1), encode_color(0, 255, 0, 255))
+
+    @patch('hybig.color_utility.get_remote_palette_from_source')
+    def test_get_color_palette_with_zero_nodata(
+        self, get_remote_palette_from_source_mock
+    ):
+        """A mapped nodata value of zero is preserved."""
+        get_remote_palette_from_source_mock.side_effect = HyBIGNoColorInformation(
+            'No color in source'
+        )
+
+        ds = Mock(DatasetReader)
+        test_colormap = {0: (255, 0, 0, 255), 1: (0, 255, 0, 255)}
+        ds.colormap.return_value = test_colormap.copy()
+        ds.get_nodatavals.return_value = (0,)
+
+        actual_palette = get_color_palette(ds, HarmonySource({}), None)
+
+        self.assertIsNotNone(actual_palette)
+        if actual_palette is not None:
+            self.assertEqual(
+                actual_palette.get_color('nv'), encode_color(255, 0, 0, 255)
+            )
+
     def test_convert_colormap_to_palette_3bands(self):
         input_colormap = {
             5: (255, 0, 0),  # red
