@@ -94,12 +94,10 @@ def get_color_palette(
             ds_cmap = src_ds.colormap(1)
             # very defensive since this function is not documented in rasterio
             ndv_tuple: tuple[float, ...] = src_ds.get_nodatavals()
-            if ndv_tuple is not None and len(ndv_tuple) > 0:
+            if ndv_tuple is not None and len(ndv_tuple) > 0 and ndv_tuple[0] in ds_cmap:
                 # this service only supports one ndv, so just use the first one
                 # (usually the only one)
                 ds_cmap['nv'] = ds_cmap[ndv_tuple[0]]
-                # then remove the value associated with the ndv key
-                # ds_cmap.pop(ndv_tuple[0])
             return convert_colormap_to_palette(ds_cmap)
         except ValueError:
             return None
