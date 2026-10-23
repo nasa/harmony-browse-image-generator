@@ -9,10 +9,10 @@ import numpy as np
 import requests
 from harmony_service_lib.message import Source as HarmonySource
 from numpy import uint8
-from osgeo_utils.auxiliary.color_palette import ColorPalette
 from pystac import Item
 from rasterio.io import DatasetReader
 
+from hybig.color_palette import ColorPalette
 from hybig.exceptions import (
     HyBIGError,
     HyBIGNoColorInformation,

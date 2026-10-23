@@ -12,13 +12,13 @@ from affine import dumpsw
 from harmony_service_lib.message import Message as HarmonyMessage
 from harmony_service_lib.message import Source as HarmonySource
 from numpy.typing import NDArray
-from osgeo_utils.auxiliary.color_palette import ColorPalette
 from rasterio.io import DatasetReader
 from rasterio.warp import Resampling, reproject, transform_bounds
 from rasterio.windows import Window
 
 from hybig.browse_utility import get_harmony_message_from_params
 from hybig.color_norm import BoundaryNorm, Normalize
+from hybig.color_palette import ColorPalette
 from hybig.color_utility import (
     NODATA_IDX,
     OPAQUE,
