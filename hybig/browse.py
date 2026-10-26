@@ -11,14 +11,14 @@ import rasterio
 from affine import dumpsw
 from harmony_service_lib.message import Message as HarmonyMessage
 from harmony_service_lib.message import Source as HarmonySource
-from matplotlib.colors import BoundaryNorm, Normalize
 from numpy.typing import NDArray
-from osgeo_utils.auxiliary.color_palette import ColorPalette
 from rasterio.io import DatasetReader
 from rasterio.warp import Resampling, reproject, transform_bounds
 from rasterio.windows import Window
 
 from hybig.browse_utility import get_harmony_message_from_params
+from hybig.color_norm import BoundaryNorm, Normalize
+from hybig.color_palette import ColorPalette
 from hybig.color_utility import (
     NODATA_IDX,
     OPAQUE,
@@ -724,7 +724,7 @@ def scale_paletted_1band(
     del band_clean
 
     color_map = colormap_from_colors(colors)
-    raster = scaled_band.data.astype('uint8')[np.newaxis, :, :]
+    raster = scaled_band.astype('uint8')[np.newaxis, :, :]
     return raster, color_map, dst_nodata
 
 

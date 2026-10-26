@@ -26,14 +26,6 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN export GDAL_VERSION=$(gdal-config --version) && \
-    echo "GDAL version: $GDAL_VERSION"
-
-ENV CPLUS_INCLUDE_PATH=/usr/include/gdal
-ENV C_INCLUDE_PATH=/usr/include/gdal
-
-RUN pip install GDAL==$(gdal-config --version)
-
 # Install Pip dependencies
 COPY pip_requirements.txt /home/
 

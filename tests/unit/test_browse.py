@@ -11,7 +11,6 @@ import numpy as np
 from harmony_service_lib.message import Message as HarmonyMessage
 from harmony_service_lib.message import Source as HarmonySource
 from numpy.testing import assert_array_equal, assert_equal
-from osgeo_utils.auxiliary.color_palette import ColorPalette
 from rasterio import Affine
 from rasterio.coords import BoundingBox
 from rasterio.crs import CRS
@@ -37,6 +36,7 @@ from hybig.browse import (
     warp_thread_count,
     write_georaster_as_browse,
 )
+from hybig.color_palette import ColorPalette
 from hybig.color_utility import (
     OPAQUE,
     TRANSPARENT,
