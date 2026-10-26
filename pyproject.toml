@@ -34,8 +34,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.metadata.hooks.requirements_txt]
 files = [
-    "pip_requirements.txt",
-    "pip_requirements_skip_snyk.txt"
+    "pip_requirements.txt"
 ]
 [tool.hatch.version]
 path = "docker/service_version.txt"
