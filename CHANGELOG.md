@@ -4,6 +4,16 @@ HyBIG follows semantic versioning. All notable changes to this project will be
 documented in this file. The format is based on [Keep a
 Changelog](http://keepachangelog.com/en/1.0.0/).
 
+## [v2.9.3] - 2026-10-26
+
+### Changed
+
+* Updated pyproject.toml to fix a build issue since the previous version did not build the module.
+
+### Removed
+
+* Removed Pillow, matplotlib and GDAL dependencies due to multiple CVEs, replaced with vendored ColorPalette etc. functions.
+
 ## [v2.9.2] - 2026-10-26
 
 ### Removed
@@ -212,6 +222,7 @@ For more information on internal releases prior to NASA open-source approval,
 see legacy-CHANGELOG.md.
 
 [unreleased]: https://github.com/nasa/harmony-browse-image-generator/
+[v2.9.3]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.9.3
 [v2.9.2]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.9.2
 [v2.9.1]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.9.1
 [v2.9.0]: https://github.com/nasa/harmony-browse-image-generator/releases/tag/2.9.0
