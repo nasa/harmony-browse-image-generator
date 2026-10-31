@@ -1234,6 +1234,60 @@ class TestBrowse(TestCase):
         self.assertLessEqual(len(actual_palette), 256)
         self.assertEqual(actual_palette[np.uint8(255)], (0, 0, 0, 0))
 
+    def test_scale_paletted_1band_nodata_color_already_in_palette(self):
+        """Test a palette whose nodata color repeats its first entry."""
+        from hybig.browse import scale_paletted_1band
+
+        image_palette = ColorPalette()
+        image_palette.read_file_txt(
+            lines=[
+                '100 10 10 10 255',
+                '200 20 20 20 255',
+                '300 30 30 30 255',
+                '400 40 40 40 255',
+                'nv 10 10 10 255',
+            ]
+        )
+
+        data = np.array([[100.0, 200.0, 300.0, np.nan]]).astype('float64')
+        data = data[np.newaxis, :, :]
+
+        actual_raster, actual_palette, dst_nodata = scale_paletted_1band(
+            data, image_palette
+        )
+
+        self.assertEqual(dst_nodata, np.uint8(0))
+        # Nothing was prepended, so the data must not be shifted up one entry.
+        expected_raster = np.array([[[0, 1, 2, 0]]], dtype='uint8')
+        assert_array_equal(expected_raster, actual_raster, strict=True)
+        self.assertEqual(actual_palette[np.uint8(0)], (10, 10, 10, 255))
+
+    def test_scale_paletted_1band_nodata_color_mid_palette(self):
+        """Test a palette whose nodata color repeats a middle entry."""
+        from hybig.browse import scale_paletted_1band
+
+        image_palette = ColorPalette()
+        image_palette.read_file_txt(
+            lines=[
+                '100 10 10 10 255',
+                '200 20 20 20 255',
+                '300 30 30 30 255',
+                '400 40 40 40 255',
+                '500 50 50 50 255',
+                'nv 30 30 30 255',
+            ]
+        )
+
+        data = np.array([[100.0, 200.0, 300.0, 400.0, np.nan]]).astype('float64')
+        data = data[np.newaxis, :, :]
+
+        actual_raster, _, dst_nodata = scale_paletted_1band(data, image_palette)
+
+        self.assertEqual(dst_nodata, np.uint8(2))
+        # Entries above the nodata index stay reachable.
+        expected_raster = np.array([[[0, 1, 2, 3, 2]]], dtype='uint8')
+        assert_array_equal(expected_raster, actual_raster, strict=True)
+
     def test_scale_paletted_1band_to_rgb_clips_underflow_values(self):
         """Test RGB output clips values below palette min to lowest color."""
         from hybig.browse import scale_paletted_1band_to_rgb

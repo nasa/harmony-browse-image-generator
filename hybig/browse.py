@@ -708,7 +708,11 @@ def scale_paletted_1band(
     scaled_band = norm(band_clean)
 
     # Apply offset and clip to valid palette range
-    if dst_nodata == 0:
+    if existing_nodata_idx is not None:
+        # The NODATA color is already one of the palette entries, so nothing was
+        # prepended or appended and the indices keep the palette's own numbering.
+        np.clip(scaled_band, 0, min(len(colors), 256) - 1, out=scaled_band)
+    elif dst_nodata == 0:
         # boundary norm indexes [0, levels) by default, so if the NODATA index is 0,
         # all the palette indices need to be incremented by 1.
         scaled_band = scaled_band + 1
