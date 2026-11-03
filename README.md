@@ -13,7 +13,7 @@ documentation](https://nasa-gibs.github.io/gibs-api-docs/).
 
 HyBIG creates paletted PNG images and associated metadata from GeoTIFF input
 images. Scientific parameter raster data as well as RGB[A] raster images can
-be converted to browse PNGs.  These browse images undergo transformation by
+be converted to browse PNGs (see note below).  These browse images undergo transformation by
 reprojection, tiling and coloring to seamlessly integrate with GIBS.
 
 The repository contains code and infrastructure to support both the HyBIG
@@ -23,7 +23,20 @@ Harmony](https://harmony.earthdata.nasa.gov/) system.  The business logic is
 contained in the [`hybig-py` library](https://pypi.org/project/hybig-py/) which
 exposes functions to generate browse images in python scripts.
 
-### hybig-py
+## Note about Multi-Banded Inputs
+
+HyBIG has different behavior depending on the number of bands in the input COG data:
+
+* **1 band**: Converted to Palettized PNG or greyscale JPEG image(s).
+* **2 or 3 bands**: Converted to RGB PNG or JPEG image(s).
+* **4 bands**: Converted to RGBA PNG, if JPEG output is requested the raster will be truncated to the first 3 bands.
+* **5+ bands**: Each band is converted to a separate palettized PNG or JPEG. The `zNN` identifier is used for these browse images.
+
+### Why does HyBIG handle multi-banded inputs in this manner?
+
+HyBIG is not intended to support dimensional subsetting directly, so the service makes no attempt to interpret the physical meaning of bands in the input data. If your input data has 2, 3, or 4 bands that _must_ be interpreted as separate slices, such as TEMPO Ozone Profile data, it is recommended to dimensionally subset 1 slice per request using a service further up the chain from HyBIG.
+
+## hybig-py
 
 The browse image generation logic is packaged in the hybig-py
 library. Currently, a single function, `create_browse` is exposed to the user.
