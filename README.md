@@ -27,8 +27,8 @@ exposes functions to generate browse images in python scripts.
 
 HyBIG has different behavior depending on the number of bands in the input COG data:
 
-* **1 band**: Converted to Palettized PNG or greyscale JPEG image(s).
-* **2 or 3 bands**: Converted to RGB PNG or JPEG image(s).
+* **1 band**: Converted to Palettized PNG or greyscale JPEG.
+* **2 or 3 bands**: Converted to RGB PNG or JPEG. 2-band inputs have the red and green bands populated with a zero-filled blue band.
 * **4 bands**: Converted to RGBA PNG, if JPEG output is requested the raster will be truncated to the first 3 bands.
 * **5+ bands**: Each band is converted to a separate palettized PNG or JPEG. The `zNN` identifier is used for these browse images.
 
