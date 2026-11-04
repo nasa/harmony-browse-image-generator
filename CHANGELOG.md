@@ -4,6 +4,10 @@ HyBIG follows semantic versioning. All notable changes to this project will be
 documented in this file. The format is based on [Keep a
 Changelog](http://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+* Updated readme with documentation about the behavior of multi-banded inputs to HyBIG.
+
 ## [v2.9.3] - 2026-10-26
 
 ### Changed
