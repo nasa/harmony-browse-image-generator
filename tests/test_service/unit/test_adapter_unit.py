@@ -3,6 +3,7 @@ from unittest import TestCase
 from unittest.mock import Mock
 
 from harmony_service_lib.message import Message
+from harmony_service_lib.message import Source as HarmonySource
 from harmony_service_lib.util import config
 from pystac import Asset, Item
 
@@ -166,6 +167,16 @@ class TestAdapterAssetFromItem(TestCase):
         self.data_asset = Asset(Mock(), roles=['data'])
         self.none_asset = Asset(Mock(), roles=[])
         self.other_asset = Asset(Mock(), roles=['other'])
+        self.source = HarmonySource({})
+
+        granule_prefix = 'https://example.com/ECOv003_L2T_LSTE_42783_027_22MBB_03'
+        self.view_zenith_asset = Asset(
+            f'{granule_prefix}_view_zenith.tif', roles=['data']
+        )
+        self.lst_err_asset = Asset(f'{granule_prefix}_LST_err.tif', roles=['data'])
+        self.lst_asset = Asset(f'{granule_prefix}_LST.tif', roles=['data'])
+        self.lst_other_asset = Asset(f'{granule_prefix}_LST.tif', roles=['other'])
+        self.browse_asset = Asset(f'{granule_prefix}_browse.png', roles=['visual'])
 
     def item_fixture(self, assets: dict) -> Item:
         item = Item(Mock(), None, None, datetime.now(), {})
@@ -179,7 +190,7 @@ class TestAdapterAssetFromItem(TestCase):
             )
             expected = self.visual_asset
 
-            actual = self.adapter.get_asset_from_item(item)
+            actual = self.adapter.get_asset_from_item(item, self.source)
 
             self.assertEqual(expected, actual)
 
@@ -189,7 +200,7 @@ class TestAdapterAssetFromItem(TestCase):
             )
             expected = self.visual_asset
 
-            actual = self.adapter.get_asset_from_item(item)
+            actual = self.adapter.get_asset_from_item(item, self.source)
 
             self.assertEqual(expected, actual)
 
@@ -197,18 +208,77 @@ class TestAdapterAssetFromItem(TestCase):
         item = self.item_fixture({'data': self.data_asset, 'other': self.other_asset})
         expected = self.data_asset
 
-        actual = self.adapter.get_asset_from_item(item)
+        actual = self.adapter.get_asset_from_item(item, self.source)
 
         self.assertEqual(expected, actual)
 
     def test_get_asset_from_item_no_roles(self):
         item = self.item_fixture({'none': self.none_asset})
         with self.assertRaises(StopIteration):
-            self.adapter.get_asset_from_item(item)
+            self.adapter.get_asset_from_item(item, self.source)
 
     def test_get_asset_from_item_no_matching_roles(self):
         item = self.item_fixture(
             {'first': self.other_asset, 'second': self.other_asset}
         )
         with self.assertRaises(StopIteration):
-            self.adapter.get_asset_from_item(item)
+            self.adapter.get_asset_from_item(item, self.source)
+
+    def test_get_asset_from_item_with_variable(self):
+        """Ensure the asset matching a requested variable is selected,
+        regardless of its position in the item's assets.
+
+        """
+        lst_source = HarmonySource({'variables': [{'name': 'LST'}]})
+
+        with self.subTest('variable asset is not the first asset'):
+            item = self.item_fixture(
+                {
+                    'view_zenith': self.view_zenith_asset,
+                    'LST_err': self.lst_err_asset,
+                    'LST': self.lst_asset,
+                }
+            )
+
+            actual = self.adapter.get_asset_from_item(item, lst_source)
+
+            self.assertEqual(self.lst_asset, actual)
+
+        with self.subTest('variable asset preferred over a visual asset'):
+            item = self.item_fixture(
+                {'visual': self.browse_asset, 'LST': self.lst_asset}
+            )
+
+            actual = self.adapter.get_asset_from_item(item, lst_source)
+
+            self.assertEqual(self.lst_asset, actual)
+
+        with self.subTest('variable asset without visual or data role ignored'):
+            item = self.item_fixture(
+                {'view_zenith': self.view_zenith_asset, 'LST': self.lst_other_asset}
+            )
+
+            actual = self.adapter.get_asset_from_item(item, lst_source)
+
+            self.assertEqual(self.view_zenith_asset, actual)
+
+        with self.subTest('no matching asset falls back to the first data asset'):
+            item = self.item_fixture(
+                {
+                    'view_zenith': self.view_zenith_asset,
+                    'LST_err': self.lst_err_asset,
+                }
+            )
+
+            actual = self.adapter.get_asset_from_item(item, lst_source)
+
+            self.assertEqual(self.view_zenith_asset, actual)
+
+        with self.subTest('no matching asset falls back to the visual asset'):
+            item = self.item_fixture(
+                {'view_zenith': self.view_zenith_asset, 'visual': self.browse_asset}
+            )
+
+            actual = self.adapter.get_asset_from_item(item, lst_source)
+
+            self.assertEqual(self.browse_asset, actual)
