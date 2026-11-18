@@ -28,6 +28,7 @@ from pystac import Asset, Catalog, Item
 
 from harmony_service.exceptions import HyBIGInvalidMessageError, HyBIGServiceError
 from harmony_service.utilities import (
+    asset_matches_variable,
     get_asset_name,
     get_file_mime_type,
     get_tiled_file_extension,
@@ -64,18 +65,35 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
                 'Harmony ScaleExtents must be in order [xmin,ymin,xmax,ymax].'
             )
 
-    def get_asset_from_item(self, item: Item) -> Asset:
+    def get_asset_from_item(self, item: Item, source: HarmonySource) -> Asset:
         """Returns the correct browse asset from a stac Item.
 
         This is used to select which asset is used by HyBIG to generate
         the browse image following these steps:
 
-        1. If found, return the first asset with 'visual' in any of the item's
+        1. If the source requests variables, return the first asset with
+           'visual' or 'data' in its roles whose file name ends with a
+           requested variable name. This handles collections that store one
+           GeoTIFF per variable as separate assets of the same item.
+        2. If found, return the first asset with 'visual' in any of the item's
            values' roles.
-        2. If found, return the first asset that has 'data' in its item's values' roles.
-        3. Raise a StopIteration error.
+        3. If found, return the first asset that has 'data' in its item's values' roles.
+        4. Raise a StopIteration error.
 
         """
+        for variable in source.variables:  # type: ignore
+            variable_asset = next(
+                (
+                    item_asset
+                    for item_asset in item.assets.values()
+                    if {'visual', 'data'} & set(item_asset.roles or [])
+                    and asset_matches_variable(item_asset.href, variable.name)
+                ),
+                None,
+            )
+            if variable_asset is not None:
+                return variable_asset
+
         try:
             return next(
                 item_asset
@@ -96,7 +114,7 @@ class BrowseImageGeneratorAdapter(BaseHarmonyAdapter):
                 results = item.clone()
                 results.assets = {}
 
-                asset = self.get_asset_from_item(item)
+                asset = self.get_asset_from_item(item, source)
 
                 color_palette = get_color_palette_from_item(item)
 

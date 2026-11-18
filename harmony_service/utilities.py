@@ -4,6 +4,7 @@ import re
 from mimetypes import guess_type as guess_mime_type
 from os.path import splitext
 from pathlib import Path
+from urllib.parse import urlparse
 
 KNOWN_MIME_TYPES = {
     '.nc4': 'application/x-netcdf4',
@@ -46,6 +47,19 @@ def get_asset_name(name: str, url: str) -> str:
         name = f'{name}_{tile_id.groups()[0]}'
 
     return name
+
+
+def asset_matches_variable(asset_href: str, variable_name: str) -> bool:
+    """Return True if the asset file name ends with the variable name.
+
+    Some collections store each variable of a granule in a separate GeoTIFF
+    as assets in the STAC item. The variable name is at the end of each filename,
+    e.g. ``ECOv003_L2T_LSTE_42783_027_22MBB_20260121T154648_03_LST.tif``
+    contains the ``LST`` variable.
+
+    """
+    file_stem = Path(urlparse(asset_href).path).stem
+    return file_stem == variable_name or file_stem.endswith(f'_{variable_name}')
 
 
 def get_file_mime_type(file_name: Path | str) -> str | None:
